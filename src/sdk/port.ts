@@ -1,3 +1,4 @@
+import type { LogFilter, RawLog } from './events.ts';
 import type {
   Address,
   Bytes32,
@@ -69,6 +70,19 @@ export type ProjectionSettlementReader = {
 };
 
 /**
+ * Historical logs.
+ *
+ * Optional, because a projection can be read without them. What they add is
+ * the gap transitions: a gap that closed by cancellation or supersession
+ * admitted nothing, so it leaves no trace in the entry walk at all. Without
+ * logs a reader sees a projection that never moved and no sign that anything
+ * was attempted.
+ */
+export type LogReader = {
+  getLogs(filter: LogFilter): Promise<readonly RawLog[]>;
+};
+
+/**
  * The wallet's single window onto an ERC-8415 contract.
  *
  * The settlement half is optional: projection conformance and settlement
@@ -79,7 +93,8 @@ export type Erc8415Reader = Erc165Reader &
   ChainClockReader &
   Erc721Reader &
   RegisterProjectionReader &
-  Partial<ProjectionSettlementReader> & {
+  Partial<ProjectionSettlementReader> &
+  Partial<LogReader> & {
     /** Chain and contract this reader is bound to, for provenance labelling. */
     readonly source: { readonly chainId: bigint; readonly address: Address };
   };

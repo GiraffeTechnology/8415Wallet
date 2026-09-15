@@ -3,6 +3,8 @@ import { ContractRevertError, ProjectionNotInitialized } from '../sdk/errors.ts'
 import { ContractIdentityPin, type ContractIdentity } from '../sdk/identity.ts';
 import type { Erc8415Reader } from '../sdk/port.ts';
 import type { Address, Conformance, Instant, RegisterEntry, TokenId } from '../sdk/types.ts';
+import { ZERO_BYTES32 } from '../sdk/types.ts';
+import { describeContest, type ContestView } from './contested.ts';
 import { describeFinality, type FinalityView } from './finality.ts';
 
 /**
@@ -58,6 +60,14 @@ export type TemporalView = {
   readonly entryCount: bigint;
   readonly resolution: TemporalResolution;
   readonly finality: FinalityView;
+  /**
+   * Whether a gap in flight covers this instant.
+   *
+   * A separate signal from finality, computed and displayed apart. An instant
+   * can be provisional and uncontested, contested and provisional, or final
+   * while a gap is open elsewhere on the token.
+   */
+  readonly contest: ContestView;
   /** Shown for contrast, never as the answer. */
   readonly tradeablePosition: { readonly owner: Address; readonly disclosure: string };
 };
@@ -127,6 +137,7 @@ export async function buildTemporalView(
     observedAt,
     entryCount,
     resolution: await resolve(reader, tokenId, instant, first.effectiveAt),
+    contest: await contestOf(reader, tokenId, instant, conformance.settlement),
     finality: describeFinality({
       tokenId,
       instant,
@@ -140,6 +151,28 @@ export async function buildTemporalView(
       disclosure: DISCLOSURE_POSITION,
     },
   };
+}
+
+async function contestOf(
+  reader: Erc8415Reader,
+  tokenId: TokenId,
+  instant: Instant,
+  hasSettlementInterface: boolean,
+): Promise<ContestView> {
+  if (!hasSettlementInterface || reader.openGapOf === undefined || reader.settlement === undefined) {
+    return describeContest({ tokenId, instant, hasSettlementInterface: false, gap: undefined });
+  }
+
+  const settlementId = await reader.openGapOf(tokenId);
+  if (settlementId === ZERO_BYTES32) {
+    return describeContest({ tokenId, instant, hasSettlementInterface: true, gap: undefined });
+  }
+  return describeContest({
+    tokenId,
+    instant,
+    hasSettlementInterface: true,
+    gap: { settlementId, record: await reader.settlement(settlementId) },
+  });
 }
 
 async function resolve(

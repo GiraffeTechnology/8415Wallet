@@ -15,7 +15,7 @@ import {
   type TokenId,
   type Version,
 } from '../../sdk/types.ts';
-import type { ContractEvent } from './events.ts';
+import type { ContractEvent, LoggedEvent } from './events.ts';
 
 const UINT64_MAX = (1n << 64n) - 1n;
 
@@ -93,7 +93,9 @@ export class MemoryRegisterContract {
   readonly #authorities = new Map<string, Set<Address>>();
   readonly #settlements = new Map<Bytes32, Settlement>();
   readonly #openGaps = new Map<string, Bytes32>();
-  readonly #events: ContractEvent[] = [];
+  readonly #log: LoggedEvent[] = [];
+  #blockNumber = 1n;
+  #logIndexInBlock = 0n;
 
   constructor(options: MemoryRegisterOptions = {}) {
     this.chainId = options.chainId ?? 1n;
@@ -122,11 +124,29 @@ export class MemoryRegisterContract {
     if (instant < this.#now) {
       throw new ValueOutOfRangeError('block timestamp may not move backwards', instant);
     }
+    if (instant > this.#now) {
+      this.#blockNumber += 1n;
+      this.#logIndexInBlock = 0n;
+    }
     this.#now = instant;
   }
 
-  get events(): readonly ContractEvent[] {
-    return this.#events;
+  get blockNumber(): bigint {
+    return this.#blockNumber;
+  }
+
+  /** Emitted events, in chain order, with the position each was logged at. */
+  get log(): readonly LoggedEvent[] {
+    return this.#log;
+  }
+
+  #emit(event: ContractEvent): void {
+    this.#log.push({
+      event,
+      blockNumber: this.#blockNumber,
+      logIndex: this.#logIndexInBlock,
+    });
+    this.#logIndexInBlock += 1n;
   }
 
   // ------------------------------------------------------------ ERC-721
@@ -136,7 +156,7 @@ export class MemoryRegisterContract {
       throw new ContractRevertError(`token ${tokenId} already exists`);
     }
     this.#owners.set(key(tokenId), owner);
-    this.#events.push({ kind: 'Transfer', tokenId, from: ZERO_ADDRESS, to: owner });
+    this.#emit({ kind: 'Transfer', tokenId, from: ZERO_ADDRESS, to: owner });
   }
 
   /**
@@ -149,7 +169,7 @@ export class MemoryRegisterContract {
   transfer(tokenId: TokenId, to: Address): void {
     const from = this.ownerOf(tokenId);
     this.#owners.set(key(tokenId), to);
-    this.#events.push({ kind: 'Transfer', tokenId, from, to });
+    this.#emit({ kind: 'Transfer', tokenId, from, to });
   }
 
   ownerOf(tokenId: TokenId): Address {
@@ -322,7 +342,7 @@ export class MemoryRegisterContract {
     if (openId !== undefined) {
       const superseded = this.#settlements.get(openId)!;
       this.#settlements.set(openId, { ...superseded, status: 'SUPERSEDED' });
-      this.#events.push({
+      this.#emit({
         kind: 'SettlementSuperseded',
         supersededId: openId,
         replacementId: settlementId,
@@ -340,7 +360,7 @@ export class MemoryRegisterContract {
       status: 'OPEN',
     });
     this.#openGaps.set(key(tokenId), settlementId);
-    this.#events.push({
+    this.#emit({
       kind: 'SettlementStarted',
       settlementId,
       tokenId,
@@ -380,7 +400,7 @@ export class MemoryRegisterContract {
     this.#settlements.set(settlementId, { ...record, status: 'ADMITTED' });
     this.#openGaps.delete(key(record.tokenId));
 
-    this.#events.push({
+    this.#emit({
       kind: 'SettlementFinalized',
       settlementId,
       tokenId: record.tokenId,
@@ -416,7 +436,7 @@ export class MemoryRegisterContract {
 
     this.#settlements.set(settlementId, { ...record, status: 'CANCELLED' });
     this.#openGaps.delete(key(record.tokenId));
-    this.#events.push({
+    this.#emit({
       kind: 'SettlementCancelled',
       settlementId,
       tokenId: record.tokenId,
@@ -473,7 +493,7 @@ export class MemoryRegisterContract {
     this.#entries.set(key(tokenId), entries);
 
     if (appended.version === 1n) {
-      this.#events.push({
+      this.#emit({
         kind: 'RegisterInitialized',
         tokenId,
         recordCommitment: appended.recordCommitment,
@@ -482,7 +502,7 @@ export class MemoryRegisterContract {
         effectiveAt: appended.effectiveAt,
       });
     } else {
-      this.#events.push({
+      this.#emit({
         kind: 'RegisterSuperseded',
         tokenId,
         version: appended.version,

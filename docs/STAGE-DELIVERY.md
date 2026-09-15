@@ -10,7 +10,7 @@ documentation and evidence. Stages are defined in
 | 1 | SDK port and contract binding | Delivered |
 | 2 | Asset view | Delivered |
 | 3 | Temporal query and history | Delivered |
-| 4 | Gap-aware settlement UX | Not started |
+| 4 | Gap-aware settlement UX | Delivered |
 | 5 | Freshness annex and ecosystem integration | Not started |
 
 ---
@@ -353,3 +353,91 @@ tsc --noEmit            (clean)
   reading (`eth_getLogs` and event topics), which the port does not yet carry;
   it belongs with Stage 4's gap work.
 - No risk surfaces from PRD §4.6. Stage 4.
+
+---
+
+## Stage 4 — Gap-aware settlement UX
+
+### What was built
+
+| Module | Role |
+| --- | --- |
+| `src/sdk/events.ts` | Event definitions, topic derivation, log decoding |
+| `src/wallet/contested.ts` | `describeContest` — the contest signal, apart from finality |
+| `src/wallet/settlementLog.ts` | Gap episodes and how each one ended |
+| `src/wallet/riskSurfaces.ts` | The five surfaces of PRD §4.6 |
+| `src/wallet/renderGapView.ts` | Text rendering of both |
+
+`getLogs` joins the port as an optional capability, implemented over
+`eth_getLogs` and by the in-memory adapter.
+
+### Decisions worth recording
+
+**Contest is computed and displayed apart from finality.** They answer
+different questions and the ERC requires them to be distinguishable. The
+temporal view has two blocks, and the tests pin the combinations that prove
+they are independent: an instant that is final while a gap is open elsewhere
+on the token, and an instant that is contested and provisional at once.
+
+**Contest is present tense.** Once a gap closes, by admission or by
+cancellation, no instant is contested — even though instants at or after the
+latest entry remain non-final. Closing a gap ends the contest and settles
+nothing.
+
+**The log says which settlements existed; the contract says what became of
+them.** `SettlementStarted` does not carry `openedAt` — that is the block
+timestamp at which `beginSettlement` succeeded, and it is what bounds the
+contested interval — so it is read from `settlement(settlementId)` rather than
+guessed at. Where both speak, the contract is authoritative: a node's log
+retention can truncate history, and a status folded from a partial log would
+be a guess.
+
+**A reader that cannot fetch logs says so.** An empty episode list and "logs
+could not be read" are different claims, and only one of them means no gap
+ever opened. The note says as much, and the supersession count says "not a
+count of zero" rather than reporting zero.
+
+**The three closures are not interchangeable.** Each episode carries what its
+ending means: an admission appended an entry and made earlier instants final;
+a cancellation ended the contest and settled nothing, and is not a rejection
+because the protocol defines none; a supersession left the projection
+unchanged and made any proof already produced for that settlement unusable.
+
+**Risk surfaces are findings, never verdicts.** Each carries the measurement
+and what the ERC says follows from it. Nothing is scored, ranked, or turned
+into a safe/unsafe judgement, and nothing is gated on them. A test scans the
+rendered surfaces for verdict language and fails on it — the note, where the
+wallet states what it will not do, is the one exempt place those words appear.
+
+**The in-memory adapter encodes real logs.** It holds structured events and
+could hand them over directly; it encodes them to topics and data instead, so
+the decoder runs against the wire format here exactly as it does against a
+node. A decoder only exercised against hand-written fixtures is untested.
+
+### Verification
+
+```
+$ npm run verify
+tsc --noEmit            (clean)
+# tests 173
+# suites 48
+# pass 173
+# fail 0
+```
+
+### Coverage
+
+| Requirement | Where |
+| --- | --- |
+| Contested interval bounded by the gap's `openedAt` | `gapView.test.ts` |
+| Contested and non-final distinguishable (ERC test case) | `gapView.test.ts` |
+| A closed gap contests nothing while instants stay non-final | `gapView.test.ts` |
+| No settlement interface means no contested instants at all | `gapView.test.ts` |
+| Admitted / cancelled / superseded closures distinguished with their meanings | `gapView.test.ts` |
+| A cancelled gap visible though it admitted nothing | `gapView.test.ts` |
+| `openedAt` read from the settlement record, not the log | `gapView.test.ts` |
+| Missing log capability reported, not rendered as an empty history | `gapView.test.ts` |
+| Every §4.6 surface reported, with no verdict language | `gapView.test.ts` |
+| Far-future effective time flagged only when present | `gapView.test.ts` |
+| Topic derivation, per-event `tokenId` slot, indexed vs data decoding | `events.test.ts` |
+| An unnameable log returns undefined rather than a guess | `events.test.ts` |

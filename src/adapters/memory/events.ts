@@ -60,3 +60,10 @@ export type ContractEvent =
       readonly from: Address;
       readonly to: Address;
     };
+
+/** An emitted event with the position the chain recorded it at. */
+export type LoggedEvent = {
+  readonly event: ContractEvent;
+  readonly blockNumber: bigint;
+  readonly logIndex: bigint;
+};

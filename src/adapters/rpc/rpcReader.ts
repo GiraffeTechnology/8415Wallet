@@ -14,6 +14,7 @@ import {
   type TokenId,
   type Version,
 } from '../../sdk/types.ts';
+import type { LogFilter, RawLog } from '../../sdk/events.ts';
 import type { CallTransport } from './transport.ts';
 
 /**
@@ -48,6 +49,23 @@ export class RpcErc8415Reader implements Erc8415Reader {
 
   async chainInstant(): Promise<Instant> {
     return this.#transport.blockTimestamp();
+  }
+
+  /**
+   * Read logs over the full chain range.
+   *
+   * `fromBlock: earliest` because a projection's history is the whole point:
+   * an entry admitted years ago still decides who was confirmed then, and a
+   * default window would silently truncate it.
+   */
+  async getLogs(filter: LogFilter): Promise<readonly RawLog[]> {
+    const raw = await this.#transport.getLogs({
+      address: filter.address,
+      topics: filter.topics,
+      fromBlock: 'earliest',
+      toBlock: 'latest',
+    });
+    return raw.map((entry) => toRawLog(entry));
   }
 
   async supportsInterface(interfaceId: Bytes4): Promise<boolean> {
@@ -170,6 +188,26 @@ export class RpcErc8415Reader implements Erc8415Reader {
     );
     return authorized as boolean;
   }
+}
+
+function toRawLog(value: unknown): RawLog {
+  const log = value as {
+    address?: string;
+    topics?: string[];
+    data?: string;
+    blockNumber?: string;
+    logIndex?: string;
+  };
+  if (typeof log.address !== 'string' || !Array.isArray(log.topics)) {
+    throw new ValueOutOfRangeError('log payload', 0n);
+  }
+  return {
+    address: log.address,
+    topics: log.topics,
+    data: log.data ?? '0x',
+    blockNumber: BigInt(log.blockNumber ?? '0x0'),
+    logIndex: BigInt(log.logIndex ?? '0x0'),
+  };
 }
 
 function toEntry(fields: readonly AbiValue[]): RegisterEntry {

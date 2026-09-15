@@ -3,6 +3,7 @@ import { describe, test } from 'node:test';
 
 import { MemoryErc8415Reader } from '../src/adapters/memory/memoryReader.ts';
 import { DAVE, OPEN_GAP_ID, REGISTRAR, T, TOKEN, divergentToken } from '../src/adapters/memory/scenarios.ts';
+import { encodeLog, matchesFilter } from '../src/adapters/memory/encodeEvents.ts';
 import type { MemoryRegisterContract } from '../src/adapters/memory/register.ts';
 import { RpcErc8415Reader } from '../src/adapters/rpc/rpcReader.ts';
 import type { CallTransport } from '../src/adapters/rpc/transport.ts';
@@ -33,6 +34,19 @@ class FakeEvmNode implements CallTransport {
 
   async blockTimestamp(): Promise<bigint> {
     return this.#contract.now;
+  }
+
+  async getLogs(filter: Record<string, unknown>): Promise<unknown[]> {
+    const topics = (filter['topics'] ?? []) as (string | null)[];
+    return encodeLog(this.#contract.log, this.#contract.address)
+      .filter((log) => matchesFilter(log, { address: this.#contract.address, topics }))
+      .map((log) => ({
+        address: log.address,
+        topics: log.topics,
+        data: log.data,
+        blockNumber: `0x${log.blockNumber.toString(16)}`,
+        logIndex: `0x${log.logIndex.toString(16)}`,
+      }));
   }
 
   async call(_to: Address, data: string): Promise<string> {

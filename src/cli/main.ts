@@ -1,12 +1,21 @@
-import { divergentToken, projectionOnlyToken, REGISTRAR, T } from '../adapters/memory/scenarios.ts';
+import {
+  cancelledGapToken,
+  divergentToken,
+  projectionOnlyToken,
+  REGISTRAR,
+  T,
+} from '../adapters/memory/scenarios.ts';
 import { buildAssetView } from '../wallet/assetView.ts';
 import { buildHistoryView } from '../wallet/history.ts';
 import { buildTemporalView } from '../wallet/temporalQuery.ts';
 import { renderAssetView } from '../wallet/renderAssetView.ts';
 import { renderHistory, renderTemporalQuery } from '../wallet/renderTemporalQuery.ts';
+import { renderRiskSurfaces, renderSettlementLog } from '../wallet/renderGapView.ts';
+import { buildRiskSurfaces } from '../wallet/riskSurfaces.ts';
+import { buildSettlementLog } from '../wallet/settlementLog.ts';
 
 /**
- * Reference client, Stages 2 and 3.
+ * Reference client, Stages 2 through 4.
  *
  * Runs against the in-memory scenarios, because the Native Infrastructure Kit
  * exposes no Register API yet and there is no deployment to point at. Swapping
@@ -45,6 +54,17 @@ async function main(): Promise<void> {
 
   banner('Projection history');
   console.log(renderHistory(await buildHistoryView(divergent.reader, divergent.tokenId)));
+
+  banner('Settlement history — a gap that closed without admitting anything');
+  const cancelled = cancelledGapToken();
+  console.log(renderSettlementLog(await buildSettlementLog(cancelled.reader, cancelled.tokenId)));
+
+  banner('Risk surfaces');
+  console.log(
+    renderRiskSurfaces(
+      await buildRiskSurfaces(divergent.reader, divergent.tokenId, { account: REGISTRAR }),
+    ),
+  );
   console.log();
 }
 

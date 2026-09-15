@@ -9,6 +9,8 @@ import type {
   TokenId,
   Version,
 } from '../../sdk/types.ts';
+import type { LogFilter, RawLog } from '../../sdk/events.ts';
+import { encodeLog, matchesFilter } from './encodeEvents.ts';
 import type { MemoryRegisterContract } from './register.ts';
 
 /**
@@ -31,6 +33,12 @@ export class MemoryErc8415Reader implements Erc8415Reader {
 
   async chainInstant(): Promise<Instant> {
     return this.#contract.now;
+  }
+
+  async getLogs(filter: LogFilter): Promise<readonly RawLog[]> {
+    return encodeLog(this.#contract.log, this.#contract.address).filter((log) =>
+      matchesFilter(log, filter),
+    );
   }
 
   async supportsInterface(interfaceId: Bytes4): Promise<boolean> {

@@ -68,6 +68,21 @@ export function renderTemporalQuery(view: TemporalView): string {
   wrap(view.finality.explanation);
   write();
 
+  // A separate block on purpose. Contest and finality answer different
+  // questions, and a single combined badge would lose one of them.
+  write(`CONTEST  ·  ${view.contest.label}`);
+  if (view.contest.openedAt !== undefined) {
+    field('Gap opened', formatInstant(view.contest.openedAt));
+    if (view.contest.deadline !== undefined) {
+      field('Deadline', formatInstant(view.contest.deadline));
+    }
+    if (view.contest.settlementId !== undefined) {
+      field('Settlement', shortHex(view.contest.settlementId));
+    }
+  }
+  wrap(view.contest.explanation);
+  write();
+
   write('TRADEABLE POSITION (for contrast, not the answer)');
   field('Owner now', formatAddress(view.tradeablePosition.owner));
   wrap(view.tradeablePosition.disclosure);
