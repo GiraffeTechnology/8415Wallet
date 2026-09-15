@@ -16,6 +16,18 @@ export type Erc165Reader = {
   supportsInterface(interfaceId: Bytes4): Promise<boolean>;
 };
 
+/**
+ * The chain's own clock.
+ *
+ * Needed because two things the wallet must say are relative to now: how long
+ * an open gap has left against its deadline, and that the present instant is
+ * at or after the latest entry's effective time and so is never final.
+ */
+export type ChainClockReader = {
+  /** `block.timestamp` of the latest block, on the same scale as an instant. */
+  chainInstant(): Promise<Instant>;
+};
+
 /** The ERC-721 facts the wallet reads, alongside but never merged with the projection. */
 export type Erc721Reader = {
   /** The tradeable position. Never the confirmed holder. */
@@ -64,6 +76,7 @@ export type ProjectionSettlementReader = {
  * interface has no gaps and no contested instants.
  */
 export type Erc8415Reader = Erc165Reader &
+  ChainClockReader &
   Erc721Reader &
   RegisterProjectionReader &
   Partial<ProjectionSettlementReader> & {

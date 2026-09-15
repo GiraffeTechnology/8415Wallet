@@ -46,6 +46,10 @@ export class RpcErc8415Reader implements Erc8415Reader {
     return decodeResult(returnTypes, result);
   }
 
+  async chainInstant(): Promise<Instant> {
+    return this.#transport.blockTimestamp();
+  }
+
   async supportsInterface(interfaceId: Bytes4): Promise<boolean> {
     const [supported] = await this.#read(
       'supportsInterface(bytes4)',

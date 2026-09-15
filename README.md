@@ -86,13 +86,16 @@ interface, in which case it has no gaps and no contested instants.
 
 ## Status
 
-Stages 0 and 1 delivered: the project foundation, and the SDK port with its
+Stages 0 through 2 delivered: the project foundation; the SDK port with its
 contract binding — typed mirrors of both interfaces, ERC-165 conformance
 discovery, identity pinning, an `eth_call` adapter, and an in-memory contract
 model that enforces the four projection invariants and the ERC's finality
-rule. 84 tests, no runtime dependencies.
+rule; and the asset view, which puts the tradeable position and the confirmed
+holder side by side with the gap, the authority and the contract's identity.
+113 tests, no runtime dependencies.
 
-There is no user interface yet; Stage 2 begins it. The stage roadmap is in
+`npm run wallet` renders the asset view for the bundled scenarios. Querying an
+arbitrary instant is Stage 3. The stage roadmap is in
 [docs/ERC-8415-Wallet-PRD.md](docs/ERC-8415-Wallet-PRD.md) §7 and delivery
 evidence per stage is in
 [docs/STAGE-DELIVERY.md](docs/STAGE-DELIVERY.md).
@@ -118,4 +121,5 @@ stripping, so there is no build step.
 ```sh
 npm install
 npm run verify   # typecheck + tests
+npm run wallet   # render the asset view for the bundled scenarios
 ```

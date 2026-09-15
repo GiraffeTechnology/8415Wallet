@@ -8,7 +8,7 @@ documentation and evidence. Stages are defined in
 | --- | --- | --- |
 | 0 | Project foundation | Delivered |
 | 1 | SDK port and contract binding | Delivered |
-| 2 | Asset view | Not started |
+| 2 | Asset view | Delivered |
 | 3 | Temporal query and history | Not started |
 | 4 | Gap-aware settlement UX | Not started |
 | 5 | Freshness annex and ecosystem integration | Not started |
@@ -27,6 +27,7 @@ npm install
 npm run typecheck   # tsc --noEmit
 npm test            # node --test
 npm run verify      # both
+npm run wallet      # render the asset view for the bundled scenarios
 ```
 
 No runtime dependencies. The two dev dependencies are `typescript` and
@@ -163,3 +164,92 @@ AGENTS.md requires these as explicit negative cases. All are in
   node in this suite; the codec it depends on is exercised in both directions.
 - `MemoryRegisterContract` is a model, not a reference implementation. Where
   it and the ERC differ, the ERC is right and the model is wrong.
+
+---
+
+## Stage 2 — Asset view
+
+### What was built
+
+| Module | Role |
+| --- | --- |
+| `src/wallet/assetView.ts` | `buildAssetView` and its view models |
+| `src/wallet/format.ts` | Instant, duration, address and hex rendering |
+| `src/wallet/renderAssetView.ts` | Text rendering of the view |
+| `src/cli/main.ts` | Reference client; renders the bundled scenarios |
+
+`npm run wallet` renders two contracts: one whose position has diverged from
+the confirmed holder with a gap open, and one with no settlement interface.
+
+### Decisions worth recording
+
+**The two sequences are separate fields with separate disclosures.** They are
+never merged, and they are not merged when they happen to agree either —
+agreement is reported on a third field, `alignment`, which says in as many
+words that they remain two facts. Divergence is described as the design, not
+as an error or a warning: the token trades while the register catches up.
+
+**Finality of the present is read, not assumed.** The rule guarantees the
+present instant is never final, but AGENTS.md forbids recomputing finality, so
+the view asks `isFinalAsOf` and reports the answer. If a contract answers
+`true`, the view shows `true` and says the rule does not allow it, rather than
+quietly substituting the rule's answer. A contract contradicting the rule is
+worth seeing.
+
+**A formatted instant always carries its integer.** `formatInstant` renders
+`2026-01-01 00:00:00 UTC (1767225600)`, never one without the other, and a
+test asserts no rendered calendar time in the whole view escapes without its
+integer. A `uint64` beyond representable calendar time — which is what an
+admitted far-future `effectiveAt` looks like — is reported as the integer
+rather than as an invalid date.
+
+**Addresses are never abbreviated.** Telling the position and the holder apart
+is the one thing this wallet exists for, and two different addresses can share
+a prefix. Commitments and references are abbreviated, because they are values
+a user compares rather than reads; the full value stays on the view model.
+
+**Three-state reporting where a value may be unavailable.** Settlement
+authority is `true`, `false`, or `undefined` for "could not be asked", and the
+renderer prints `not reported` for the third. An earlier revision of the
+renderer collapsed `undefined` into `no`, which told a user the contract had
+denied them an authority it has no concept of; `tests/assetView.test.ts` now
+pins the distinction. The same shape applies to gap state, where
+`unsupported` and `none` are different answers.
+
+### Verification
+
+```
+$ npm run verify
+tsc --noEmit            (clean)
+# tests 113
+# suites 34
+# pass 113
+# fail 0
+```
+
+### Coverage
+
+| Requirement (PRD §4.1) | Where |
+| --- | --- |
+| Tradeable position shown as the ERC-721 position | `assetView.test.ts` |
+| Confirmed holder shown with version and `effectiveAt` | `assetView.test.ts` |
+| Alignment reported, divergence not treated as a fault | `assetView.test.ts` |
+| Open gap with id, `openedAt`, deadline, expected holder, time remaining | `assetView.test.ts` |
+| Register identity, with acceptance left to the user | `assetView.test.ts` |
+| Settlement authority for the user's own account | `assetView.test.ts` |
+| The present instant is never final, said plainly | `assetView.test.ts` |
+| No settlement interface distinguished from no open gap | `assetView.test.ts` |
+| Every formatted instant resolvable to its integer | `format.test.ts`, `assetView.test.ts` |
+| Far-future instants survive formatting | `format.test.ts` |
+| Projection refused for a non-advertising contract | `assetView.test.ts` |
+| Uninitialized projection reported rather than falling back to the position | `assetView.test.ts` |
+
+### What Stage 2 deliberately does not do
+
+- No per-instant queries. The asset view answers about now; asking about an
+  arbitrary instant, with the before-first-entry and read-failure paths, is
+  Stage 3.
+- No `contested` verdict for a queried instant. The boundary is carried as
+  `contestedFrom`; combining it with an instant is Stage 4, where it is shown
+  beside finality without being merged into it.
+- No history walk. Stage 3.

@@ -4,10 +4,12 @@ import type { Address } from '../../sdk/types.ts';
 /** A minimal `eth_call` transport. Throws `ContractRevertError` on revert. */
 export type CallTransport = {
   call(to: Address, data: string): Promise<string>;
+  /** `block.timestamp` of the latest block. */
+  blockTimestamp(): Promise<bigint>;
 };
 
 type JsonRpcResponse = {
-  result?: string;
+  result?: unknown;
   error?: { code?: number; message?: string; data?: string };
 };
 
@@ -28,19 +30,31 @@ export class HttpCallTransport implements CallTransport {
   }
 
   async call(to: Address, data: string): Promise<string> {
+    const result = await this.#request('eth_call', [{ to, data }, 'latest']);
+    if (typeof result !== 'string') {
+      throw new Error('eth_call returned no result');
+    }
+    return result;
+  }
+
+  async blockTimestamp(): Promise<bigint> {
+    const block = await this.#request('eth_getBlockByNumber', ['latest', false]);
+    const timestamp = (block as { timestamp?: string } | null)?.timestamp;
+    if (typeof timestamp !== 'string') {
+      throw new Error('eth_getBlockByNumber returned no timestamp');
+    }
+    return BigInt(timestamp);
+  }
+
+  async #request(method: string, params: unknown[]): Promise<unknown> {
     const response = await fetch(this.#endpoint, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        id: this.#nextId++,
-        method: 'eth_call',
-        params: [{ to, data }, 'latest'],
-      }),
+      body: JSON.stringify({ jsonrpc: '2.0', id: this.#nextId++, method, params }),
     });
 
     if (!response.ok) {
-      throw new Error(`eth_call transport failed: HTTP ${response.status}`);
+      throw new Error(`${method} transport failed: HTTP ${response.status}`);
     }
 
     const payload = (await response.json()) as JsonRpcResponse;
@@ -51,9 +65,6 @@ export class HttpCallTransport implements CallTransport {
         payload.error.message ?? 'execution reverted',
         payload.error.data,
       );
-    }
-    if (typeof payload.result !== 'string') {
-      throw new Error('eth_call returned no result');
     }
     return payload.result;
   }

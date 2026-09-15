@@ -29,6 +29,10 @@ export class MemoryErc8415Reader implements Erc8415Reader {
     this.source = { chainId: contract.chainId, address: contract.address };
   }
 
+  async chainInstant(): Promise<Instant> {
+    return this.#contract.now;
+  }
+
   async supportsInterface(interfaceId: Bytes4): Promise<boolean> {
     return this.#contract.supportsInterface(interfaceId);
   }

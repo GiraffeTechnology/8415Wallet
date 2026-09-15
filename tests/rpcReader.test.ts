@@ -31,6 +31,10 @@ class FakeEvmNode implements CallTransport {
     this.#contract = contract;
   }
 
+  async blockTimestamp(): Promise<bigint> {
+    return this.#contract.now;
+  }
+
   async call(_to: Address, data: string): Promise<string> {
     const selector = data.slice(0, 10);
     const args = `0x${data.slice(10)}`;

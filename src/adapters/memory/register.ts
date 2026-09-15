@@ -441,7 +441,7 @@ export class MemoryRegisterContract {
     for (const spec of specs) {
       this.#appendEntry(tokenId, spec.holder, {
         recordCommitment: `0x${spec.seed.repeat(64).slice(0, 64)}`,
-        registryReference: `0x${spec.seed.repeat(64).slice(0, 64)}`,
+        registryReference: `0x${`f${spec.seed}`.repeat(32).slice(0, 64)}`,
         effectiveAt: spec.effectiveAt,
         proofData: '0x',
       });
