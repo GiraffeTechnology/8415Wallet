@@ -9,7 +9,7 @@ documentation and evidence. Stages are defined in
 | 0 | Project foundation | Delivered |
 | 1 | SDK port and contract binding | Delivered |
 | 2 | Asset view | Delivered |
-| 3 | Temporal query and history | Not started |
+| 3 | Temporal query and history | Delivered |
 | 4 | Gap-aware settlement UX | Not started |
 | 5 | Freshness annex and ecosystem integration | Not started |
 
@@ -27,7 +27,7 @@ npm install
 npm run typecheck   # tsc --noEmit
 npm test            # node --test
 npm run verify      # both
-npm run wallet      # render the asset view for the bundled scenarios
+npm run wallet      # render the views for the bundled scenarios
 ```
 
 No runtime dependencies. The two dev dependencies are `typescript` and
@@ -253,3 +253,103 @@ tsc --noEmit            (clean)
   `contestedFrom`; combining it with an instant is Stage 4, where it is shown
   beside finality without being merged into it.
 - No history walk. Stage 3.
+
+---
+
+## Stage 3 — Temporal query and history
+
+### What was built
+
+| Module | Role |
+| --- | --- |
+| `src/wallet/temporalQuery.ts` | `buildTemporalView` — who was confirmed at instant t |
+| `src/wallet/finality.ts` | `describeFinality` — the four display states and their reasons |
+| `src/wallet/history.ts` | `buildHistoryView` — the append-only entry walk |
+| `src/wallet/renderTemporalQuery.ts` | Text rendering of both |
+| `tests/support/delegateReader.ts` | A reader that misbehaves in ways a conforming contract cannot |
+
+`npm run wallet` now also queries one token at three instants — after the
+latest entry, strictly before it, and before the first entry — and walks its
+history.
+
+### Decisions worth recording
+
+**Resolution and finality are asked separately.** They are different
+questions, and `entryAsOf` returns an answer either way. The view has two
+blocks and never derives one from the other; treating finality as implied by
+resolution is the integration error the ERC names as most likely.
+
+**Four finality display states, not two.** `isFinalAsOf` answering `false`
+means two different things: an instant after the latest entry is covered by an
+answer a later admission may supersede, and an instant before the first entry
+has no answer at all. Rendering both as "Provisional" would describe a
+nonexistent answer as merely unsettled. The states are `final`,
+`provisional`, `not-covered` and `unavailable`, and a test asserts the
+before-first case is not the provisional one.
+
+**The contract is asked first; its revert is classified afterwards.** The
+wallet does not decide in advance which question the contract would decline.
+When `entryAsOf` reverts, the cause is established by comparing the instant
+against `entryAt(tokenId, 1).effectiveAt` — never by reading a revert reason,
+which the ERC does not standardize. A revert it cannot attribute is reported
+as `unavailable` with the raw reason, and no neighbouring instant, cached
+answer or `ownerOf` is substituted.
+
+**A `holderAsOf` that disagrees with `entryAsOf` is surfaced, not resolved.**
+The ERC requires them to agree. Where they do not, the view reports both and
+says the contract is at fault rather than preferring either.
+
+**The commitment chain is verified, not recomputed.** The history walk checks
+what the contract handed over against the invariants: previous-commitment
+linkage, consecutive versions, strictly increasing effective times, and each
+interval closed at its successor's effective time. Faults are reported and the
+entries are still shown exactly as read. This is verification of received
+data; the wallet never derives a holder or a finality answer from it, and the
+register's contents remain off chain and unseen.
+
+**Entries are never reordered, filtered or merged.** A holder appearing twice
+is two entries, because the register recorded two facts and collapsing them
+would erase the interval between. Rendering is newest-first for scanning, with
+each version labelled so admission order stays readable.
+
+### Verification
+
+```
+$ npm run verify
+tsc --noEmit            (clean)
+# tests 146
+# suites 43
+# pass 146
+# fail 0
+```
+
+### Coverage
+
+| Requirement (PRD §4.2, §4.3, §4.4) | Where |
+| --- | --- |
+| `holderAsOf` / `entryAsOf` resolve inside, at the start of, and after an interval | `temporalQuery.test.ts` |
+| Effective interval closed at the successor; the latest left open | `temporalQuery.test.ts`, `history.test.ts` |
+| Before-first-entry rendered as "does not cover", not as an error | `temporalQuery.test.ts` |
+| `isFinalAsOf` false before the first entry is not shown as provisional | `temporalQuery.test.ts` |
+| Finality taken from `isFinalAsOf`, with the reason in protocol terms | `temporalQuery.test.ts` |
+| An answer contradicting the finality rule is flagged | `temporalQuery.test.ts` |
+| A failed read shows the failure, substituting nothing | `temporalQuery.test.ts` |
+| `holderAsOf` disagreeing with `entryAsOf` is surfaced | `temporalQuery.test.ts` |
+| A confirming entry moves an instant to final without changing its holder | `temporalQuery.test.ts` |
+| A cancelled gap moves no instant to final | `temporalQuery.test.ts` |
+| Append-only walk, unfiltered, in admission order | `history.test.ts` |
+| Commitment chain shown and checked link by link | `history.test.ts` |
+| Chain faults reported rather than corrected | `history.test.ts` |
+| Every formatted instant resolvable to its integer | `temporalQuery.test.ts`, `history.test.ts` |
+
+### What Stage 3 deliberately does not do
+
+- No `contested` verdict on the queried instant. The gap's `openedAt` is
+  carried by the asset view as `contestedFrom`; combining it with an instant,
+  and showing it beside finality without merging into it, is Stage 4.
+- No settlement log. PRD §4.4 wants the `SettlementStarted` /
+  `Finalized` / `Cancelled` / `Superseded` history alongside the entry walk,
+  so a user can see gaps that closed without admitting anything. It needs log
+  reading (`eth_getLogs` and event topics), which the port does not yet carry;
+  it belongs with Stage 4's gap work.
+- No risk surfaces from PRD §4.6. Stage 4.

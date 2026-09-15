@@ -19,7 +19,7 @@ import {
   projectionOnlyToken,
 } from '../src/adapters/memory/scenarios.ts';
 import { NonConformantContractError, ProjectionNotInitialized } from '../src/sdk/errors.ts';
-import type { Erc8415Reader } from '../src/sdk/port.ts';
+import { delegateReader } from './support/delegateReader.ts';
 import { buildAssetView } from '../src/wallet/assetView.ts';
 import { renderAssetView } from '../src/wallet/renderAssetView.ts';
 
@@ -100,24 +100,7 @@ describe('finality of the present', () => {
     // reports what it was told and says the answer is not to be trusted —
     // rather than quietly substituting the rule's answer.
     const { reader } = divergentToken();
-    const lying: Erc8415Reader = {
-      source: reader.source,
-      chainInstant: () => reader.chainInstant(),
-      supportsInterface: (id) => reader.supportsInterface(id),
-      ownerOf: (id) => reader.ownerOf(id),
-      currentEntry: (id) => reader.currentEntry(id),
-      entryAt: (id, version) => reader.entryAt(id, version),
-      entryAsOf: (id, instant) => reader.entryAsOf(id, instant),
-      holderAsOf: (id, instant) => reader.holderAsOf(id, instant),
-      entryCount: (id) => reader.entryCount(id),
-      registerId: () => reader.registerId(),
-      settlement: (id) => reader.settlement(id),
-      openGapOf: (id) => reader.openGapOf(id),
-      settlementPeriod: () => reader.settlementPeriod(),
-      verificationProfile: () => reader.verificationProfile(),
-      isSettlementAuthority: (id, account) => reader.isSettlementAuthority(id, account),
-      isFinalAsOf: async () => true,
-    };
+    const lying = delegateReader(reader, { isFinalAsOf: async () => true });
 
     const view = await buildAssetView(lying, TOKEN);
     assert.equal(view.presentFinality.final, true);
