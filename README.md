@@ -86,18 +86,36 @@ interface, in which case it has no gaps and no contested instants.
 
 ## Status
 
-Stage 0 — project foundation. The specification documents are current; the
-implementation has not started.
+Stages 0 and 1 delivered: the project foundation, and the SDK port with its
+contract binding — typed mirrors of both interfaces, ERC-165 conformance
+discovery, identity pinning, an `eth_call` adapter, and an in-memory contract
+model that enforces the four projection invariants and the ERC's finality
+rule. 84 tests, no runtime dependencies.
 
-Stage roadmap is in [docs/ERC-8415-Wallet-PRD.md](docs/ERC-8415-Wallet-PRD.md)
-§7.
+There is no user interface yet; Stage 2 begins it. The stage roadmap is in
+[docs/ERC-8415-Wallet-PRD.md](docs/ERC-8415-Wallet-PRD.md) §7 and delivery
+evidence per stage is in
+[docs/STAGE-DELIVERY.md](docs/STAGE-DELIVERY.md).
 
 ## Documents
 
 - [AGENTS.md](AGENTS.md) — engineering rules, semantic boundaries, and the
   forbidden inferences every change is checked against;
 - [docs/ERC-8415-Wallet-PRD.md](docs/ERC-8415-Wallet-PRD.md) — product
-  requirements, data model, feature specification and stage plan.
+  requirements, data model, feature specification and stage plan;
+- [docs/STAGE-DELIVERY.md](docs/STAGE-DELIVERY.md) — per-stage delivery
+  evidence, coverage against the ERC's own test cases, and what is
+  deliberately not covered.
 
-The ERC itself is the source of truth above both. Where this repository and
+The ERC itself is the source of truth above all three. Where this repository and
 the ERC disagree, the ERC wins and this repository gets fixed.
+
+## Development
+
+Node 22.6 or newer. TypeScript runs from source through Node's native type
+stripping, so there is no build step.
+
+```sh
+npm install
+npm run verify   # typecheck + tests
+```
