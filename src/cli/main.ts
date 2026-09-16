@@ -1,3 +1,5 @@
+import { parseArgs, USAGE, validate } from './args.ts';
+import { explainFailure, runLive } from './live.ts';
 import { MemoryErc8415Reader } from '../adapters/memory/memoryReader.ts';
 import { MemoryRegisterContract } from '../adapters/memory/register.ts';
 import { detectCollisions } from '../wallet/collisions.ts';
@@ -49,6 +51,18 @@ function banner(title: string): void {
 }
 
 async function main(): Promise<void> {
+  const options = parseArgs(process.argv.slice(2));
+  if (options.help) {
+    console.log(USAGE);
+    return;
+  }
+  validate(options);
+
+  if (options.rpc !== undefined) {
+    await runLive(options, banner);
+    return;
+  }
+
   const divergent = divergentToken();
 
   banner('Asset view — divergent position, open gap');
@@ -161,4 +175,9 @@ async function main(): Promise<void> {
   );
 }
 
-await main();
+try {
+  await main();
+} catch (error) {
+  console.error(`\n  ${explainFailure(error)}\n`);
+  process.exitCode = 1;
+}

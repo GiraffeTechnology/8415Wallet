@@ -20,12 +20,6 @@ import type { ContractEvent, LoggedEvent } from './events.ts';
  */
 export function encodeEvent(logged: LoggedEvent, address: Address): RawLog | undefined {
   const { event } = logged;
-  if (event.kind === 'Transfer') {
-    // The ERC-721 transfer sequence is real and is recorded, but it is not one
-    // of the ERC-8415 events this decoder names.
-    return undefined;
-  }
-
   const name: EventName = event.kind;
   const definition = EVENT_DEFINITIONS[name];
 
@@ -33,6 +27,11 @@ export function encodeEvent(logged: LoggedEvent, address: Address): RawLog | und
   const dataValues: (bigint | string)[] = [];
 
   switch (event.kind) {
+    case 'Transfer':
+      // ERC-721's own event. Encoded because token discovery has no other
+      // source; it remains outside the projection and settlement views.
+      indexedValues.push(event.from, event.to, event.tokenId);
+      break;
     case 'RegisterInitialized':
       indexedValues.push(event.tokenId, event.recordCommitment, event.holder);
       dataValues.push(event.version, event.effectiveAt);
@@ -78,7 +77,7 @@ export function matchesFilter(log: RawLog, filter: LogFilter): boolean {
   });
 }
 
-/** Encode a contract's whole log, dropping events this decoder does not name. */
+/** Encode a contract's whole log. */
 export function encodeLog(
   entries: readonly LoggedEvent[],
   address: Address,

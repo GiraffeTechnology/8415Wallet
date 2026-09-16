@@ -146,5 +146,17 @@ npm run verify   # typecheck + tests
 npm run wallet   # render the views for the bundled scenarios
 ```
 
+To read a live deployment:
+
+```sh
+npm run wallet -- --rpc <url> --contract <address> --account <address>
+npm run wallet -- --rpc <url> --contract <address> --token <id>
+npm run wallet -- --help
+```
+
+With `--account` and no `--token`, the client discovers which tokens the
+account holds by scanning `Transfer` logs and confirming each against
+`ownerOf` — ERC-721 enumeration is optional and most deployments omit it.
+
 CI runs the same steps on Node 22 and 24, plus the reference client as a smoke
 test, on every push to `main` and every pull request.

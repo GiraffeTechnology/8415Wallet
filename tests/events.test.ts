@@ -117,14 +117,25 @@ describe('log decoding', () => {
     assert.equal(decoded, undefined);
   });
 
-  test('does not name the ERC-721 transfer sequence as an ERC-8415 event', () => {
-    const { contract } = divergentToken();
+  test('decodes the ERC-721 transfer sequence, and keeps it out of the projection views', async () => {
+    const { contract, reader } = divergentToken();
     const transfers = contract.log.filter((item) => item.event.kind === 'Transfer');
     assert.ok(transfers.length > 0, 'the scenario does transfer the position');
-    // Recorded on the contract, and deliberately not encoded as one of these.
+
+    // Decodable — token discovery has no other source for it.
+    const decoded = encodeLog(contract.log, contract.address).map(decodeLog);
     assert.equal(
-      encodeLog(contract.log, contract.address).length,
-      contract.log.length - transfers.length,
+      decoded.filter((event) => event?.kind === 'Transfer').length,
+      transfers.length,
+    );
+
+    // And still not a projection event: the settlement log never carries one.
+    const { buildSettlementLog } = await import('../src/wallet/settlementLog.ts');
+    const log = await buildSettlementLog(reader, TOKEN);
+    assert.equal(
+      log.events.filter((event) => event.kind === 'Transfer').length,
+      0,
+      'a transfer reached the settlement log',
     );
   });
 });

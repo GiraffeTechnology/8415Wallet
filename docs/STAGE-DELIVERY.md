@@ -693,15 +693,83 @@ tsc --noEmit            (clean)
 ### Still open
 
 - **The Native Infrastructure Kit adapter.** Unchanged: no Register API.
-- **Pointing the wallet at a real deployment.** `RpcErc8415Reader` and
-  `HttpCallTransport` pass the conformance harness, but nothing wires them: the
-  reference client runs the bundled scenarios only, with no `--rpc`,
-  `--contract` or `--token`. The library is usable against a chain; the product
-  is not.
-- **Token discovery.** Every entry point takes a `tokenId`. A holder cannot ask
-  which tokens they hold, which §5's "asset monitoring" needs.
-- **The ERC-721 ownership sequence as a sequence.** Still a current value only.
-  The registration view now infers *that* hops are outstanding from it, but the
-  transfer history itself is not read or shown.
-- **Batching.** `buildHistoryView` and `detectCollisions` both walk entries one
-  `entryAt` at a time.
+- **The ERC-721 ownership sequence as a sequence.** The transfer log is now
+  read, but only to discover tokens; no view walks it as history alongside the
+  projection entries.
+- **Batching.** `buildHistoryView`, `detectCollisions` and discovery all walk
+  one call at a time.
+
+---
+
+## Live reads and token discovery
+
+Closes the two findings that kept the wallet a library rather than a product:
+nothing connected the rpc adapter to a command line, and every entry point
+required a `tokenId` the holder had no way to obtain.
+
+### What was built
+
+| Module | Role |
+| --- | --- |
+| `src/cli/args.ts` | Argument parsing and the combinations worth refusing early |
+| `src/cli/live.ts` | The same views, against a live deployment |
+| `src/wallet/discovery.ts` | Which tokens an account holds |
+
+```sh
+npm run wallet                                        # bundled scenarios
+npm run wallet -- --rpc <url> --contract <address> --account <address>
+npm run wallet -- --rpc <url> --contract <address> --token <id> --instant <seconds>
+```
+
+### Decisions worth recording
+
+**Discovery confirms against `ownerOf`, never against the log alone.** ERC-721
+enumeration is optional and most deployments omit it, so tokens are found by
+scanning `Transfer` logs for the account — but a log says what was *received*,
+not what is *held*. Each candidate is re-read; a token since passed on is
+reported as moved on rather than held. Its limits are stated in the view: it
+needs a log reader, and a range trimmed by node retention would hide a token,
+so an empty result is not proof the account holds none.
+
+**`Transfer` is decodable now, and still not a projection event.** It was
+previously excluded from the event decoder on the grounds that it is not an
+ERC-8415 event, which is true and was the wrong call once discovery needed it.
+A test asserts it decodes and that no transfer ever reaches the settlement log.
+
+**Token ids and instants stay `bigint` through the command line.** A `uint64`
+past `Number.MAX_SAFE_INTEGER` survives parsing, and a test pins it — the same
+reason the rest of the wallet holds them as `bigint`.
+
+### A defect the live path found
+
+Running the client against an unreachable endpoint reported:
+
+> `0x4f2a…0001 does not advertise 0x6309e170; refusing to read the projection`
+
+The contract had advertised nothing of the sort; the node was simply not there.
+`detectConformance` caught every error from `supportsInterface` and returned
+`false`, so a transport failure arrived as a finding about the contract — a
+cause the wallet never established, which is the failure mode this project
+exists to avoid. It now swallows only `ContractRevertError`, which is a
+contract genuinely declining to answer, and lets anything else propagate. The
+client reports an unreachable endpoint as one.
+
+Worth recording how it was found: 276 unit tests did not catch it, because
+every one of them supplies a reader that works. It surfaced the first time the
+thing was pointed at an address with nothing behind it.
+
+### Verification
+
+```
+$ npm run verify
+tsc --noEmit            (clean)
+# tests 276
+# suites 75
+# pass 276
+# fail 0
+```
+
+Also exercised end to end over HTTP against a JSON-RPC server serving the
+in-memory contract: discovery, asset view, registration, a temporal query at a
+chosen instant, history, settlement history and risk surfaces, plus the
+unreachable-endpoint path.
