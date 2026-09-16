@@ -17,10 +17,15 @@ documentation and evidence. Stages are defined in
 
 ## Stage 0 — Project foundation
 
-Node 22 with native TypeScript type stripping, so the reference client runs
-from source with no build step. `erasableSyntaxOnly` keeps the source to
+Node 22.18 or newer, where TypeScript runs from source without a flag, so the
+reference client needs no build step. `erasableSyntaxOnly` keeps the source to
 syntax Node can strip; `strict`, `exactOptionalPropertyTypes` and
 `noUncheckedIndexedAccess` are on.
+
+CI (`.github/workflows/ci.yml`) runs typecheck and tests on Node 22 and 24,
+then runs the reference client end to end — the suites cover the view models,
+and that last step catches a renderer or CLI wiring break that would leave
+them passing.
 
 ```sh
 npm install

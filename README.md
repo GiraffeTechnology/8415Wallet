@@ -117,11 +117,14 @@ the ERC disagree, the ERC wins and this repository gets fixed.
 
 ## Development
 
-Node 22.6 or newer. TypeScript runs from source through Node's native type
-stripping, so there is no build step.
+Node 22.18 or newer — that is where Node runs TypeScript from source without
+a flag, which is what lets this project ship with no build step.
 
 ```sh
 npm install
 npm run verify   # typecheck + tests
 npm run wallet   # render the views for the bundled scenarios
 ```
+
+CI runs the same steps on Node 22 and 24, plus the reference client as a smoke
+test, on every push to `main` and every pull request.

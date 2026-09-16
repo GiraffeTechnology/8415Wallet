@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        # 22.18 is where Node runs TypeScript from source without a flag, which
+        # is what lets this project ship with no build step. 24 guards against
+        # drift on the current line.
+        node-version: [22, 24]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+      # Runs the reference client end to end. The suites cover the view models;
+      # this catches a renderer or CLI wiring break that leaves them passing.
+      - name: Reference client
+        run: npm run wallet > /dev/null

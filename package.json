@@ -5,7 +5,7 @@
   "description": "Reference wallet and client for ERC-8415 asynchronous register projection",
   "type": "module",
   "engines": {
-    "node": ">=22.6.0"
+    "node": ">=22.18.0"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
