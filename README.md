@@ -37,6 +37,12 @@ For any token and any instant:
 | What is this a projection of? | `registerId`, `verificationProfile` |
 | Who may move the answer? | `isSettlementAuthority` |
 
+It also answers the questions a holder actually asks — what a pending
+registration means for them, that it is not a failure, that waiting is the
+action, how many transfers are still queued behind the one being registered,
+and where the remedy lies if the commitment window passes. It never blocks the
+token.
+
 Three signals, never merged into one badge:
 
 - **final / provisional** — whether a later admission can still change this
@@ -47,7 +53,9 @@ Three signals, never merged into one badge:
   which measures on-chain reorg exposure, *not* registrar finality.
 
 Finality does not depend on whether a gap is open, and closing a gap does not
-make any instant final.
+make any instant final. A stale feed is reported as stale whatever the
+projection says — conflating stale with pending is what makes a silently dead
+register look like ordinary delay.
 
 ## What it does not do
 
@@ -60,6 +68,9 @@ line:
   unwinding belong to the parties' own terms;
 - it does not score risk or produce a safe/unsafe verdict;
 - it does not redefine, extend or recompute protocol semantics;
+- it does not present agreement between `ownerOf` and the confirmed holder as
+  verified identity of the underlying right — the protocol does not, and
+  cannot, verify that;
 - it has no rollback, veto or override path into the projection — the only
   operations it can build are the three the ERC defines, and it signs none of
   them.

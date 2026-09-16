@@ -1,7 +1,9 @@
-# ERC-8415 Wallet PRD v2.0
+# ERC-8415 Wallet PRD v2.1
 
-Supersedes v1.0. See **Appendix A — changes from v1.0** for what was corrected
-and why.
+Supersedes v2.0. See **Appendix A** for the v1.0 corrections and **Appendix B**
+for what v2.1 adds from the eth-magicians discussion (thread t/29634), which
+assigns a good deal of work to this layer and which v2.0 was not written
+against.
 
 ## Product Definition
 
@@ -281,6 +283,84 @@ behalf:
 These are reported as facts. The wallet does not score them, does not produce
 a safe/unsafe verdict, and does not gate any action on them.
 
+## 4.7 What a holder is actually asking
+
+The questions in §4.1–§4.6 are the protocol's. A holder's are different, and
+the wallet answers them in their own words or it has not done its job:
+
+**"What does 'registration pending' mean for me?"** That a previous transfer
+has not yet been recorded by the register. It is not a failure, not an error,
+and not a blocked transaction — it is the register catching up.
+
+**"Do I need to do anything?"** No. You wait. Registration is serial: the token
+can change hands on chain every few minutes, and the register records each hop
+one at a time. Nothing about that is fixable by a wallet or a standard.
+
+**"How far behind is it?"** Where the wallet can tell, it says. An open gap
+naming an expected holder who is *not* the current `ownerOf` means at least one
+further transfer will need registering after this one closes. That is
+computable from the two sequences and is the most direct answer available to
+the question a holder actually asks.
+
+**"What if it takes too long?"** The gap carries a deadline, bounded by
+`settlementPeriod`. When it passes, the wallet says so. What follows is
+governed by the trade terms between the parties — it is not the protocol's
+concern and it is not the wallet's. The wallet reports; it does not advise and
+it does not act.
+
+**"Who do I contact?"** `registerId` identifies the register and
+`isSettlementAuthority` identifies who may move the answer, both as on-chain
+identifiers. Resolving either to a party a person can contact is profile-defined
+and off-chain. The wallet shows the identifiers and states plainly that it
+cannot resolve them, rather than leaving a user to assume no one is reachable.
+
+Throughout: the wallet never blocks the token. `ownerOf` is live and stays
+live.
+
+## 4.8 Before acquiring
+
+A holder deciding whether to acquire a token needs the same facts as one who
+already holds it, framed for a decision that has not been made yet: whether a
+gap is open, whose registration it is waiting on, whether further hops sit
+behind it, and that the instant of their own purchase will never be final at
+the moment it happens — the present never is.
+
+The wallet presents those facts. It does not score the token, does not say
+whether acquiring is wise, and does not gate the action. Whether that risk is
+acceptable is the acquirer's decision, reflected in their trade terms, exactly
+as with any other settlement risk.
+
+## 4.9 Collisions the protocol does not prevent
+
+Commitment and `registryReference` uniqueness is enforced **per token only**. A
+single off-chain register entry can therefore back the confirmed-holder claim
+on two separate tokens at once, and every invariant on each token individually
+still holds — a single-token audit surfaces nothing.
+
+The ERC assigns detection to this layer: downstream indexers should surface
+such collisions rather than expect the protocol to reject them. The wallet
+therefore compares commitments and references across the tokens it has been
+given, reports any collision it finds, and states the limit of the check — it
+can only compare what it was asked to look at, so finding none is not proof
+that none exists.
+
+## 4.10 Reads are snapshots
+
+`holderAsOf`, `isFinalAsOf` and `openGapOf` are point-in-time reads, and a
+proof can be admitted between a read and an action that depends on it.
+
+The wallet marks every transaction it builds as resting on a snapshot, and can
+re-derive a built request to report whether anything moved underneath it. That
+narrows the window; it does not close it.
+
+The recommended shape for an integrating contract is the **on-chain atomic
+read**: call `holderAsOf` / `isFinalAsOf` / `openGapOf` inside the same
+transaction as the action that depends on the result. That closes the window
+entirely, because no separate read-then-later-send step exists for a proof to
+land between. Handling a state shift at transaction-land time is the fallback
+for an off-chain read done for display, not a co-equal alternative, and the
+wallet's guidance says so in those terms.
+
 ---
 
 # 5. Application Patterns
@@ -292,11 +372,36 @@ answer, and applications that quarantine until an instant is final. It shows
 which case a given instant is in. It does not impose a settlement policy, and
 it does not tell a user whether a trade is safe.
 
+A non-normative reference pattern circulates in the ERC's discussion: hold
+trade consideration while a gap is open, release it when an entry is admitted,
+return it to the buyer if the gap is cancelled without admission. The wallet
+reports the state that pattern keys off — and reports it as three distinct
+cases, because a stale attestation must not be handled as ordinary pending:
+
+| Projection | Watchtower feed | What the wallet reports |
+| --- | --- | --- |
+| final at the instant | fresh | settled and current |
+| provisional | fresh | a change is expected; the feed is live |
+| any | stale | the feed is not current — distinct from pending |
+
+Naming the third case separately is the point. Conflating stale with pending
+makes a silently dead register look like ordinary delay.
+
+The wallet stops at reporting. It holds no consideration, releases nothing,
+refunds nothing, and recommends none of the three. Which of them a given asset
+warrants is a risk decision belonging to the parties' terms.
+
 ## Custody
 
 Institutional use: monitoring the two sequences, reviewing commitments and
 references, and exporting an audit trail of entries and gap transitions that
 can be re-checked against the chain later.
+
+Where a watchtower feed is read alongside a projection, the pairing is an
+assertion by whoever configured it: no on-chain link exists between a
+`registerId` and a feed identifier, and none exists between a feed and its
+predecessor across a migration. The wallet records both as configuration,
+labels them as unverified, and does not let either pass as a fact it checked.
 
 ## Rights and record instants
 
@@ -386,7 +491,10 @@ adapter once the Native Infrastructure Kit exposes its Register API.
    registry reference;
 6. see what register this projects, under which verification profile, who may
    move the answer, and what would have to happen for the instant to become
-   final.
+   final;
+7. understand, in their own words, what a pending registration means for them,
+   that it is not a failure, that waiting is the action, and where the remedy
+   lies if the commitment window passes.
 
 ---
 
@@ -445,3 +553,67 @@ modelled the protocol incorrectly. Corrections:
 11. **Layer placement.** v1.0 said the wallet "does not impose settlement
     policy", which is kept and sharpened: the wallet presents the record and
     the diagnosis, and supports but never imposes remedy.
+
+---
+
+# Appendix B — what v2.1 adds, and why
+
+v2.0 was written against the ERC text alone. The eth-magicians discussion
+(thread t/29634) assigns a good deal to the wallet layer — one reply is titled
+on the point that the solution belongs in the wallet rather than a more complex
+spec — and several requirements exist only there.
+
+1. **A holder's own questions (§4.7).** The thread opens with a user asking
+   what "registration pending" means for them, whether they must do anything,
+   and who to contact if it drags. The author's answer defines the wallet's
+   job: surface the real status, say that waiting is the action, point at the
+   trade terms if the commitment window passes, and never block the token.
+   v2.0's copy was protocol-accurate and answered none of it.
+
+2. **Serial registration and the hops behind (§4.7).** Registration is
+   physical and sequential: the register records a→b, then b→c, then c→d. What
+   is pending is a *previous* transfer. An open gap whose expected holder is
+   not the current `ownerOf` means further hops are still outstanding behind
+   it — computable from the two sequences the wallet already reads, and the
+   most direct answer to "how far behind is this".
+
+3. **Acquisition-time disclosure (§4.8).** The thread is explicit that a
+   wallet should surface an open gap to someone *about to* acquire a token.
+   v2.0 described a monitoring tool only.
+
+4. **Cross-token collisions (§4.9).** Uniqueness is per token. One register
+   entry can back two tokens while every single-token invariant holds, and the
+   ERC hands detection to downstream indexers. v2.0 did not mention it.
+
+5. **Stale is not pending (§5, Trading).** The freshness annex's whole purpose
+   is separating a silently dead register from ordinary delay. v2.0 kept
+   freshness and finality apart structurally, which is the hard part, but never
+   presented the two together, which is where the conflation happens.
+
+6. **TOCTOU (§4.10).** Point-in-time reads can move under a caller. The
+   recommended integration shape is the on-chain atomic read, which closes the
+   window rather than narrowing it; handling a shift at land time is the
+   fallback for a display read, not an equal option.
+
+7. **Layer-one identity, said to the user (§4.7, AGENTS.md).** The thread
+   argues that leaving "on-chain owner == register-confirmed holder" implicit
+   is the same category error as `FRESH_FINAL`, one level up: a reader takes
+   record agreement for verified legal identity. The protocol does not, and
+   cannot, verify the equivalence, and the wallet must say so where it reports
+   agreement.
+
+8. **Migration continuity (§5, Custody).** No on-chain link exists between a
+   watchtower feed and its predecessor across a migration; tracking it is the
+   application's.
+
+Two things the thread settles that v2.0 already had right, recorded so a later
+reader does not reopen them: vocabulary discipline — open/closed gap,
+provisional/final, admitted, with no rejection event — and that reorg-safety is
+not registrar finality.
+
+One correction to flag upward rather than adopt: the Scope draft in the thread
+describes `isFinalAsOf` as indicating whether on-chain reorg depth makes the
+projection immutable. That contradicts the ERC's own rule, which decides
+finality from entry ordering, and contradicts the same thread's earlier
+agreement to rename the reorg-safety signal precisely so the two are not
+conflated. This wallet follows the ERC text.

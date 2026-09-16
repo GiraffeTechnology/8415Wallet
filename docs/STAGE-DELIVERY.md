@@ -13,6 +13,7 @@ documentation and evidence. Stages are defined in
 | 4 | Gap-aware settlement UX | Delivered |
 | 5 | Freshness annex and ecosystem integration | Delivered |
 | — | Usability pass: the write path, the application seam, audit export | Delivered |
+| — | PRD v2.1: requirements from the eth-magicians discussion | **Specified, not built** |
 
 ---
 
@@ -613,3 +614,31 @@ tsc --noEmit            (clean)
   one round trip each, with no batching or multicall.
 - **The reference client is a terminal renderer.** The view models are the
   product; rendering them anywhere else is a consumer's choice.
+
+---
+
+## PRD v2.1 — specified, not built
+
+**The specification is currently ahead of the implementation.** PRD v2.1 adds
+§4.7 through §4.10 and a Trading composition table from the eth-magicians
+discussion (thread t/29634), which v2.0 was not written against. None of it is
+implemented yet. Recorded here so nobody reads the PRD as a description of what
+the code does.
+
+| PRD | Requirement | State |
+| --- | --- | --- |
+| §4.7 | "Registration pending" explained in a holder's own words; waiting is the action; not a failure | not built |
+| §4.7 | Hops still queued behind the gap being registered | not built |
+| §4.7 | Commitment window passed → point at the trade terms | partly: the deadline and `cancellable` are reported; the framing is not |
+| §4.7 | `registerId` / authority shown as unresolvable to a contactable party | not built |
+| §4.8 | Acquisition-time disclosure | not built |
+| §4.9 | Cross-token commitment and reference collisions | not built |
+| §4.10 | Re-derive a built request to report what moved; on-chain atomic read named as the recommended shape | partly: requests carry a snapshot caveat; no re-derivation, no guidance |
+| §5 | Freshness × finality composition, with stale as a distinct case | not built: both signals exist and are kept apart, but are never presented together |
+| §5 | Watchtower migration continuity | not built |
+| AGENTS.md | Agreement between `ownerOf` and the confirmed holder is not verified identity | not built: the alignment copy says they are two separate facts, but not that the protocol cannot verify the equivalence |
+
+Two of these are more than copy changes. §4.9 needs a comparison across several
+tokens, which no current entry point takes. §4.7's hop count needs the gap's
+`expectedHolder` compared against `ownerOf`, which is computable from reads the
+wallet already makes.
