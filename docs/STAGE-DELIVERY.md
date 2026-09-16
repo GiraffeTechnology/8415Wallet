@@ -12,6 +12,7 @@ documentation and evidence. Stages are defined in
 | 3 | Temporal query and history | Delivered |
 | 4 | Gap-aware settlement UX | Delivered |
 | 5 | Freshness annex and ecosystem integration | Delivered |
+| — | Usability pass: the write path, the application seam, audit export | Delivered |
 
 ---
 
@@ -518,3 +519,97 @@ tsc --noEmit            (clean)
 - **Attestation submission.** The wallet reads freshness. Submitting an
   attestation is a watchtower operator's job, needs EIP-712 signing against
   the layer's domain, and is not something a holder's wallet does.
+
+---
+
+## Usability pass — making it usable against a real deployment
+
+An audit against the PRD found the wallet could read everything and act on
+nothing. It told a registrar "you may open a gap" and then offered no way to
+open one, its freshness layer could not be pointed at a real feed, its custody
+story had no export, and an application had no entry point to import. This
+closes those.
+
+### What was built
+
+| Module | Role |
+| --- | --- |
+| `src/sdk/transactions.ts` | The three settlement operations, with preflight |
+| `src/wallet/session.ts` | `WalletSession` — the application seam |
+| `src/wallet/auditTrail.ts` | A re-checkable export of entries and gap transitions |
+| `src/index.ts` | The public entry point |
+| `src/codec/abi.ts` | `encodeCallWithTail`, for `finalizeSettlement`'s dynamic `bytes` |
+
+### Decisions worth recording
+
+**The wallet builds transactions and never signs them.** It produces an
+unsigned request and hands it to a `TransactionSigner` the caller supplies —
+an injected provider, a hardware wallet, a custodian's service. No key
+material is read, stored or transmitted, because none is ever given. "No key
+material leaves the device" is true by construction rather than by policy.
+
+**Three operations, and no fourth.** `beginSettlement`, `finalizeSettlement`,
+`cancelSettlement`. There is no rollback, veto, override, or direct entry
+write, and a test asserts the transaction surface has exactly those three
+keys.
+
+**Preflight refuses what it has established would revert, and says what it
+cannot check.** Each check is `passed`, `failed`, or `unverifiable`. The
+authority check, the settlement period bound, strict monotonicity of
+`effectiveAt` and commitment uniqueness are all read off the contract and
+block a build. Proof validity is `unverifiable` and says so in those words:
+the contract verifies it on chain under a profile the consumer must accept,
+and a proof establishes inclusion in accepted finalized remote state — not
+that an asset exists or that a record is legally effective.
+
+**Consequences are reported without blocking.** Superseding an open gap and
+cancelling a settlement are the protocol working as specified, and both are
+easy to sign without understanding. Each build carries them in plain words:
+that supersession makes an already-produced proof unusable, and that
+cancelling settles nothing and is not a rejection.
+
+**A watchtower binding is an assertion, never a verified fact.** There is no
+on-chain link between an ERC-8415 `registerId` and a watchtower `assetId` —
+the two contracts do not know about each other. `computeAssetId` is asked of
+the watchtower rather than recomputed locally, because the namespace it hashes
+under belongs to the deployment. Every freshness view carries how the pairing
+was obtained and states that the wallet did not check it.
+
+**One identity pin per session.** `ContractIdentityPin` only detects drift
+across reads that share it, and every view previously constructed its own — so
+each compared a value against itself and nothing was ever checked.
+`WalletSession` holds one and passes it to every view; a test drifts
+`registerId` between two views and asserts the second is refused.
+
+**The audit trail is re-checkable, not summarised.** Integers are decimal
+strings so a JSON number cannot narrow a `uint64`, hashes are verbatim, and
+each gap transition carries the block and log index it was emitted at, so a
+third party can locate it independently of the file. Where the gap log could
+not be read it says so, because an empty list and "could not be read" are
+different claims.
+
+### Verification
+
+```
+$ npm run verify
+tsc --noEmit            (clean)
+# tests 231
+# suites 66
+# pass 231
+# fail 0
+```
+
+### Gaps this pass did not close
+
+- **The Native Infrastructure Kit adapter.** Unchanged: the Kit exposes no
+  Register API. See `docs/INTEGRATION.md`.
+- **The ERC-721 ownership sequence is still shown only as a current value.**
+  The asset view reports `ownerOf` and the history view walks projection
+  entries; neither shows the transfer history. AGENTS.md's layer two and the
+  README describe recording *both sequences*, so either the transfer log
+  belongs in the history view or that wording should be narrowed. It is a
+  decision about scope, not an oversight, and is left open deliberately.
+- **`buildHistoryView` makes one `entryAt` call per entry.** Over RPC that is
+  one round trip each, with no batching or multicall.
+- **The reference client is a terminal renderer.** The view models are the
+  product; rendering them anywhere else is a consumer's choice.

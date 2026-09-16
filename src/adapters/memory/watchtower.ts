@@ -1,3 +1,4 @@
+import { keccak256 } from '../../codec/keccak.ts';
 import { ContractRevertError } from '../../sdk/errors.ts';
 import type {
   Freshness,
@@ -22,6 +23,9 @@ import type { Address, Bytes32 } from '../../sdk/types.ts';
  * A `finalityDepth` of zero makes every fresh head `FRESH_FINAL`, which suits
  * single-slot finality chains.
  */
+/** This model's hashing namespace. A real deployment declares its own. */
+const MEMORY_NAMESPACE: string = `0x${'11'.repeat(32)}`;
+
 export class MemoryWatchtowerContract {
   readonly chainId: bigint;
   readonly address: Address;
@@ -105,6 +109,18 @@ export class MemoryWatchtowerContract {
     return head;
   }
 
+  /**
+   * `keccak256(namespace, registrar, salt)`.
+   *
+   * The namespace here is this model's own. A deployment's differs, which is
+   * exactly why the wallet asks the contract instead of computing it.
+   */
+  computeAssetId(registrar: Address, salt: Bytes32): Bytes32 {
+    const packed =
+      MEMORY_NAMESPACE.slice(2) + registrar.slice(2).padStart(64, '0') + salt.slice(2);
+    return `0x${Buffer.from(keccak256(Buffer.from(packed, 'hex'))).toString('hex')}`;
+  }
+
   policyOf(assetId: Bytes32): WatchtowerPolicy {
     const policy = this.#policies.get(assetId);
     if (policy === undefined) throw new ContractRevertError('policyOf: asset not registered');
@@ -132,5 +148,9 @@ export class MemoryWatchtowerReader implements WatchtowerReader {
 
   async policyOf(assetId: Bytes32): Promise<WatchtowerPolicy> {
     return this.#contract.policyOf(assetId);
+  }
+
+  async computeAssetId(registrar: Address, salt: Bytes32): Promise<Bytes32> {
+    return this.#contract.computeAssetId(registrar, salt);
   }
 }

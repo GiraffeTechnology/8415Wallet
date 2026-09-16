@@ -60,7 +60,9 @@ line:
   unwinding belong to the parties' own terms;
 - it does not score risk or produce a safe/unsafe verdict;
 - it does not redefine, extend or recompute protocol semantics;
-- it has no rollback, veto or override path into the projection.
+- it has no rollback, veto or override path into the projection — the only
+  operations it can build are the three the ERC defines, and it signs none of
+  them.
 
 It reports. The user decides.
 
@@ -91,6 +93,13 @@ presents it without collapsing any of its signals: the asset view, the
 temporal query, the append-only entry walk, the gap history with the three
 closures distinguished, the risk surfaces, and the watchtower freshness layer
 kept apart from finality. 194 tests, no runtime dependencies.
+
+The wallet also acts, within the bounds the ERC sets: it builds the three
+settlement operations with a preflight that refuses what would revert and
+names what it cannot check, and hands the unsigned request to a signer the
+caller supplies. It never holds key material. `WalletSession` is the surface
+an application integrates against, and an audit trail exports entries and gap
+transitions in a form a third party can re-check against the chain.
 
 `npm run wallet` renders all of it for the bundled scenarios. Binding a
 different backend is described in [docs/INTEGRATION.md](docs/INTEGRATION.md);

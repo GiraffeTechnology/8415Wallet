@@ -1,4 +1,4 @@
-import type { Instant, TokenId } from './types.ts';
+import type { TokenId } from './types.ts';
 
 /**
  * A contract call reverted.
@@ -17,31 +17,6 @@ export class ContractRevertError extends Error {
     this.name = 'ContractRevertError';
     this.call = call;
     this.data = data;
-  }
-}
-
-/**
- * The instant asked about precedes the token's first entry.
- *
- * `entryAsOf` and `holderAsOf` revert there by specification. This is not a
- * fault: it means the projection does not cover the instant. Established by
- * comparing the instant against `entryAt(tokenId, 1).effectiveAt`, never by
- * reading a revert string.
- */
-export class ProjectionDoesNotCoverInstant extends Error {
-  readonly tokenId: TokenId;
-  readonly instant: Instant;
-  readonly firstEffectiveAt: Instant;
-
-  constructor(tokenId: TokenId, instant: Instant, firstEffectiveAt: Instant) {
-    super(
-      `the projection for token ${tokenId} begins at ${firstEffectiveAt} ` +
-        `and does not cover instant ${instant}`,
-    );
-    this.name = 'ProjectionDoesNotCoverInstant';
-    this.tokenId = tokenId;
-    this.instant = instant;
-    this.firstEffectiveAt = firstEffectiveAt;
   }
 }
 

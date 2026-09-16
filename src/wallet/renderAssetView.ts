@@ -92,6 +92,12 @@ export function renderAssetView(view: AssetView): string {
       : shortHex(view.identity.verificationProfile),
   );
   field(
+    'Settlement period',
+    view.settlementPeriod === undefined
+      ? 'none — no settlement interface'
+      : `${formatDuration(view.settlementPeriod)} maximum for any one gap`,
+  );
+  field(
     'Conformance',
     [
       view.conformance.projection ? 'projection 0x6309e170' : 'projection absent',

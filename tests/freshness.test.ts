@@ -7,11 +7,17 @@ import {
   MemoryWatchtowerReader,
 } from '../src/adapters/memory/watchtower.ts';
 import { REGISTRAR, T, TOKEN, cancelledGapToken, divergentToken } from '../src/adapters/memory/scenarios.ts';
+import type { WatchtowerBinding } from '../src/sdk/watchtower.ts';
 import { buildFreshnessView, noWatchtower } from '../src/wallet/freshness.ts';
 import { buildTemporalView } from '../src/wallet/temporalQuery.ts';
 
 const ASSET = `0x${'a5'.repeat(32)}`;
 const KEY = '0x9e900000000000000000000000000000000000aa';
+
+/** The pairing an operator asserts: this feed tracks this projection. */
+function binding(reader: MemoryWatchtowerReader): WatchtowerBinding {
+  return { reader, assetId: ASSET, provenance: 'configured' };
+}
 
 function watchtower(options: { finalityDepth?: bigint } = {}) {
   const contract = new MemoryWatchtowerContract({ blockNumber: 1_000n });
@@ -26,7 +32,7 @@ function watchtower(options: { finalityDepth?: bigint } = {}) {
 describe('the classification rule', () => {
   test('unknown when no head is recorded', async () => {
     const { reader } = watchtower();
-    const view = await buildFreshnessView(reader, ASSET);
+    const view = await buildFreshnessView(binding(reader));
     assert.equal(view.reported, 'UNKNOWN');
     assert.equal(view.display, 'unknown');
   });
@@ -41,7 +47,7 @@ describe('the classification rule', () => {
     });
     contract.advanceBlocks(10n);
 
-    const view = await buildFreshnessView(reader, ASSET);
+    const view = await buildFreshnessView(binding(reader));
     assert.equal(view.reported, 'FRESH_PENDING');
     assert.equal(view.display, 'fresh-reorg-exposed');
     assert.equal(view.age, 10n);
@@ -57,7 +63,7 @@ describe('the classification rule', () => {
     });
     contract.advanceBlocks(40n);
 
-    const view = await buildFreshnessView(reader, ASSET);
+    const view = await buildFreshnessView(binding(reader));
     // The contract's enum name is preserved on `reported`; the display is not
     // allowed to repeat it.
     assert.equal(view.reported, 'FRESH_FINAL');
@@ -76,7 +82,7 @@ describe('the classification rule', () => {
     });
     contract.advanceBlocks(51n);
 
-    assert.equal((await buildFreshnessView(reader, ASSET)).display, 'stale');
+    assert.equal((await buildFreshnessView(binding(reader))).display, 'stale');
   });
 
   test('a revoked key collapses the head to stale, retroactively', async () => {
@@ -87,10 +93,10 @@ describe('the classification rule', () => {
       freshnessThreshold: 500n,
       key: KEY,
     });
-    assert.equal((await buildFreshnessView(reader, ASSET)).display, 'reorg-safe');
+    assert.equal((await buildFreshnessView(binding(reader))).display, 'reorg-safe');
 
     contract.revokeKey(ASSET, KEY);
-    const view = await buildFreshnessView(reader, ASSET);
+    const view = await buildFreshnessView(binding(reader));
     assert.equal(view.display, 'stale');
     assert.match(view.explanation, /revoked key means compromise/);
   });
@@ -106,7 +112,7 @@ describe('freshness is never finality', () => {
       key: KEY,
     });
 
-    const view = await buildFreshnessView(reader, ASSET);
+    const view = await buildFreshnessView(binding(reader));
     assert.match(view.disclaimer, /Freshness is not finality/);
     assert.match(view.explanation, /not registrar finality and not projection finality/);
     assert.doesNotMatch(view.label, /final/i);
@@ -120,7 +126,7 @@ describe('freshness is never finality', () => {
       freshnessThreshold: 500n,
       key: KEY,
     });
-    const freshness = await buildFreshnessView(reader, ASSET);
+    const freshness = await buildFreshnessView(binding(reader));
     assert.equal(freshness.display, 'reorg-safe');
 
     // Same asset, deepest possible freshness. The projection is unmoved.
@@ -138,7 +144,7 @@ describe('freshness is never finality', () => {
       key: KEY,
     });
     contract.advanceBlocks(100n);
-    assert.equal((await buildFreshnessView(reader, ASSET)).display, 'stale');
+    assert.equal((await buildFreshnessView(binding(reader))).display, 'stale');
 
     const projection = divergentToken();
     const view = await buildTemporalView(projection.reader, TOKEN, T.finalInstant);

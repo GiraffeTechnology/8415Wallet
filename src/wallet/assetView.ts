@@ -121,6 +121,14 @@ export type AssetView = {
   readonly presentFinality: PresentFinalityView;
   readonly gap: GapView;
   readonly authority: AuthorityView;
+  /**
+   * The maximum a gap may run for, from `settlementPeriod`.
+   *
+   * Part of contract identity, not of any particular gap: it bounds how long a
+   * future gap could hold instants contested, which is worth seeing while none
+   * is open. `undefined` when the contract offers no settlement interface.
+   */
+  readonly settlementPeriod: bigint | undefined;
   readonly identityNote: string;
 };
 
@@ -226,6 +234,10 @@ export async function buildAssetView(
       explanation: explainPresentFinality(presentFinal, observedAt, latest.effectiveAt),
     },
     gap: await buildGapView(reader, tokenId, conformance, observedAt),
+    settlementPeriod:
+      conformance.settlement && reader.settlementPeriod !== undefined
+        ? await reader.settlementPeriod()
+        : undefined,
     authority: await buildAuthorityView(reader, tokenId, conformance, options.account),
     identityNote:
       identity.verificationProfile === undefined

@@ -68,4 +68,43 @@ export type WatchtowerReader = {
   freshnessOf(assetId: Bytes32): Promise<FreshnessAnswer>;
   headOf(assetId: Bytes32): Promise<WatchtowerHead>;
   policyOf(assetId: Bytes32): Promise<WatchtowerPolicy>;
+  /**
+   * Derive a feed identifier from its registrar and salt.
+   *
+   * Asked of the contract rather than recomputed locally: the namespace it
+   * hashes under is the deployment's, not something the wallet should assume.
+   */
+  computeAssetId(registrar: Address, salt: Bytes32): Promise<Bytes32>;
 };
+
+/**
+ * Which watchtower feed a projection is being read alongside.
+ *
+ * There is no on-chain link between an ERC-8415 `registerId` and a watchtower
+ * `assetId`: the two contracts do not know about each other. A binding is
+ * therefore an assertion by whoever configured the wallet, and the wallet says
+ * so wherever it shows freshness rather than implying the pairing was checked.
+ */
+export type WatchtowerBinding = {
+  readonly reader: WatchtowerReader;
+  readonly assetId: Bytes32;
+  /** `computed` means derived through `computeAssetId`; `configured` means supplied. */
+  readonly provenance: 'configured' | 'computed';
+  /** The register this feed is asserted to track, for display alongside. */
+  readonly claimedRegisterId?: Bytes32;
+};
+
+/** Derive a feed identifier and return it as a binding. */
+export async function bindByRegistrar(
+  reader: WatchtowerReader,
+  registrar: Address,
+  salt: Bytes32,
+  claimedRegisterId?: Bytes32,
+): Promise<WatchtowerBinding> {
+  return {
+    reader,
+    assetId: await reader.computeAssetId(registrar, salt),
+    provenance: 'computed',
+    ...(claimedRegisterId === undefined ? {} : { claimedRegisterId }),
+  };
+}

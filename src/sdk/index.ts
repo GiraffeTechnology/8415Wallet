@@ -22,7 +22,6 @@ export {
   IdentityChangedError,
   InvariantViolationError,
   NonConformantContractError,
-  ProjectionDoesNotCoverInstant,
   ProjectionNotInitialized,
   ValueOutOfRangeError,
 } from './errors.ts';

@@ -68,6 +68,16 @@ export class RpcWatchtowerReader implements WatchtowerReader {
     };
   }
 
+  async computeAssetId(registrar: Address, salt: Bytes32): Promise<Bytes32> {
+    const data = encodeCall(
+      'computeAssetId(address,bytes32)',
+      ['address', 'bytes32'],
+      [registrar, salt],
+    );
+    const [assetId] = decodeResult(['bytes32'], await this.#transport.call(this.source.address, data));
+    return assetId as Bytes32;
+  }
+
   async policyOf(assetId: Bytes32): Promise<WatchtowerPolicy> {
     const fields = await this.#read('policyOf(bytes32)', [assetId], POLICY_TYPES);
     return {

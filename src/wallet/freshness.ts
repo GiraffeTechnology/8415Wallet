@@ -1,5 +1,5 @@
 import type { Bytes32 } from '../sdk/types.ts';
-import type { Freshness, WatchtowerReader } from '../sdk/watchtower.ts';
+import type { Freshness, WatchtowerBinding } from '../sdk/watchtower.ts';
 
 /**
  * Freshness, presented as what it is.
@@ -25,6 +25,18 @@ export type FreshnessDisplay =
 
 export type FreshnessView = {
   readonly assetId: Bytes32 | undefined;
+  /** Which watchtower contract, on which chain, answered. */
+  readonly source: { readonly chainId: bigint; readonly address: string } | undefined;
+  /**
+   * How this feed came to be paired with the projection being read.
+   *
+   * Never verified on chain: the two contracts do not know about each other.
+   * Shown so a reader can see the pairing is someone's assertion.
+   */
+  readonly binding:
+    | { readonly provenance: 'configured' | 'computed'; readonly claimedRegisterId?: Bytes32 }
+    | undefined;
+  readonly bindingNote: string | undefined;
   /** Exactly what the contract's enum said, when one was consulted. */
   readonly reported: Freshness | undefined;
   readonly display: FreshnessDisplay;
@@ -62,6 +74,9 @@ const DISPLAY_BY_STATUS: Record<Freshness, FreshnessDisplay> = {
 export function noWatchtower(): FreshnessView {
   return {
     assetId: undefined,
+    source: undefined,
+    binding: undefined,
+    bindingNote: undefined,
     reported: undefined,
     display: 'not-configured',
     label: LABELS['not-configured'],
@@ -75,10 +90,8 @@ export function noWatchtower(): FreshnessView {
   };
 }
 
-export async function buildFreshnessView(
-  reader: WatchtowerReader,
-  assetId: Bytes32,
-): Promise<FreshnessView> {
+export async function buildFreshnessView(binding: WatchtowerBinding): Promise<FreshnessView> {
+  const { reader, assetId } = binding;
   const { status, age } = await reader.freshnessOf(assetId);
 
   let finalityDepth: bigint | undefined;
@@ -91,6 +104,14 @@ export async function buildFreshnessView(
   const display = DISPLAY_BY_STATUS[status];
   return {
     assetId,
+    source: reader.source,
+    binding: {
+      provenance: binding.provenance,
+      ...(binding.claimedRegisterId === undefined
+        ? {}
+        : { claimedRegisterId: binding.claimedRegisterId }),
+    },
+    bindingNote: bindingNote(binding),
     reported: status,
     display,
     label: LABELS[display],
@@ -128,4 +149,20 @@ function explain(status: Freshness, age: bigint, finalityDepth: bigint | undefin
         'Nothing is being attested.'
       );
   }
+}
+
+function bindingNote(binding: WatchtowerBinding): string {
+  const how =
+    binding.provenance === 'computed'
+      ? 'This feed identifier was derived through the watchtower\u2019s own computeAssetId.'
+      : 'This feed identifier was supplied by configuration.';
+  const claim =
+    binding.claimedRegisterId === undefined
+      ? 'Nothing states which register it tracks.'
+      : `It is asserted to track register ${binding.claimedRegisterId}.`;
+  return (
+    `${how} ${claim} No on-chain link exists between an ERC-8415 register and a ` +
+    'watchtower feed \u2014 the two contracts do not know about each other \u2014 so this ' +
+    'pairing is an assertion by whoever configured it, not a fact the wallet checked.'
+  );
 }
