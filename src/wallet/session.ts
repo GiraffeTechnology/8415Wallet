@@ -7,12 +7,18 @@ import {
   type BeginSettlementParams,
   type CancelSettlementParams,
   type FinalizeSettlementParams,
+  revalidate as revalidateRequest,
+  type Revalidation,
   type TransactionRequest,
   type TransactionSigner,
 } from '../sdk/transactions.ts';
 import type { Address, Instant, TokenId } from '../sdk/types.ts';
 import type { WatchtowerBinding } from '../sdk/watchtower.ts';
+import { describeAcquisition, type AcquisitionDisclosure } from './acquisition.ts';
 import { buildAssetView, type AssetView } from './assetView.ts';
+import { detectCollisions, type CollisionReport } from './collisions.ts';
+import { describePosture, type PostureView } from './posture.ts';
+import { describeRegistration, type RegistrationView } from './registration.ts';
 import { exportAuditTrail, type AuditTrail } from './auditTrail.ts';
 import { buildFreshnessView, noWatchtower, type FreshnessView } from './freshness.ts';
 import { buildHistoryView, type HistoryView } from './history.ts';
@@ -67,6 +73,51 @@ export class WalletSession {
       identityPin: this.identity,
       ...(this.#account === undefined ? {} : { account: this.#account }),
     });
+  }
+
+  /**
+   * What a pending registration means for the holder.
+   *
+   * Derived from the asset view, so it costs no extra reads.
+   */
+  async registration(tokenId: TokenId): Promise<RegistrationView> {
+    return describeRegistration(await this.assetView(tokenId));
+  }
+
+  /** The facts someone about to acquire this token should see first. */
+  async acquisitionDisclosure(tokenId: TokenId): Promise<AcquisitionDisclosure> {
+    const view = await this.assetView(tokenId);
+    return describeAcquisition(view, view.observedAt);
+  }
+
+  /**
+   * The projection's answer and the feed's currency, together.
+   *
+   * Each is computed apart, as it must be. Showing them together is what stops
+   * a stale feed being read as an ordinary pending change.
+   */
+  async posture(tokenId: TokenId, instant: Instant): Promise<PostureView> {
+    const [temporal, freshness] = await Promise.all([
+      this.temporalQuery(tokenId, instant),
+      this.freshness(),
+    ]);
+    return describePosture(temporal.finality, freshness);
+  }
+
+  /**
+   * Compare commitments and references across tokens.
+   *
+   * The protocol enforces uniqueness per token only, so this is the layer that
+   * can see a register entry backing two assets. It compares what it is given
+   * and says so.
+   */
+  collisions(tokenIds: readonly TokenId[]): Promise<CollisionReport> {
+    return detectCollisions(this.reader, tokenIds);
+  }
+
+  /** Re-derive a built request and report what moved underneath it. */
+  revalidate(request: TransactionRequest): Promise<Revalidation> {
+    return revalidateRequest(this.reader, request);
   }
 
   temporalQuery(tokenId: TokenId, instant: Instant): Promise<TemporalView> {

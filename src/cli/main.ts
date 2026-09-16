@@ -1,4 +1,16 @@
+import { MemoryErc8415Reader } from '../adapters/memory/memoryReader.ts';
+import { MemoryRegisterContract } from '../adapters/memory/register.ts';
+import { detectCollisions } from '../wallet/collisions.ts';
 import {
+  renderAcquisitionDisclosure,
+  renderCollisions,
+  renderPosture,
+  renderRegistration,
+} from '../wallet/renderHolderViews.ts';
+import {
+  ALICE,
+  CAROL,
+  STRANGER,
   cancelledGapToken,
   divergentToken,
   projectionOnlyToken,
@@ -101,6 +113,27 @@ async function main(): Promise<void> {
       await buildRiskSurfaces(divergent.reader, divergent.tokenId, { account: REGISTRAR }),
     ),
   );
+  banner('What this means for the holder');
+  // Move the position past what the open gap will record, so the serial
+  // registration chain the thread describes is visible.
+  divergent.contract.transfer(divergent.tokenId, STRANGER);
+  const holder = new WalletSession(divergent.reader);
+  console.log(renderRegistration(await holder.registration(divergent.tokenId)));
+
+  banner('Before you acquire');
+  console.log(renderAcquisitionDisclosure(await holder.acquisitionDisclosure(divergent.tokenId)));
+
+  banner('Posture — the projection and the feed, together');
+  console.log(renderPosture(await holder.posture(divergent.tokenId, T.finalInstant)));
+
+  banner('Cross-token check — a collision the protocol does not prevent');
+  const shared = new MemoryRegisterContract({ now: T.beforeFirstEntry });
+  shared.mint(1n, ALICE);
+  shared.mint(2n, CAROL);
+  shared.seedEntries(1n, [{ holder: ALICE, effectiveAt: T.v1, seed: 'a' }]);
+  shared.seedEntries(2n, [{ holder: CAROL, effectiveAt: T.v1, seed: 'a' }]);
+  console.log(renderCollisions(await detectCollisions(new MemoryErc8415Reader(shared), [1n, 2n])));
+
   banner('Acting on it — building a transaction, with preflight');
   const session = new WalletSession(divergent.reader, { account: REGISTRAR });
   divergent.contract.advanceTo(T.openGapDeadline + 1n);

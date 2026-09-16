@@ -149,11 +149,15 @@ const DISCLOSURE_HOLDER =
 
 const NOTE_ALIGNED =
   'The position and the confirmed holder currently agree. They are still two ' +
-  'separate facts, and they may diverge again at any time.';
+  'separate facts, and they may diverge again at any time. Agreement is not ' +
+  'verified identity: the protocol does not, and cannot, check that these two ' +
+  'records refer to the same underlying right. It reports what each side says.';
 
 const NOTE_DIVERGED =
   'The position and the confirmed holder currently differ. This is the design, ' +
-  'not a fault: the token keeps trading while the register catches up.';
+  'not a fault: the token keeps trading while the register catches up. Neither ' +
+  'agreement nor divergence is verified identity — the protocol does not, and ' +
+  'cannot, check that these two records refer to the same underlying right.';
 
 const NOTE_IDENTITY_WITH_PROFILE =
   'This projection is attributable to the register and profile above. Whether ' +

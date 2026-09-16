@@ -13,7 +13,7 @@ documentation and evidence. Stages are defined in
 | 4 | Gap-aware settlement UX | Delivered |
 | 5 | Freshness annex and ecosystem integration | Delivered |
 | — | Usability pass: the write path, the application seam, audit export | Delivered |
-| — | PRD v2.1: requirements from the eth-magicians discussion | **Specified, not built** |
+| — | PRD v2.1: requirements from the eth-magicians discussion | Delivered |
 
 ---
 
@@ -617,28 +617,91 @@ tsc --noEmit            (clean)
 
 ---
 
-## PRD v2.1 — specified, not built
+## PRD v2.1 — built
 
-**The specification is currently ahead of the implementation.** PRD v2.1 adds
-§4.7 through §4.10 and a Trading composition table from the eth-magicians
-discussion (thread t/29634), which v2.0 was not written against. None of it is
-implemented yet. Recorded here so nobody reads the PRD as a description of what
-the code does.
+The section that stood here recorded the specification running ahead of the
+implementation. It no longer does.
 
-| PRD | Requirement | State |
-| --- | --- | --- |
-| §4.7 | "Registration pending" explained in a holder's own words; waiting is the action; not a failure | not built |
-| §4.7 | Hops still queued behind the gap being registered | not built |
-| §4.7 | Commitment window passed → point at the trade terms | partly: the deadline and `cancellable` are reported; the framing is not |
-| §4.7 | `registerId` / authority shown as unresolvable to a contactable party | not built |
-| §4.8 | Acquisition-time disclosure | not built |
-| §4.9 | Cross-token commitment and reference collisions | not built |
-| §4.10 | Re-derive a built request to report what moved; on-chain atomic read named as the recommended shape | partly: requests carry a snapshot caveat; no re-derivation, no guidance |
-| §5 | Freshness × finality composition, with stale as a distinct case | not built: both signals exist and are kept apart, but are never presented together |
-| §5 | Watchtower migration continuity | not built |
-| AGENTS.md | Agreement between `ownerOf` and the confirmed holder is not verified identity | not built: the alignment copy says they are two separate facts, but not that the protocol cannot verify the equivalence |
+### What was built
 
-Two of these are more than copy changes. §4.9 needs a comparison across several
-tokens, which no current entry point takes. §4.7's hop count needs the gap's
-`expectedHolder` compared against `ownerOf`, which is computable from reads the
-wallet already makes.
+| Module | Role |
+| --- | --- |
+| `src/wallet/registration.ts` | What a pending registration means to the holder |
+| `src/wallet/acquisition.ts` | The facts someone about to acquire should see |
+| `src/wallet/posture.ts` | The projection and the feed, shown together |
+| `src/wallet/collisions.ts` | Cross-token commitment and reference comparison |
+| `src/sdk/transactions.ts` | Requests carry their intent; `revalidate` re-derives one |
+
+### Decisions worth recording
+
+**"How far behind is it" is answered without inventing a number.** Counting
+hops would need the ERC-721 transfer history, which the wallet does not read.
+What it *can* establish is that the gap's `expectedHolder` is not the current
+`ownerOf`, which means at least one more registration must follow the one in
+flight. The view says "at least one further transfer" and a test asserts no
+numeric hop count is ever rendered.
+
+**The holder-facing copy never frames a pending registration as a failure.** A
+test bans the affirmative phrasings — "transaction failed", "is stuck",
+"blocked until" — and asserts every state says the token is not blocked. An
+earlier version of that test banned the bare word "error" and failed against
+copy reading "this is not a failure and not an error", which is the wording
+that should be there; the test now checks framing rather than vocabulary.
+
+**A passed commitment window points at the trade terms and stops.** The wallet
+reports that the window passed and says what follows is governed by the terms
+agreed with the counterparty — not by the protocol and not by the wallet. It
+offers no remedy and takes no action.
+
+**"Who to ask" says what the wallet cannot resolve.** `registerId` and the
+settlement authority are on-chain identifiers; mapping either to a contactable
+party is profile-defined and off chain. Saying so beats leaving a holder to
+conclude there is nobody.
+
+**The posture view exists because keeping two signals apart is not enough.**
+Freshness and finality are computed separately, as they must be. But a reader
+who only ever sees one at a time cannot tell a stale feed from an ordinary
+pending change, which is the failure the freshness layer exists to prevent. The
+view reports the pair with `feed-not-current` as its own case — including when
+the instant *is* final — and recommends none of them.
+
+**The collision check states its own limit.** It compares the tokens it was
+given, and its scope note says that finding none is not evidence that none
+exists. A test builds one register entry backing two tokens, asserts the
+history walk on each token individually reports an intact chain, and then
+asserts only the comparison finds it — which is the whole reason the ERC hands
+this to the indexer layer.
+
+**A request carries the intent it was built from.** `revalidate` re-derives it
+against current state and reports what moved, returning a report rather than
+throwing when the request would now be refused — the caller asked what changed,
+and "it would be refused, here is why" is that answer. The preflight note now
+names the on-chain atomic read as *the* recommended shape, with land-time
+handling as the fallback for a display read rather than an equal option.
+
+### Verification
+
+```
+$ npm run verify
+tsc --noEmit            (clean)
+# tests 258
+# suites 72
+# pass 258
+# fail 0
+```
+
+### Still open
+
+- **The Native Infrastructure Kit adapter.** Unchanged: no Register API.
+- **Pointing the wallet at a real deployment.** `RpcErc8415Reader` and
+  `HttpCallTransport` pass the conformance harness, but nothing wires them: the
+  reference client runs the bundled scenarios only, with no `--rpc`,
+  `--contract` or `--token`. The library is usable against a chain; the product
+  is not.
+- **Token discovery.** Every entry point takes a `tokenId`. A holder cannot ask
+  which tokens they hold, which §5's "asset monitoring" needs.
+- **The ERC-721 ownership sequence as a sequence.** Still a current value only.
+  The registration view now infers *that* hops are outstanding from it, but the
+  transfer history itself is not read or shown.
+- **Batching.** `buildHistoryView` and `detectCollisions` both walk entries one
+  `entryAt` at a time.

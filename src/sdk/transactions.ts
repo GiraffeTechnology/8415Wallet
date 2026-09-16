@@ -49,8 +49,24 @@ export type PreflightReport = {
   readonly consequences: readonly string[];
 };
 
+/** What a request was built from, kept so it can be re-derived later. */
+export type TransactionIntent =
+  | { readonly kind: 'beginSettlement'; readonly params: BeginSettlementParams }
+  | { readonly kind: 'finalizeSettlement'; readonly params: FinalizeSettlementParams }
+  | { readonly kind: 'cancelSettlement'; readonly params: CancelSettlementParams };
+
 export type TransactionRequest = {
   readonly kind: TransactionKind;
+  /**
+   * The inputs this was built from.
+   *
+   * Preflight reads a snapshot, and a proof can be admitted between building a
+   * request and sending it. Carrying the intent lets the request be re-derived
+   * against current state to report what moved. That narrows the window; only
+   * an on-chain read inside the same transaction as the dependent action
+   * closes it.
+   */
+  readonly intent: TransactionIntent;
   readonly to: Address;
   readonly from: Address;
   readonly data: string;
@@ -91,7 +107,13 @@ export class TransactionWouldRevertError extends Error {
 
 const NOTE_SNAPSHOT =
   'Preflight reads a snapshot. State can change between building this and its ' +
-  'inclusion in a block, and the contract re-checks everything on chain.';
+  'inclusion in a block, and the contract re-checks everything on chain. ' +
+  'Re-deriving this request reports what moved underneath it, which narrows the ' +
+  'window but does not close it. For a contract that acts on a projection read, ' +
+  'the recommended shape is to call holderAsOf / isFinalAsOf / openGapOf inside ' +
+  'the same transaction as the action that depends on the result: that leaves no ' +
+  'interval for an admission to land in. Handling a shift at land time is the ' +
+  'fallback for a read taken off chain for display, not an equal alternative.';
 
 export type BeginSettlementParams = {
   readonly tokenId: TokenId;
@@ -191,7 +213,7 @@ export async function buildBeginSettlement(
     }
   }
 
-  return build(reader, 'beginSettlement', from, checks, consequences, {
+  return build(reader, 'beginSettlement', from, checks, consequences, { kind: 'beginSettlement', params }, {
     signature: 'beginSettlement(uint256,bytes32,address,bytes32,uint64)',
     types: ['uint256', 'bytes32', 'address', 'bytes32', 'uint64'],
     args: [
@@ -304,7 +326,7 @@ export async function buildFinalizeSettlement(
       'closes, all in one transaction.',
   );
 
-  return build(reader, 'finalizeSettlement', from, checks, consequences, {
+  return build(reader, 'finalizeSettlement', from, checks, consequences, { kind: 'finalizeSettlement', params }, {
     signature: 'finalizeSettlement(bytes32,bytes32,bytes32,uint64,bytes)',
     types: ['bytes32', 'bytes32', 'bytes32', 'uint64', 'bytes'],
     args: [
@@ -380,7 +402,7 @@ export async function buildCancelSettlement(
       'still be admitted afterwards. It is not a rejection — the protocol defines none.',
   );
 
-  return build(reader, 'cancelSettlement', from, checks, consequences, {
+  return build(reader, 'cancelSettlement', from, checks, consequences, { kind: 'cancelSettlement', params }, {
     signature: 'cancelSettlement(bytes32,bytes32)',
     types: ['bytes32', 'bytes32'],
     args: [params.settlementId, params.reasonHash],
@@ -441,6 +463,7 @@ function build(
   from: Address,
   checks: readonly PreflightCheck[],
   consequences: readonly string[],
+  intent: TransactionIntent,
   call: {
     signature: string;
     types: readonly AbiType[];
@@ -455,6 +478,7 @@ function build(
 
   return {
     kind,
+    intent,
     to: reader.source.address,
     from,
     data: encodeCallWithTail(call.signature, call.types, call.args),
@@ -467,5 +491,75 @@ function build(
       unverifiable: checks.filter((check) => check.outcome === 'unverifiable'),
       consequences: [...consequences, NOTE_SNAPSHOT],
     },
+  };
+}
+
+/** What a re-derivation found. */
+export type Revalidation = {
+  readonly unchanged: boolean;
+  /** The request as it would be built now, when it still builds at all. */
+  readonly current: TransactionRequest | undefined;
+  /** Populated when the request would now be refused. */
+  readonly refusedBy: readonly PreflightCheck[] | undefined;
+  /** Preflight outcomes that differ from the original. */
+  readonly changed: readonly { readonly name: string; readonly was: PreflightOutcome; readonly now: PreflightOutcome }[];
+  readonly note: string;
+};
+
+const NOTE_REVALIDATED =
+  'Re-derived against current state. This narrows the window between building ' +
+  'and sending; it does not close it. Only a read taken on chain, in the same ' +
+  'transaction as the action depending on it, closes it.';
+
+/**
+ * Rebuild a request from its intent and report what moved.
+ *
+ * Deliberately returns a report rather than throwing when the request would now
+ * be refused: the caller asked what changed, and "it would be refused, here is
+ * why" is the answer, not an error.
+ */
+export async function revalidate(
+  reader: Erc8415Reader,
+  request: TransactionRequest,
+): Promise<Revalidation> {
+  const rebuild = async (): Promise<TransactionRequest> => {
+    switch (request.intent.kind) {
+      case 'beginSettlement':
+        return buildBeginSettlement(reader, request.from, request.intent.params);
+      case 'finalizeSettlement':
+        return buildFinalizeSettlement(reader, request.from, request.intent.params);
+      case 'cancelSettlement':
+        return buildCancelSettlement(reader, request.from, request.intent.params);
+    }
+  };
+
+  let current: TransactionRequest;
+  try {
+    current = await rebuild();
+  } catch (error) {
+    if (!(error instanceof TransactionWouldRevertError)) throw error;
+    return {
+      unchanged: false,
+      current: undefined,
+      refusedBy: error.checks,
+      changed: [],
+      note: NOTE_REVALIDATED,
+    };
+  }
+
+  const before = new Map(request.preflight.checks.map((check) => [check.name, check.outcome]));
+  const changed = current.preflight.checks.flatMap((check) => {
+    const was = before.get(check.name);
+    return was === undefined || was === check.outcome
+      ? []
+      : [{ name: check.name, was, now: check.outcome }];
+  });
+
+  return {
+    unchanged: changed.length === 0 && current.data === request.data,
+    current,
+    refusedBy: undefined,
+    changed,
+    note: NOTE_REVALIDATED,
   };
 }

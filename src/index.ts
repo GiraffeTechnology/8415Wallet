@@ -26,6 +26,14 @@ export { buildRiskSurfaces } from './wallet/riskSurfaces.ts';
 export type * from './wallet/riskSurfaces.ts';
 export { buildFreshnessView, noWatchtower } from './wallet/freshness.ts';
 export type * from './wallet/freshness.ts';
+export { describeRegistration } from './wallet/registration.ts';
+export type * from './wallet/registration.ts';
+export { describeAcquisition } from './wallet/acquisition.ts';
+export type * from './wallet/acquisition.ts';
+export { describePosture } from './wallet/posture.ts';
+export type * from './wallet/posture.ts';
+export { detectCollisions } from './wallet/collisions.ts';
+export type * from './wallet/collisions.ts';
 export { describeContest } from './wallet/contested.ts';
 export type * from './wallet/contested.ts';
 export { describeFinality } from './wallet/finality.ts';
@@ -39,6 +47,12 @@ export { renderAssetView } from './wallet/renderAssetView.ts';
 export { renderHistory, renderTemporalQuery } from './wallet/renderTemporalQuery.ts';
 export { renderRiskSurfaces, renderSettlementLog } from './wallet/renderGapView.ts';
 export { renderFreshness } from './wallet/renderFreshness.ts';
+export {
+  renderAcquisitionDisclosure,
+  renderCollisions,
+  renderPosture,
+  renderRegistration,
+} from './wallet/renderHolderViews.ts';
 
 // The backend seam, and the protocol types every view is expressed in.
 export * from './sdk/index.ts';
@@ -46,6 +60,7 @@ export {
   buildBeginSettlement,
   buildCancelSettlement,
   buildFinalizeSettlement,
+  revalidate,
   TransactionWouldRevertError,
 } from './sdk/transactions.ts';
 export type * from './sdk/transactions.ts';
