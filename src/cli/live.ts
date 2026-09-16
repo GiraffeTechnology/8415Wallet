@@ -7,7 +7,7 @@ import { discoverHeldTokens } from '../wallet/discovery.ts';
 import { renderAssetView } from '../wallet/renderAssetView.ts';
 import { renderFreshness } from '../wallet/renderFreshness.ts';
 import { renderRiskSurfaces, renderSettlementLog } from '../wallet/renderGapView.ts';
-import { renderRegistration } from '../wallet/renderHolderViews.ts';
+import { renderOwnershipHistory, renderRegistration } from '../wallet/renderHolderViews.ts';
 import { renderHistory, renderTemporalQuery } from '../wallet/renderTemporalQuery.ts';
 import { WalletSession } from '../wallet/session.ts';
 import type { CliOptions } from './args.ts';
@@ -72,6 +72,9 @@ export async function runLive(options: CliOptions, banner: (title: string) => vo
 
   banner('Projection history');
   console.log(renderHistory(await session.history(tokenId)));
+
+  banner('Both sequences on one timeline');
+  console.log(renderOwnershipHistory(await session.ownershipHistory(tokenId)));
 
   banner('Settlement history');
   console.log(renderSettlementLog(await session.settlementLog(tokenId)));

@@ -35,6 +35,10 @@ export class MemoryErc8415Reader implements Erc8415Reader {
     return this.#contract.now;
   }
 
+  async chainInstantAt(blockNumber: bigint): Promise<Instant> {
+    return this.#contract.instantAt(blockNumber);
+  }
+
   async getLogs(filter: LogFilter): Promise<readonly RawLog[]> {
     return encodeLog(this.#contract.log, this.#contract.address).filter((log) =>
       matchesFilter(log, filter),

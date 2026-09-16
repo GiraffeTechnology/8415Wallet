@@ -27,6 +27,18 @@ export type Erc165Reader = {
 export type ChainClockReader = {
   /** `block.timestamp` of the latest block, on the same scale as an instant. */
   chainInstant(): Promise<Instant>;
+  /**
+   * `block.timestamp` of a given block.
+   *
+   * Optional. Needed to place an ERC-721 transfer, which a log dates only by
+   * block number, on the same scale as an entry's `effectiveAt`.
+   *
+   * The two remain different facts even once they share a scale: a transfer's
+   * timestamp is when this chain recorded the position moving, while an
+   * entry's `effectiveAt` is when the register says its change took effect.
+   * Sharing an axis is not sharing a meaning.
+   */
+  chainInstantAt?(blockNumber: bigint): Promise<Instant>;
 };
 
 /** The ERC-721 facts the wallet reads, alongside but never merged with the projection. */

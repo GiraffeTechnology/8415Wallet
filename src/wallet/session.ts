@@ -22,6 +22,7 @@ import { describeRegistration, type RegistrationView } from './registration.ts';
 import { exportAuditTrail, type AuditTrail } from './auditTrail.ts';
 import { buildFreshnessView, noWatchtower, type FreshnessView } from './freshness.ts';
 import { buildHistoryView, type HistoryView } from './history.ts';
+import { buildOwnershipHistory, type OwnershipHistoryView } from './ownershipHistory.ts';
 import { buildRiskSurfaces, type RiskSurfaceView } from './riskSurfaces.ts';
 import { buildSettlementLog, type SettlementLogView } from './settlementLog.ts';
 import { buildTemporalView, type TemporalView } from './temporalQuery.ts';
@@ -122,6 +123,17 @@ export class WalletSession {
 
   temporalQuery(tokenId: TokenId, instant: Instant): Promise<TemporalView> {
     return buildTemporalView(this.reader, tokenId, instant, { identityPin: this.identity });
+  }
+
+  /**
+   * Both sequences on one timeline.
+   *
+   * `history` walks the projection alone; this walks the ERC-721 ownership
+   * sequence alongside it, which is the other half of the record the ERC
+   * describes.
+   */
+  ownershipHistory(tokenId: TokenId): Promise<OwnershipHistoryView> {
+    return buildOwnershipHistory(this.reader, tokenId);
   }
 
   history(tokenId: TokenId): Promise<HistoryView> {

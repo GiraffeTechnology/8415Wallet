@@ -693,11 +693,14 @@ tsc --noEmit            (clean)
 ### Still open
 
 - **The Native Infrastructure Kit adapter.** Unchanged: no Register API.
-- **The ERC-721 ownership sequence as a sequence.** The transfer log is now
-  read, but only to discover tokens; no view walks it as history alongside the
-  projection entries.
-- **Batching.** `buildHistoryView`, `detectCollisions` and discovery all walk
-  one call at a time.
+- **Batching.** `buildHistoryView`, `detectCollisions`, discovery and the
+  ownership timeline all walk one call at a time. On a real endpoint that is
+  one round trip each.
+- **Never read against a real contract.** Every adapter test faces a fake node
+  written from the same understanding that produced the encoder. If that
+  understanding is wrong in the same way twice, the suite passes and nothing
+  works. Closing this needs the ERC's reference implementation deployed on a
+  local or test chain.
 
 ---
 
@@ -773,3 +776,49 @@ Also exercised end to end over HTTP against a JSON-RPC server serving the
 in-memory contract: discovery, asset view, registration, a temporal query at a
 chosen instant, history, settlement history and risk surfaces, plus the
 unreachable-endpoint path.
+
+---
+
+## Both sequences
+
+Closes the last specified-but-unbuilt gap. AGENTS.md's layer two and the
+README describe recording *both* sequences; the wallet walked the projection
+and reported ERC-721 ownership as a single current value.
+
+`buildOwnershipHistory` reads the `Transfer` log for a token, dates each change
+by its block, and interleaves it with the projection entries on one timeline.
+
+### Decisions worth recording
+
+**Sharing an axis is not sharing a meaning.** A position change is dated by the
+block that recorded it — when *this chain* learned the token moved. An entry is
+dated by `effectiveAt` — when *the register* says its change took effect, which
+routinely precedes the block that admitted it. They are placed on one scale
+because the ERC puts register instants on the `block.timestamp` scale so they
+can be compared; the view says in as many words that this does not make them
+the same kind of fact.
+
+**The correspondence is the wallet's inference and is labelled as one.**
+ERC-8415 defines no link between a transfer and the entry that records it. The
+view pairs a position change with the earliest entry naming that party at or
+after it, reports the interval, and states plainly that an entry naming the
+same party may have an entirely different cause. A test asserts no entry
+preceding a move is ever paired with it, and another asserts a party the
+register confirms but who never held the position — Carol in the bundled
+scenario — never has a transfer invented for her.
+
+**`chainInstantAt` is an optional capability.** A reader without it, or without
+logs, reports the position sequence as unavailable and still shows the
+projection half, saying that this is half the record rather than returning an
+empty position history.
+
+### Verification
+
+```
+$ npm run verify
+tsc --noEmit            (clean)
+# tests 286
+# suites 78
+# pass 286
+# fail 0
+```

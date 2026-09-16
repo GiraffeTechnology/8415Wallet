@@ -1,6 +1,7 @@
 import type { AcquisitionDisclosure } from './acquisition.ts';
 import type { CollisionReport } from './collisions.ts';
 import { formatAddress, formatDuration, formatInstant, shortHex } from './format.ts';
+import type { OwnershipHistoryView } from './ownershipHistory.ts';
 import type { PostureView } from './posture.ts';
 import type { RegistrationView } from './registration.ts';
 import { wrapText } from './wrap.ts';
@@ -111,5 +112,54 @@ export function renderCollisions(report: CollisionReport): string {
 
   lines.push('');
   block(lines, report.scopeNote, '  ');
+  return lines.join('\n');
+}
+
+/** Both sequences on one timeline, with what each date means kept apart. */
+export function renderOwnershipHistory(view: OwnershipHistoryView): string {
+  const lines: string[] = [];
+  lines.push(
+    `BOTH SEQUENCES  ·  token ${view.tokenId}  ·  ` +
+      `${view.positionChanges} position change(s), ${view.entries} entries`,
+  );
+  lines.push('');
+
+  if (!view.available) {
+    block(lines, view.note, '  ');
+    return lines.join('\n');
+  }
+
+  for (const event of view.timeline) {
+    if (event.kind === 'position') {
+      lines.push(
+        `  ${formatInstant(event.at)}  ·  POSITION  ·  block ${event.blockNumber}`,
+      );
+      lines.push(
+        event.minted
+          ? `      minted to ${formatAddress(event.to)}`
+          : `      ${formatAddress(event.from)}\n      →  ${formatAddress(event.to)}`,
+      );
+    } else {
+      lines.push(`  ${formatInstant(event.at)}  ·  REGISTER   ·  entry v${event.version}`);
+      lines.push(`      confirms ${formatAddress(event.holder)}`);
+      lines.push(`      commitment ${shortHex(event.recordCommitment)}`);
+    }
+    lines.push('');
+  }
+
+  lines.push('  Apparent correspondence');
+  for (const item of view.correspondences) {
+    lines.push(
+      `      ${formatAddress(item.to)}  ${
+        item.state === 'outstanding'
+          ? 'not yet confirmed by any entry'
+          : `entry v${item.apparentEntry?.version}, ${formatDuration(item.lag ?? 0n)} later`
+      }`,
+    );
+  }
+  lines.push('');
+  block(lines, view.note, '  ');
+  lines.push('');
+  block(lines, view.caveat, '  ');
   return lines.join('\n');
 }

@@ -6,6 +6,7 @@ import { detectCollisions } from '../wallet/collisions.ts';
 import {
   renderAcquisitionDisclosure,
   renderCollisions,
+  renderOwnershipHistory,
   renderPosture,
   renderRegistration,
 } from '../wallet/renderHolderViews.ts';
@@ -89,6 +90,13 @@ async function main(): Promise<void> {
 
   banner('Projection history');
   console.log(renderHistory(await buildHistoryView(divergent.reader, divergent.tokenId)));
+
+  banner('Both sequences on one timeline');
+  console.log(
+    renderOwnershipHistory(
+      await new WalletSession(divergent.reader).ownershipHistory(divergent.tokenId),
+    ),
+  );
 
   banner('Settlement history — a gap that closed without admitting anything');
   const cancelled = cancelledGapToken();

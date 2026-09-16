@@ -36,6 +36,7 @@ For any token and any instant:
 | Is a change in flight covering *t*? | `openGapOf` + the gap's `openedAt` |
 | What is this a projection of? | `registerId`, `verificationProfile` |
 | Who may move the answer? | `isSettlementAuthority` |
+| When did each sequence move, side by side? | `Transfer` logs + the entry walk |
 
 It also answers the questions a holder actually asks — what a pending
 registration means for them, that it is not a failure, that waiting is the

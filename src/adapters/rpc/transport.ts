@@ -8,6 +8,8 @@ export type CallTransport = {
   blockTimestamp(): Promise<bigint>;
   /** `eth_getLogs`, with the filter passed through as given. */
   getLogs(filter: Record<string, unknown>): Promise<unknown[]>;
+  /** `block.timestamp` of one block, by number. */
+  blockTimestampAt(blockNumber: bigint): Promise<bigint>;
 };
 
 type JsonRpcResponse = {
@@ -44,6 +46,18 @@ export class HttpCallTransport implements CallTransport {
     const timestamp = (block as { timestamp?: string } | null)?.timestamp;
     if (typeof timestamp !== 'string') {
       throw new Error('eth_getBlockByNumber returned no timestamp');
+    }
+    return BigInt(timestamp);
+  }
+
+  async blockTimestampAt(blockNumber: bigint): Promise<bigint> {
+    const block = await this.#request('eth_getBlockByNumber', [
+      `0x${blockNumber.toString(16)}`,
+      false,
+    ]);
+    const timestamp = (block as { timestamp?: string } | null)?.timestamp;
+    if (typeof timestamp !== 'string') {
+      throw new Error(`no timestamp for block ${blockNumber}`);
     }
     return BigInt(timestamp);
   }

@@ -34,6 +34,10 @@ export class FakeEvmNode implements CallTransport {
     return this.#contract.now;
   }
 
+  async blockTimestampAt(blockNumber: bigint): Promise<bigint> {
+    return this.#contract.instantAt(blockNumber);
+  }
+
   async getLogs(filter: Record<string, unknown>): Promise<unknown[]> {
     const topics = (filter['topics'] ?? []) as (string | null)[];
     return encodeLog(this.#contract.log, this.#contract.address)

@@ -51,6 +51,10 @@ export class RpcErc8415Reader implements Erc8415Reader {
     return this.#transport.blockTimestamp();
   }
 
+  async chainInstantAt(blockNumber: bigint): Promise<Instant> {
+    return this.#transport.blockTimestampAt(blockNumber);
+  }
+
   /**
    * Read logs over the full chain range.
    *

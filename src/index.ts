@@ -19,6 +19,8 @@ export type * from './wallet/assetView.ts';
 export { buildTemporalView } from './wallet/temporalQuery.ts';
 export type * from './wallet/temporalQuery.ts';
 export { buildHistoryView } from './wallet/history.ts';
+export { buildOwnershipHistory } from './wallet/ownershipHistory.ts';
+export type * from './wallet/ownershipHistory.ts';
 export type * from './wallet/history.ts';
 export { buildSettlementLog } from './wallet/settlementLog.ts';
 export type * from './wallet/settlementLog.ts';
@@ -33,6 +35,8 @@ export type * from './wallet/acquisition.ts';
 export { describePosture } from './wallet/posture.ts';
 export type * from './wallet/posture.ts';
 export { detectCollisions } from './wallet/collisions.ts';
+export { discoverHeldTokens } from './wallet/discovery.ts';
+export type * from './wallet/discovery.ts';
 export type * from './wallet/collisions.ts';
 export { describeContest } from './wallet/contested.ts';
 export type * from './wallet/contested.ts';
@@ -50,6 +54,7 @@ export { renderFreshness } from './wallet/renderFreshness.ts';
 export {
   renderAcquisitionDisclosure,
   renderCollisions,
+  renderOwnershipHistory,
   renderPosture,
   renderRegistration,
 } from './wallet/renderHolderViews.ts';

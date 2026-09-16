@@ -96,6 +96,7 @@ export class MemoryRegisterContract {
   readonly #log: LoggedEvent[] = [];
   #blockNumber = 1n;
   #logIndexInBlock = 0n;
+  readonly #blockInstants = new Map<string, Instant>();
 
   constructor(options: MemoryRegisterOptions = {}) {
     this.chainId = options.chainId ?? 1n;
@@ -104,6 +105,7 @@ export class MemoryRegisterContract {
     this.verificationProfileValue = options.verificationProfile ?? `0x${'0d7e'.repeat(16)}`;
     this.settlementPeriodValue = options.settlementPeriod ?? 30n * 24n * 60n * 60n;
     this.#now = options.now ?? 1_767_225_600n;
+    this.#blockInstants.set(this.#blockNumber.toString(), this.#now);
     this.#maxEffectiveAtDrift = options.maxEffectiveAtDrift;
     this.#verifyProof = options.verifyProof ?? (() => true);
     this.conformance = {
@@ -129,6 +131,16 @@ export class MemoryRegisterContract {
       this.#logIndexInBlock = 0n;
     }
     this.#now = instant;
+    this.#blockInstants.set(this.#blockNumber.toString(), instant);
+  }
+
+  /** `block.timestamp` of a block this contract has seen. */
+  instantAt(blockNumber: bigint): Instant {
+    const known = this.#blockInstants.get(blockNumber.toString());
+    if (known === undefined) {
+      throw new ContractRevertError(`no block ${blockNumber}`);
+    }
+    return known;
   }
 
   get blockNumber(): bigint {
