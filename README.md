@@ -86,18 +86,16 @@ interface, in which case it has no gaps and no contested instants.
 
 ## Status
 
-Stages 0 through 3 delivered: the project foundation; the SDK port with its
-contract binding — typed mirrors of both interfaces, ERC-165 conformance
-discovery, identity pinning, an `eth_call` adapter, and an in-memory contract
-model that enforces the four projection invariants and the ERC's finality
-rule; the asset view, which puts the tradeable position and the confirmed
-holder side by side with the gap, the authority and the contract's identity;
-and the temporal query with the append-only entry walk. 146 tests, no runtime
-dependencies.
+All six stages delivered. The wallet reads a projection through one port and
+presents it without collapsing any of its signals: the asset view, the
+temporal query, the append-only entry walk, the gap history with the three
+closures distinguished, the risk surfaces, and the watchtower freshness layer
+kept apart from finality. 194 tests, no runtime dependencies.
 
-`npm run wallet` renders the asset view, three temporal queries spanning every
-branch of the finality rule, and a token's history. Gap-aware settlement UX is
-Stage 4. The stage roadmap is in
+`npm run wallet` renders all of it for the bundled scenarios. Binding a
+different backend is described in [docs/INTEGRATION.md](docs/INTEGRATION.md);
+the Native Infrastructure Kit adapter is not built, because the Kit exposes no
+Register API yet. The stage roadmap is in
 [docs/ERC-8415-Wallet-PRD.md](docs/ERC-8415-Wallet-PRD.md) §7 and delivery
 evidence per stage is in
 [docs/STAGE-DELIVERY.md](docs/STAGE-DELIVERY.md).
@@ -110,7 +108,9 @@ evidence per stage is in
   requirements, data model, feature specification and stage plan;
 - [docs/STAGE-DELIVERY.md](docs/STAGE-DELIVERY.md) — per-stage delivery
   evidence, coverage against the ERC's own test cases, and what is
-  deliberately not covered.
+  deliberately not covered;
+- [docs/INTEGRATION.md](docs/INTEGRATION.md) — binding a backend to the SDK
+  port, and the conformance harness every adapter must pass.
 
 The ERC itself is the source of truth above all three. Where this repository and
 the ERC disagree, the ERC wins and this repository gets fixed.

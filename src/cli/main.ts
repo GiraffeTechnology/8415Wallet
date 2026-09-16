@@ -13,9 +13,15 @@ import { renderHistory, renderTemporalQuery } from '../wallet/renderTemporalQuer
 import { renderRiskSurfaces, renderSettlementLog } from '../wallet/renderGapView.ts';
 import { buildRiskSurfaces } from '../wallet/riskSurfaces.ts';
 import { buildSettlementLog } from '../wallet/settlementLog.ts';
+import { buildFreshnessView } from '../wallet/freshness.ts';
+import { renderFreshness } from '../wallet/renderFreshness.ts';
+import {
+  MemoryWatchtowerContract,
+  MemoryWatchtowerReader,
+} from '../adapters/memory/watchtower.ts';
 
 /**
- * Reference client, Stages 2 through 4.
+ * Reference client, Stages 2 through 5.
  *
  * Runs against the in-memory scenarios, because the Native Infrastructure Kit
  * exposes no Register API yet and there is no deployment to point at. Swapping
@@ -58,6 +64,23 @@ async function main(): Promise<void> {
   banner('Settlement history — a gap that closed without admitting anything');
   const cancelled = cancelledGapToken();
   console.log(renderSettlementLog(await buildSettlementLog(cancelled.reader, cancelled.tokenId)));
+
+  banner('Watchtower freshness — a separate signal, on a separate contract');
+  const tower = new MemoryWatchtowerContract({ blockNumber: 1_000n });
+  const assetId = `0x${'a5'.repeat(32)}`;
+  tower.registerAsset(assetId, {
+    steward: REGISTRAR,
+    finalityDepth: 32n,
+    maxFreshnessThreshold: 1_000n,
+  });
+  tower.submit(assetId, {
+    signedAtBlock: 1_000n,
+    sequenceNumber: 1n,
+    freshnessThreshold: 500n,
+    key: '0x9e900000000000000000000000000000000000aa',
+  });
+  tower.advanceBlocks(40n);
+  console.log(renderFreshness(await buildFreshnessView(new MemoryWatchtowerReader(tower), assetId)));
 
   banner('Risk surfaces');
   console.log(

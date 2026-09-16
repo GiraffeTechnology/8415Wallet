@@ -11,7 +11,7 @@ documentation and evidence. Stages are defined in
 | 2 | Asset view | Delivered |
 | 3 | Temporal query and history | Delivered |
 | 4 | Gap-aware settlement UX | Delivered |
-| 5 | Freshness annex and ecosystem integration | Not started |
+| 5 | Freshness annex and ecosystem integration | Delivered |
 
 ---
 
@@ -441,3 +441,75 @@ tsc --noEmit            (clean)
 | Far-future effective time flagged only when present | `gapView.test.ts` |
 | Topic derivation, per-event `tokenId` slot, indexed vs data decoding | `events.test.ts` |
 | An unnameable log returns undefined rather than a guess | `events.test.ts` |
+
+---
+
+## Stage 5 — Freshness annex and ecosystem integration
+
+### What was built
+
+| Module | Role |
+| --- | --- |
+| `src/sdk/watchtower.ts` | `WatchtowerReader` — a separate port for a separate contract |
+| `src/wallet/freshness.ts` | `buildFreshnessView` — reorg-safety, never finality |
+| `src/adapters/rpc/watchtowerRpcReader.ts` | `eth_call` against a freshness layer |
+| `src/adapters/memory/watchtower.ts` | The classification rule, modelled |
+| `src/sdk/readerConformance.ts` | `checkReaderConformance` — the harness every adapter must pass |
+| `docs/INTEGRATION.md` | How to bind a backend, and what an adapter may not do |
+
+### Decisions worth recording
+
+**`FRESH_FINAL` is displayed as "Reorg-safe".** The contract's enum name is a
+trap for a reader: the state means the head's signing block is buried under
+`finalityDepth` blocks, which is reorg safety of an attestation, and says
+nothing about whether the register confirmed anything or whether a projected
+instant can still change. The wallet labels it `Reorg-safe`, shows the raw
+enum value beside it marked as raw data, and a test asserts the word "final"
+never appears in the label.
+
+**The separation is structural, not editorial.** The watchtower has its own
+port and its own contract; the temporal view has no freshness field, so there
+is nowhere for a freshness answer to land. Tests hold the line in both
+directions: a `FRESH_FINAL` head does not make a provisional instant final,
+and a `STALE` head does not unsettle a final one.
+
+**A conformance harness, in place of a speculative Kit client.** PRD §2 names
+the Native Infrastructure Kit as a backend, and §7 puts its adapter in this
+stage. The Kit is at Stage 0 — documents, no implementation, no Register API
+to bind to. Writing a client for an API that does not exist would mean
+inventing its endpoints and then shipping tests proving the invented client
+matches the invented API: a passing suite that establishes nothing. What
+ships instead is the thing that makes the Kit adapter cheap when it is
+possible — a harness that states what any adapter must do, run against both
+shipped adapters, the rpc one over the real calldata encoding.
+
+### Verification
+
+```
+$ npm run verify
+tsc --noEmit            (clean)
+# tests 194
+# suites 54
+# pass 194
+# fail 0
+```
+
+### Coverage
+
+| Requirement | Where |
+| --- | --- |
+| The classification rule: unknown, fresh-pending, fresh-final, stale | `freshness.test.ts` |
+| A revoked key collapses the head to stale retroactively | `freshness.test.ts` |
+| `FRESH_FINAL` never labelled as finality | `freshness.test.ts` |
+| Freshness cannot change a finality answer, in either direction | `freshness.test.ts` |
+| The watchtower is a separate contract with a separate port | `freshness.test.ts` |
+| Both shipped adapters pass the conformance harness | `readerConformance.test.ts` |
+| The harness catches a swallowed revert, a wrong finality answer, and a `holderAsOf` disagreement | `readerConformance.test.ts` |
+
+### Not built, and why
+
+- **The Kit adapter.** Reasons above; `docs/INTEGRATION.md` says what it will
+  need to do.
+- **Attestation submission.** The wallet reads freshness. Submitting an
+  attestation is a watchtower operator's job, needs EIP-712 signing against
+  the layer's domain, and is not something a holder's wallet does.
