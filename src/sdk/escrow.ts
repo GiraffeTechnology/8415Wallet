@@ -1,3 +1,5 @@
+import { encodeWords } from '../codec/abi.ts';
+import { keccak256 } from '../codec/keccak.ts';
 import type { Address, Bytes32, Instant, TokenId, Version } from './types.ts';
 
 /**
@@ -69,8 +71,28 @@ export type TradeObservation = {
   readonly entryCount: Version;
 };
 
+/**
+ * The key a trade is stored under.
+ *
+ * One escrow deployment is meant to be shared — a wallet, a marketplace, an
+ * OTC desk and an exchange all opening trades against it — and a
+ * caller-chosen identifier in one flat namespace does not survive that. Two
+ * venues numbering their orders from one collide by accident, and anyone who
+ * can guess the next identifier can take it first and make the real party's
+ * `open` revert.
+ *
+ * So the stored key is the opener's address together with their own
+ * identifier, and no one can write into anyone else's namespace. `open`
+ * returns it and `TradeOpened` carries it; this computes it ahead of time,
+ * which is what a venue needs in order to show a trade it has not sent yet.
+ */
+export function tradeKey(opener: Address, localId: Bytes32): Bytes32 {
+  const encoded = encodeWords(['address', 'bytes32'], [opener, localId]).slice(2);
+  return `0x${Buffer.from(keccak256(Uint8Array.from(Buffer.from(encoded, 'hex')))).toString('hex')}`;
+}
+
 export type EscrowReader = {
-  tradeOf(tradeId: Bytes32): Promise<Trade>;
-  observe(tradeId: Bytes32): Promise<TradeObservation>;
+  tradeOf(tradeKey: Bytes32): Promise<Trade>;
+  observe(tradeKey: Bytes32): Promise<TradeObservation>;
   readonly source: { readonly chainId: bigint; readonly address: Address };
 };

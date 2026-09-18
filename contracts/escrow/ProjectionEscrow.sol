@@ -81,13 +81,13 @@ contract ProjectionEscrow {
     mapping(bytes32 => Trade) private _trades;
     uint256 private _entered;
 
-    event TradeOpened(bytes32 indexed tradeId, address indexed projection, uint256 indexed tokenId, address seller, address buyer, uint256 price, uint64 admissionDeadline, uint64 maxEffectiveAt);
-    event TradeFunded(bytes32 indexed tradeId, address indexed buyer, uint256 price, uint64 entryCountAtFunding);
+    event TradeOpened(bytes32 indexed tradeKey, bytes32 indexed localId, address indexed projection, uint256 tokenId, address seller, address buyer, uint256 price, uint64 admissionDeadline, uint64 maxEffectiveAt);
+    event TradeFunded(bytes32 indexed tradeKey, address indexed buyer, uint256 price, uint64 entryCountAtFunding);
     /// @param version The version of the entry that confirmed the buyer. Emitted
     /// so an auditor can re-check the release against the register's own walk.
-    event TradeReleased(bytes32 indexed tradeId, address indexed buyer, uint64 version, uint64 effectiveAt);
-    event TradeRefunded(bytes32 indexed tradeId, address indexed buyer, uint64 entryCountAtRefund);
-    event TradeAbandoned(bytes32 indexed tradeId, address indexed seller);
+    event TradeReleased(bytes32 indexed tradeKey, address indexed buyer, uint64 version, uint64 effectiveAt);
+    event TradeRefunded(bytes32 indexed tradeKey, address indexed buyer, uint64 entryCountAtRefund);
+    event TradeAbandoned(bytes32 indexed tradeKey, address indexed seller);
 
     error AlreadyExists();
     error NotFound();
@@ -109,28 +109,49 @@ contract ProjectionEscrow {
         _entered = 0;
     }
 
+    /// @notice The identifier a trade is stored under.
+    ///
+    /// @dev One deployment is meant to be shared: a wallet, a marketplace, an
+    /// OTC desk and an exchange all opening trades against the same escrow.
+    /// A caller-chosen identifier in one flat namespace does not survive that.
+    /// Two venues numbering their orders from one collide by accident, and
+    /// anyone who can guess the next identifier can take it first and make the
+    /// real party's `open` revert.
+    ///
+    /// So the stored key is the opener's address together with their own
+    /// identifier. No one can write into anyone else's namespace, which
+    /// removes the squat entirely and leaves accidental collision to a single
+    /// party's own numbering. A venue opening many trades for one seller
+    /// should still fold its own address into `localId`.
+    function keyFor(address opener, bytes32 localId) public pure returns (bytes32) {
+        return keccak256(abi.encode(opener, localId));
+    }
+
     /// @notice Lock the asset. Called by the seller, who must have approved this
     /// contract for the token first.
+    /// @param localId The seller's own identifier for this trade. The key it is
+    /// stored under is `keyFor(msg.sender, localId)`, which `TradeOpened` carries.
     /// @dev The projection is required to advertise ERC-8415 through ERC-165
     /// before anything is locked. Without that check this contract would escrow
     /// a trade against an address that has no projection at all, and every
     /// later read would be meaningless rather than merely unfavourable.
     function open(
-        bytes32 tradeId,
+        bytes32 localId,
         address projection,
         uint256 tokenId,
         address buyer,
         uint256 price,
         uint64 admissionDeadline,
         uint64 maxEffectiveAt
-    ) external nonReentrant {
-        if (_trades[tradeId].state != State.NONE) revert AlreadyExists();
+    ) external nonReentrant returns (bytes32 tradeKey) {
+        tradeKey = keyFor(msg.sender, localId);
+        if (_trades[tradeKey].state != State.NONE) revert AlreadyExists();
         if (buyer == address(0) || buyer == msg.sender) revert InvalidTerms();
         if (admissionDeadline <= block.timestamp) revert InvalidTerms();
         if (maxEffectiveAt == 0) revert InvalidTerms();
         if (!_advertisesProjection(projection)) revert NotAProjection();
 
-        _trades[tradeId] = Trade({
+        _trades[tradeKey] = Trade({
             projection: projection,
             tokenId: tokenId,
             seller: msg.sender,
@@ -143,15 +164,15 @@ contract ProjectionEscrow {
         });
 
         IERC721Minimal(projection).transferFrom(msg.sender, address(this), tokenId);
-        emit TradeOpened(tradeId, projection, tokenId, msg.sender, buyer, price, admissionDeadline, maxEffectiveAt);
+        emit TradeOpened(tradeKey, localId, projection, tokenId, msg.sender, buyer, price, admissionDeadline, maxEffectiveAt);
     }
 
     /// @notice Pay in full. Called by the named buyer.
     /// @dev The entry count is snapshotted here rather than at `open`, so the
     /// window in which a confirming admission must land begins when both sides
     /// are actually committed.
-    function fund(bytes32 tradeId) external payable nonReentrant {
-        Trade storage trade = _trades[tradeId];
+    function fund(bytes32 tradeKey) external payable nonReentrant {
+        Trade storage trade = _trades[tradeKey];
         if (trade.state == State.NONE) revert NotFound();
         if (trade.state != State.AWAITING_PAYMENT) revert WrongState();
         if (msg.sender != trade.buyer) revert NotParty();
@@ -160,7 +181,7 @@ contract ProjectionEscrow {
         uint64 count = IRegisterProjection(trade.projection).entryCount(trade.tokenId);
         trade.entryCountAtFunding = count;
         trade.state = State.FUNDED;
-        emit TradeFunded(tradeId, msg.sender, msg.value, count);
+        emit TradeFunded(tradeKey, msg.sender, msg.value, count);
     }
 
     /// @notice Hand the asset to the buyer and the money to the seller, once the
@@ -172,8 +193,8 @@ contract ProjectionEscrow {
     /// the standard recommends: a read taken in an earlier transaction — even
     /// one in the same block — can be overtaken by an admission before the
     /// value moves.
-    function release(bytes32 tradeId) external nonReentrant {
-        Trade storage trade = _trades[tradeId];
+    function release(bytes32 tradeKey) external nonReentrant {
+        Trade storage trade = _trades[tradeKey];
         if (trade.state == State.NONE) revert NotFound();
         if (trade.state != State.FUNDED) revert WrongState();
 
@@ -181,7 +202,7 @@ contract ProjectionEscrow {
         if (!confirmed) revert NotConfirmed();
 
         trade.state = State.RELEASED;
-        emit TradeReleased(tradeId, trade.buyer, version, effectiveAt);
+        emit TradeReleased(tradeKey, trade.buyer, version, effectiveAt);
 
         IERC721Minimal(trade.projection).safeTransferFrom(address(this), trade.buyer, trade.tokenId);
         _pay(trade.seller, trade.price);
@@ -193,8 +214,8 @@ contract ProjectionEscrow {
     /// @dev Also permissionless, and also re-reads the projection rather than
     /// trusting the passage of time alone: if the confirmation did land, this
     /// must not claw an asset back from a buyer the register now recognises.
-    function refund(bytes32 tradeId) external nonReentrant {
-        Trade storage trade = _trades[tradeId];
+    function refund(bytes32 tradeKey) external nonReentrant {
+        Trade storage trade = _trades[tradeKey];
         if (trade.state == State.NONE) revert NotFound();
         if (trade.state != State.FUNDED) revert WrongState();
         if (block.timestamp <= trade.admissionDeadline) revert DeadlineNotPassed();
@@ -203,26 +224,26 @@ contract ProjectionEscrow {
         if (confirmed) revert AlreadyConfirmed();
 
         trade.state = State.REFUNDED;
-        emit TradeRefunded(tradeId, trade.buyer, _entryCountOrZero(trade));
+        emit TradeRefunded(tradeKey, trade.buyer, _entryCountOrZero(trade));
 
         IERC721Minimal(trade.projection).safeTransferFrom(address(this), trade.seller, trade.tokenId);
         _pay(trade.buyer, trade.price);
     }
 
     /// @notice Take the asset back before the buyer has paid.
-    function abandon(bytes32 tradeId) external nonReentrant {
-        Trade storage trade = _trades[tradeId];
+    function abandon(bytes32 tradeKey) external nonReentrant {
+        Trade storage trade = _trades[tradeKey];
         if (trade.state == State.NONE) revert NotFound();
         if (trade.state != State.AWAITING_PAYMENT) revert WrongState();
         if (msg.sender != trade.seller) revert NotParty();
 
         trade.state = State.ABANDONED;
-        emit TradeAbandoned(tradeId, trade.seller);
+        emit TradeAbandoned(tradeKey, trade.seller);
         IERC721Minimal(trade.projection).safeTransferFrom(address(this), trade.seller, trade.tokenId);
     }
 
-    function tradeOf(bytes32 tradeId) external view returns (Trade memory) {
-        return _trades[tradeId];
+    function tradeOf(bytes32 tradeKey) external view returns (Trade memory) {
+        return _trades[tradeKey];
     }
 
     /// @notice Everything a front end needs about a trade, read atomically.
@@ -234,7 +255,7 @@ contract ProjectionEscrow {
     /// None of them is a verdict, and `gapOpen` in particular decides nothing
     /// here: a gap being open does not mean the buyer will be admitted, and a
     /// gap being closed does not mean they were.
-    function observe(bytes32 tradeId)
+    function observe(bytes32 tradeKey)
         external
         view
         returns (
@@ -247,7 +268,7 @@ contract ProjectionEscrow {
             uint64 entryCount
         )
     {
-        Trade storage trade = _trades[tradeId];
+        Trade storage trade = _trades[tradeKey];
         if (trade.state == State.NONE) revert NotFound();
         (confirmed, version, effectiveAt) = _confirmation(trade);
         entryCount = _entryCountOrZero(trade);

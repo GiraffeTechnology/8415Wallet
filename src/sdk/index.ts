@@ -10,7 +10,7 @@ export {
   foldInterfaceId,
   selectorOf,
 } from './interfaceIds.ts';
-export { TRADE_STATE_BY_INDEX } from './escrow.ts';
+export { TRADE_STATE_BY_INDEX, tradeKey } from './escrow.ts';
 export type * from './escrow.ts';
 export { ContractIdentityPin } from './identity.ts';
 export type { ContractIdentity } from './identity.ts';

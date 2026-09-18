@@ -30,7 +30,7 @@ const REF1 = b32('reference-v1');
 const REF2 = b32('reference-v2');
 const SNAPSHOT = b32('snapshot-1');
 const GAP = b32('settlement-1');
-const TRADE = b32('trade-1');
+const LOCAL = b32('trade-1');
 const PRICE = ethers.parseEther('3');
 
 describe('ProjectionEscrow', function () {
@@ -110,10 +110,17 @@ describe('ProjectionEscrow', function () {
     );
   }
 
+  /** The key a seller's own identifier is stored under. */
+  const keyOf = (opener, localId) =>
+    ethers.keccak256(coder.encode(['address', 'bytes32'], [opener, localId]));
+
+  let TRADE;
+
   const openTrade = async (options = {}) => {
+    TRADE = keyOf(seller.address, LOCAL);
     await projection.connect(seller).approve(await escrow.getAddress(), TOKEN);
     return escrow.connect(seller).open(
-      TRADE,
+      LOCAL,
       await projection.getAddress(),
       TOKEN,
       buyer.address,
@@ -278,6 +285,35 @@ describe('ProjectionEscrow', function () {
     }
   });
 
+  it('one deployment is shared, and no venue can squat another party\'s identifier', async () => {
+    // The whole point of a single escrow behind many venues. A caller-chosen
+    // identifier in one flat namespace would let anyone take the next id a
+    // venue was about to use and make its open revert. Keys are namespaced by
+    // the opener, so the same local identifier from two parties is two trades
+    // and neither can write into the other's space.
+    await openTrade();
+
+    const [, , , , , otherSeller] = await ethers.getSigners();
+    await projection.mint(otherSeller.address, 99n, b32('other-v1'), REF1, e1);
+    await projection.connect(otherSeller).approve(await escrow.getAddress(), 99n);
+    await escrow.connect(otherSeller).open(
+      LOCAL, await projection.getAddress(), 99n, buyer.address, PRICE, now + 86_400n, now + 86_400n
+    );
+
+    const mine = keyOf(seller.address, LOCAL);
+    const theirs = keyOf(otherSeller.address, LOCAL);
+    assert.notEqual(mine, theirs);
+    // The contract's own derivation, against the one an integrator computes
+    // off chain. A venue that got this wrong would display one trade and
+    // settle another.
+    assert.equal(await escrow.keyFor(seller.address, LOCAL), mine);
+    assert.equal(await escrow.keyFor(otherSeller.address, LOCAL), theirs);
+    assert.equal((await escrow.tradeOf(mine)).tokenId, TOKEN);
+    assert.equal((await escrow.tradeOf(theirs)).tokenId, 99n);
+    assert.equal((await escrow.tradeOf(mine)).seller, seller.address);
+    assert.equal((await escrow.tradeOf(theirs)).seller, otherSeller.address);
+  });
+
   it('lets the seller take the asset back before payment, and not after', async () => {
     await openTrade();
     await escrow.connect(seller).abandon(TRADE);
@@ -285,16 +321,17 @@ describe('ProjectionEscrow', function () {
 
     // A fresh identifier: an abandoned trade stays on the record rather than
     // freeing its id for reuse.
-    const second = b32('trade-2');
+    const secondLocal = b32('trade-2');
+    const second = keyOf(seller.address, secondLocal);
     await projection.connect(seller).approve(await escrow.getAddress(), TOKEN);
     await escrow.connect(seller).open(
-      second, await projection.getAddress(), TOKEN, buyer.address, PRICE, now + 86_400n, now + 86_400n
+      secondLocal, await projection.getAddress(), TOKEN, buyer.address, PRICE, now + 86_400n, now + 86_400n
     );
     await escrow.connect(buyer).fund(second, { value: PRICE });
     await rejects(escrow.connect(seller).abandon(second), 'WrongState');
   });
 
-  it('a trade identifier cannot be reused once it exists', async () => {
+  it('a trade identifier cannot be reused by its own opener once it exists', async () => {
     await openTrade();
     await escrow.connect(seller).abandon(TRADE);
     await projection.connect(seller).approve(await escrow.getAddress(), TOKEN);

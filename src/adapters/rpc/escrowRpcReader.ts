@@ -57,8 +57,8 @@ export class RpcEscrowReader implements EscrowReader {
     return decodeResult(returnTypes, await this.#transport.call(this.source.address, data));
   }
 
-  async tradeOf(tradeId: Bytes32): Promise<Trade> {
-    const f = await this.#read('tradeOf(bytes32)', [tradeId], TRADE_TYPES);
+  async tradeOf(tradeKey: Bytes32): Promise<Trade> {
+    const f = await this.#read('tradeOf(bytes32)', [tradeKey], TRADE_TYPES);
     return {
       projection: f[0] as Address,
       tokenId: f[1] as bigint,
@@ -72,8 +72,8 @@ export class RpcEscrowReader implements EscrowReader {
     };
   }
 
-  async observe(tradeId: Bytes32): Promise<TradeObservation> {
-    const f = await this.#read('observe(bytes32)', [tradeId], OBSERVATION_TYPES);
+  async observe(tradeKey: Bytes32): Promise<TradeObservation> {
+    const f = await this.#read('observe(bytes32)', [tradeKey], OBSERVATION_TYPES);
     return {
       state: toTradeState(f[0] as bigint),
       confirmed: f[1] as boolean,

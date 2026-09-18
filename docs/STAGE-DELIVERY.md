@@ -988,6 +988,17 @@ proof shape. `npm run test:evm` is part of `npm run verify` and of CI.
 - **ETH only, and no ERC-20 variant.** See below.
 - **ETH only.** An ERC-20 denominated trade is the obvious next variant.
 
+**One deployment, many venues, one namespace per opener.** A trade is stored
+under `keyFor(opener, localId)` rather than under a caller-chosen identifier.
+This is the single change that taking the shared-escrow picture seriously
+forces: in a flat namespace two venues numbering their orders from one collide
+by accident, and anyone who can guess the next identifier can take it first and
+make the real party's `open` revert. Namespacing by the opener removes the
+squat entirely and leaves accidental collision to a single party's own
+numbering. The contract's `keyFor` and the SDK's `tradeKey` are cross-checked
+against each other, because a venue that derived the key differently would
+display one trade and settle another.
+
 ### The wallet side
 
 `EscrowReader` is a separate port from `Erc8415Reader`, because the escrow is

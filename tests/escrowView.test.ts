@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 
+import { tradeKey } from '../src/sdk/escrow.ts';
 import { buildEscrowView } from '../src/wallet/escrowView.ts';
 import { renderEscrow } from '../src/wallet/renderEscrow.ts';
 import type { Trade, TradeObservation, TradeState } from '../src/sdk/escrow.ts';
@@ -129,5 +130,25 @@ describe('rendering', () => {
     );
     assert.match(text, /Register confirms\s+nobody — no record/);
     assert.ok(!text.includes(ZERO_ADDRESS));
+  });
+});
+
+describe('trade keys', () => {
+  test('agree with what the contract derives', () => {
+    // A vector produced by ethers over the same abi.encode(address,bytes32)
+    // the contract hashes, and cross-checked against `keyFor` on a live
+    // deployment in test-evm/escrow.cjs. A venue that computed this
+    // differently from the contract would show one trade and settle another.
+    const opener = `0x${'5e'.repeat(20)}`;
+    const localId = '0x8067cb94a7161e8cbcfcec3991cda1626c729cc928dae9782297ae4fc3b17a9d';
+    assert.equal(
+      tradeKey(opener, localId),
+      '0x78322c12a5e718c15fe7a6f11bdc1d95c3ccf9e1703e19a36a89b2eb95a49249',
+    );
+  });
+
+  test('separate two venues that chose the same identifier', () => {
+    const localId = `0x${'11'.repeat(32)}`;
+    assert.notEqual(tradeKey(`0x${'aa'.repeat(20)}`, localId), tradeKey(`0x${'bb'.repeat(20)}`, localId));
   });
 });
