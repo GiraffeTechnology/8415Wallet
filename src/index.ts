@@ -76,8 +76,14 @@ export type * from './sdk/readerConformance.ts';
 export { decodeLog, EVENT_DEFINITIONS, tokenFilter, topicOf } from './sdk/events.ts';
 export type * from './sdk/events.ts';
 
-// Adapters.
+// Adapters. Two paths to the same register, behind one port: the chain
+// directly, or the Native Infrastructure Kit's index for the projection reads
+// with the chain still answering for the position, the clock and conformance.
 export { RpcErc8415Reader } from './adapters/rpc/rpcReader.ts';
+export { KitErc8415Reader, KitCapabilityError } from './adapters/kit/kitReader.ts';
+export type { ChainCompanion, KitReaderOptions } from './adapters/kit/kitReader.ts';
+export { KitProjectionApi, KitTransportError } from './adapters/kit/kitApi.ts';
+export type { KitApiOptions, KitFetch, KitProjectionSummary, KitSettlement } from './adapters/kit/kitApi.ts';
 export { RpcWatchtowerReader } from './adapters/rpc/watchtowerRpcReader.ts';
 export { HttpCallTransport } from './adapters/rpc/transport.ts';
 export type { CallTransport } from './adapters/rpc/transport.ts';

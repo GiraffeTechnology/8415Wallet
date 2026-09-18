@@ -208,15 +208,31 @@ User
  |
 Wallet UI
  |
-ERC-8415 SDK port
+ERC-8415 SDK port  (Erc8415Reader)
+ |                        \
+ |                         Native Infrastructure Kit — projection reads
  |
-Native Infrastructure Kit  /  direct chain reads
+ direct chain reads — conformance, ownerOf, the clock, settlement, logs
  |
 ERC-8415 conforming ERC-721 contract
 ```
 
-The wallet depends on the SDK port, never on a transport, and never on a
-second source of truth alongside it.
+The wallet is the product; the Kit is backend infrastructure it may read
+through. The wallet depends on the SDK port, never on a transport, and never
+on a second source of truth alongside it.
+
+The kit adapter is a projection accelerator composed with a chain reader,
+never a replacement for one. `ownerOf`, `supportsInterface` and
+`block.timestamp` are chain facts and are never served from an index: an
+index answering for both the position and the confirmed holder would assert
+the equivalence this standard denies, and an indexer vouching for the
+contract it indexes is circular.
+
+Where two backends answer for one deployment, they are cross-checked on
+`registerId` and `verificationProfile` — both specified immutable — and a
+mismatch is reported, never resolved by preferring one. A backend that cannot
+answer raises a transport error; it is never rendered as a fact about the
+register.
 
 Do not create protocol changes inside the wallet project.
 

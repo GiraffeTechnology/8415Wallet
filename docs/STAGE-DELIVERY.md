@@ -822,3 +822,81 @@ tsc --noEmit            (clean)
 # pass 286
 # fail 0
 ```
+
+---
+
+## The Kit adapter
+
+Closes the last "specified but not implementable" entry in this document. The
+Native Infrastructure Kit now has a projection API — roughly 2,800 lines,
+`ProjectionClient` and an HTTP gateway over a projection store — so the second
+adapter PRD §2 always named can be built against something real instead of
+invented.
+
+`KitErc8415Reader` (`src/adapters/kit`) implements `Erc8415Reader` by reading
+the projection through that API and taking a chain reader for the rest.
+
+### Decisions worth recording
+
+**The Kit does not replace the node; it accelerates one half.** `ownerOf`,
+`supportsInterface` and `block.timestamp` stay on chain, and `--kit` refuses
+to run without `--rpc`. This is the load-bearing decision. An index that
+served both the position and the confirmed holder from one store would be
+asserting exactly the equivalence ERC-8415 exists to deny, and a wallet whose
+whole thesis is that those are two sequences cannot take them from one. The
+same reasoning rules out asking an indexer whether the contract it indexes is
+conformant.
+
+**A backend that cannot answer is not an answer.** The Kit reports an instant
+the projection does not cover as a 404 with a code; that is the API's spelling
+of the contract's revert, and it is carried across as `ContractRevertError`,
+which is why `checkReaderConformance` passes against the Kit wire format
+unchanged. Everything else — 401, 5xx, a timeout, a malformed body — raises
+`KitTransportError`. This is the same lesson the live path taught earlier in
+this document, where a swallowed transport error was reported as "the contract
+does not advertise `0x6309e170`"; the shape that produced that defect is not
+repeated here.
+
+**Two backends are cross-checked, not trusted in turn.** `registerId` and
+`verificationProfile` are specified immutable, so a Kit answering for another
+register is detectable for the price of one chain call, taken once. On a
+mismatch the adapter raises `BackendDisagreementError` rather than picking a
+side: it has no basis for choosing, and a wallet that silently prefers one
+backend over another has stopped being a faithful record.
+
+**One derivation, declared and checked.** The Kit's API has no `currentEntry`
+route. The adapter reads `entryAt(entryCount)` — leaning on the invariant that
+versions run consecutively from 1 — and then refuses the result unless the
+version matches the count and the interval is still open. A lagging index
+yields a refusal, never a superseded entry labelled "current".
+
+**Self-consistency is not agreement.** The wallet derives selectors by hashing
+signature text it holds; recomputing them from that same text proves
+arithmetic and nothing else. The Kit's Ethereum adapter arrives at the same
+selectors from the compiled Solidity ABI. `tests/kitCrossCheck.test.ts`
+compares the two tables and folds the Kit's literals into `0x6309e170`
+independently of the wallet's keccak, so a signature drifting on either side
+fails the build and names the call. The three settlement transactions and
+`settlement(bytes32)` are listed as knowingly outside the Kit's surface, so
+the gap in the comparison is stated rather than silent.
+
+### Still open
+
+- **No `TransactionSigner` implementation.** The wallet builds and preflights
+  the three settlement operations and hands over an unsigned request; nothing
+  in this repository can sign one. Reading a live deployment works end to end;
+  acting on one still needs a signer the caller supplies.
+- **The Kit's settlement history is not exposed.** Its store keeps every
+  settlement for a token, open or closed (`settlementsFor`), but its API
+  serves only the open gap, so closed gaps are read from the chain.
+
+### Verification
+
+```
+$ npm run verify
+tsc --noEmit            (clean)
+# tests 318
+# suites 86
+# pass 318
+# fail 0
+```

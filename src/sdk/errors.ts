@@ -80,3 +80,25 @@ export class InvariantViolationError extends Error {
     this.invariant = invariant;
   }
 }
+
+/**
+ * Two backends answering for the same contract disagree about its identity.
+ *
+ * `registerId` and `verificationProfile` are specified as immutable, so two
+ * faithful readers of one deployment must report the same pair. A mismatch
+ * means at least one of them is answering for something else — an indexer
+ * pointed at the wrong register, a tenant misrouted, a stale mirror — and the
+ * wallet has no basis for choosing which. It reports the disagreement instead
+ * of picking a side.
+ */
+export class BackendDisagreementError extends Error {
+  readonly field: string;
+
+  constructor(field: string, fromBackend: string, fromChain: string) {
+    super(
+      `${field} differs between backends: the indexer reports ${fromBackend}, the chain reports ${fromChain}`,
+    );
+    this.name = 'BackendDisagreementError';
+    this.field = field;
+  }
+}

@@ -12,6 +12,9 @@ import type { Address, Bytes32, Instant, TokenId } from '../sdk/types.ts';
 
 export type CliOptions = {
   readonly rpc: string | undefined;
+  /** Base URL of a Native Infrastructure Kit projection API, if one is used. */
+  readonly kit: string | undefined;
+  readonly kitKey: string | undefined;
   readonly contract: Address | undefined;
   readonly chainId: bigint | undefined;
   readonly token: TokenId | undefined;
@@ -30,6 +33,14 @@ export const USAGE = `8415wallet — reference client for ERC-8415 asynchronous 
 Required to read a live contract:
   --rpc <url>            JSON-RPC endpoint
   --contract <address>   the ERC-8415 conforming ERC-721 contract
+
+Backend:
+  --kit <url>            read the projection through a Native Infrastructure
+                         Kit deployment instead of one eth_call per entry.
+                         --rpc is still required: the tradeable position, the
+                         chain clock and ERC-165 conformance are chain facts
+                         and are never taken from an index.
+  --kit-key <secret>     bearer token for that deployment
 
 Options:
   --token <id>           the token to inspect; omit with --account to discover
@@ -84,6 +95,8 @@ export function parseArgs(argv: readonly string[]): CliOptions {
 
   return {
     rpc: values.get('rpc'),
+    kit: values.get('kit'),
+    kitKey: values.get('kit-key'),
     contract: address('contract'),
     chainId: integer('chain-id'),
     token: integer('token'),
@@ -97,7 +110,16 @@ export function parseArgs(argv: readonly string[]): CliOptions {
 
 /** Reject a combination that cannot be acted on, before any network call. */
 export function validate(options: CliOptions): void {
-  if (options.rpc === undefined) return;
+  if (options.rpc === undefined) {
+    if (options.kit !== undefined) {
+      // Not a convenience: the Kit indexes the register, and the position, the
+      // clock and ERC-165 conformance are not in it. A Kit-only wallet could
+      // not show `ownerOf` at all, and showing the confirmed holder in its
+      // place is the one substitution this standard exists to prevent.
+      throw new Error('--kit needs --rpc: the position and the chain clock are not in the index');
+    }
+    return;
+  }
   if (options.contract === undefined) {
     throw new Error('--rpc needs --contract: there is no default deployment');
   }

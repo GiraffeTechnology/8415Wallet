@@ -85,9 +85,11 @@ User
  |
 8415Wallet UI
  |
-ERC-8415 SDK port
+ERC-8415 SDK port  (Erc8415Reader)
+ |                        \
+ |                         Native Infrastructure Kit — projection reads
  |
-Native Infrastructure Kit  /  direct chain reads
+ direct chain reads — conformance, ownerOf, the clock, settlement, logs
  |
 ERC-8415 conforming ERC-721 contract
 ```
@@ -98,13 +100,28 @@ interface mirroring `IRegisterProjection` (ERC-165 `0x6309e170`) and
 assumed; a contract may implement the projection without the settlement
 interface, in which case it has no gaps and no contested instants.
 
+Two adapters satisfy that port and both are held to the same conformance
+harness. **rpc** reads the contract directly and is complete on its own.
+**kit** reads the projection through a Native Infrastructure Kit deployment —
+the entry walk, temporal resolution, finality and the open gap in one round
+trip apiece — and composes with an rpc reader for the rest, because the
+tradeable position, ERC-165 conformance and `block.timestamp` are facts about
+the chain and not about the register. `--kit` therefore requires `--rpc`.
+
+The two are cross-checked rather than trusted in turn. `registerId` and
+`verificationProfile` are specified immutable, so a Kit answering for a
+different register is caught on the first read; and the Kit's own selector
+table, derived independently from the compiled Solidity ABI, is compared
+against the selectors this wallet derives by hashing, so a drifted signature
+on either side fails the build.
+
 ## Status
 
 All six stages delivered. The wallet reads a projection through one port and
 presents it without collapsing any of its signals: the asset view, the
 temporal query, the append-only entry walk, the gap history with the three
 closures distinguished, the risk surfaces, and the watchtower freshness layer
-kept apart from finality. 194 tests, no runtime dependencies.
+kept apart from finality. 318 tests, no runtime dependencies.
 
 The wallet also acts, within the bounds the ERC sets: it builds the three
 settlement operations with a preflight that refuses what would revert and
@@ -113,10 +130,10 @@ caller supplies. It never holds key material. `WalletSession` is the surface
 an application integrates against, and an audit trail exports entries and gap
 transitions in a form a third party can re-check against the chain.
 
-`npm run wallet` renders all of it for the bundled scenarios. Binding a
-different backend is described in [docs/INTEGRATION.md](docs/INTEGRATION.md);
-the Native Infrastructure Kit adapter is not built, because the Kit exposes no
-Register API yet. The stage roadmap is in
+`npm run wallet` renders all of it for the bundled scenarios, and
+`--kit <url>` alongside `--rpc` moves the projection reads onto a Kit
+deployment. Binding a different backend is described in
+[docs/INTEGRATION.md](docs/INTEGRATION.md). The stage roadmap is in
 [docs/ERC-8415-Wallet-PRD.md](docs/ERC-8415-Wallet-PRD.md) §7 and delivery
 evidence per stage is in
 [docs/STAGE-DELIVERY.md](docs/STAGE-DELIVERY.md).

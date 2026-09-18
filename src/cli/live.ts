@@ -1,3 +1,5 @@
+import { KitProjectionApi } from '../adapters/kit/kitApi.ts';
+import { KitErc8415Reader } from '../adapters/kit/kitReader.ts';
 import { RpcErc8415Reader } from '../adapters/rpc/rpcReader.ts';
 import { HttpCallTransport } from '../adapters/rpc/transport.ts';
 import { RpcWatchtowerReader } from '../adapters/rpc/watchtowerRpcReader.ts';
@@ -15,7 +17,26 @@ import type { CliOptions } from './args.ts';
 /** Read a live deployment through the same views the scenarios use. */
 export async function runLive(options: CliOptions, banner: (title: string) => void): Promise<void> {
   const transport = new HttpCallTransport(options.rpc!);
-  const reader = new RpcErc8415Reader(transport, options.chainId ?? 1n, options.contract!);
+  const chain = new RpcErc8415Reader(transport, options.chainId ?? 1n, options.contract!);
+
+  /**
+   * With `--kit`, the projection is read through the index and everything else
+   * stays on chain. Both paths satisfy `Erc8415Reader`, so nothing below this
+   * line can tell which one it was handed — which is the property that makes
+   * the choice a deployment decision rather than a different wallet.
+   */
+  const reader =
+    options.kit === undefined
+      ? chain
+      : new KitErc8415Reader(
+          new KitProjectionApi({
+            baseUrl: options.kit,
+            ...(options.kitKey === undefined ? {} : { apiKey: options.kitKey }),
+          }),
+          chain,
+          chain.source,
+          { chainIdentity: chain },
+        );
 
   const watchtower: WatchtowerBinding | undefined =
     options.watchtower === undefined || options.assetId === undefined

@@ -18,6 +18,7 @@ export {
   requireSettlementConformance,
 } from './conformance.ts';
 export {
+  BackendDisagreementError,
   ContractRevertError,
   IdentityChangedError,
   InvariantViolationError,

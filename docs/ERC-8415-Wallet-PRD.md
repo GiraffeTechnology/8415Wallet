@@ -1,9 +1,14 @@
-# ERC-8415 Wallet PRD v2.1
+# ERC-8415 Wallet PRD v2.2
 
-Supersedes v2.0. See **Appendix A** for the v1.0 corrections and **Appendix B**
-for what v2.1 adds from the eth-magicians discussion (thread t/29634), which
+Supersedes v2.1. See **Appendix A** for the v1.0 corrections and **Appendix B**
+for what v2.1 added from the eth-magicians discussion (thread t/29634), which
 assigns a good deal of work to this layer and which v2.0 was not written
 against.
+
+v2.2 rewrites **§2 Core Architecture** only. The Native Infrastructure Kit now
+has a projection API, so the second adapter §2 always named is built rather
+than deferred; §2 records what it may and may not answer, and why the wallet —
+not the Kit — is the product.
 
 ## Product Definition
 
@@ -57,31 +62,92 @@ a register, under a profile they cannot name, tells them very little.
 
 # 2. Core Architecture
 
+The wallet is the product. The Native Infrastructure Kit is backend
+infrastructure it can read through, not a layer it sits inside: the wallet is
+useful against a bare node with no Kit anywhere, and it is the wallet, not the
+Kit, that a holder is handed.
+
 ```
 User
  |
 8415Wallet UI
  |
-ERC-8415 SDK port
+ERC-8415 SDK port  (Erc8415Reader)
+ |                        \
+ |                         Native Infrastructure Kit  — projection reads
+ |                              (registerId, entries, resolution, finality,
+ |                               the open gap)
  |
-Native Infrastructure Kit  /  direct chain reads
+ direct chain reads  — ERC-165 conformance, ownerOf, block.timestamp,
+                       settlement records, settlementPeriod,
+                       isSettlementAuthority, logs
  |
 ERC-8415 conforming ERC-721 contract
 ```
+
+## 2.1 Two adapters, one port
 
 The SDK port is the wallet's only window onto the projection. It is a typed
 interface mirroring `IRegisterProjection` and `IProjectionSettlement`, with
 two adapters:
 
-- **kit** — the ERC-8415 Native Infrastructure Kit, once its Register API
-  exists. The Kit is at Stage 0 (documents only) as of this revision, so this
-  adapter is specified but not yet implementable;
-- **rpc** — `eth_call` against the conforming contract, used by the reference
-  client today.
+- **rpc** — `eth_call` against the conforming contract. Complete on its own,
+  and the only adapter a deployment needs;
+- **kit** — the Kit's projection API for the register reads, composed with an
+  rpc reader for everything else.
 
-Both adapters return the same types. Nothing above the port knows which is in
-use, and neither adapter is permitted to compute an answer the contract can be
-asked for.
+Both return the same types, and both are held to `checkReaderConformance`.
+Nothing above the port knows which is in use, and neither adapter is permitted
+to compute an answer the contract can be asked for. The one derivation the kit
+adapter makes — `currentEntry`, which the Kit's API has no route for, read as
+`entryAt(entryCount)` — is checked against what a latest entry must satisfy
+and refused when it does not hold.
+
+## 2.2 The kit adapter does not replace the chain
+
+The Kit indexes a register. Three of the things this wallet must show are
+properties of the chain rather than of the register, and none of them may be
+served from an index:
+
+| Fact | Why it stays on chain |
+|---|---|
+| `ownerOf` | The tradeable position. An index serving both it and the confirmed holder from one store would assert exactly the equivalence ERC-8415 exists to deny. |
+| `supportsInterface` | How a deployment advertises conformance. An indexer vouching for the contract it indexes is circular. |
+| `block.timestamp` | Dates a gap against its deadline, and is why the present instant is never final. |
+
+Settlement records are on chain for a narrower reason: the Kit's API serves
+only the gap currently open, and a wallet's settlement history is mostly
+closed gaps — the cancellations and supersessions that admitted nothing and so
+leave no trace in the entry walk at all.
+
+`--kit` therefore requires `--rpc`. This is not a convenience; a Kit-only
+wallet could not show the position, and showing the confirmed holder in its
+place is the single substitution this standard exists to prevent.
+
+## 2.3 The two backends check each other
+
+`registerId` and `verificationProfile` are specified immutable, so two
+faithful readers of one deployment MUST report the same pair. The kit adapter
+reads them from the index and compares them against the chain once, on the
+first read that needs them, and raises `BackendDisagreementError` on a
+mismatch rather than choosing a side. What this catches is the failure mode a
+second backend introduces: a base URL, an API key or a tenant pointing at
+another register.
+
+A backend that cannot answer is never reported as an answer. The Kit's 404 for
+an instant the projection does not cover is the API's spelling of a revert and
+is carried across as one; an unreachable, unauthenticated or faulting backend
+raises `KitTransportError`, which no view may render as a fact about the
+register.
+
+## 2.4 Selector agreement is cross-checked, not self-checked
+
+The wallet derives every function selector by hashing a signature it holds as
+text. Recomputing that from the same source proves arithmetic, not agreement.
+The Kit's Ethereum adapter writes the same selectors down as literals recovered
+from the compiled Solidity ABI — an independent derivation — and the suite
+compares the two tables. A signature drifting on either side fails the build
+and names the call.
 
 The wallet MUST NOT redefine ERC-8415 semantics.
 

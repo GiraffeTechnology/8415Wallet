@@ -159,6 +159,16 @@ describe('command line', () => {
     );
   });
 
+  test('refuses an index without a node behind it', () => {
+    // The Kit serves the projection. The tradeable position, the chain clock
+    // and ERC-165 conformance are not in it, and answering `ownerOf` from the
+    // register would state exactly the equivalence ERC-8415 denies.
+    assert.throws(
+      () => validate(parseArgs(['--kit', 'https://kit.example'])),
+      /--kit needs --rpc/,
+    );
+  });
+
   test('validates nothing when no endpoint is given, so the demo still runs', () => {
     validate(parseArgs([]));
     assert.equal(parseArgs([]).rpc, undefined);
