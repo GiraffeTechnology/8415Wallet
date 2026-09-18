@@ -28,6 +28,9 @@ export { buildRiskSurfaces } from './wallet/riskSurfaces.ts';
 export type * from './wallet/riskSurfaces.ts';
 export { buildFreshnessView, noWatchtower } from './wallet/freshness.ts';
 export type * from './wallet/freshness.ts';
+export { buildEscrowView } from './wallet/escrowView.ts';
+export type * from './wallet/escrowView.ts';
+export { renderEscrow } from './wallet/renderEscrow.ts';
 export { describeRegistration } from './wallet/registration.ts';
 export type * from './wallet/registration.ts';
 export { describeAcquisition } from './wallet/acquisition.ts';
@@ -85,5 +88,6 @@ export type { ChainCompanion, KitReaderOptions } from './adapters/kit/kitReader.
 export { KitProjectionApi, KitTransportError } from './adapters/kit/kitApi.ts';
 export type { KitApiOptions, KitFetch, KitProjectionSummary, KitSettlement } from './adapters/kit/kitApi.ts';
 export { RpcWatchtowerReader } from './adapters/rpc/watchtowerRpcReader.ts';
+export { RpcEscrowReader } from './adapters/rpc/escrowRpcReader.ts';
 export { HttpCallTransport } from './adapters/rpc/transport.ts';
 export type { CallTransport } from './adapters/rpc/transport.ts';

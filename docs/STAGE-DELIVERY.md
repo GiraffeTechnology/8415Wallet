@@ -985,18 +985,29 @@ proof shape. `npm run test:evm` is part of `npm run verify` and of CI.
 - **No `TransactionSigner` implementation.** Unchanged, and now the gap between
   the wallet and this contract: the wallet can build the settlement
   transactions and read the escrow, and still cannot send either.
-- **No wallet-side escrow view.** The contract exposes `observe`, which reads
-  the trade state, the confirmation, the confirmed holder and the position
-  atomically and keeps them as separate values. Nothing in `src/wallet` renders
-  it yet.
+- **ETH only, and no ERC-20 variant.** See below.
 - **ETH only.** An ERC-20 denominated trade is the obvious next variant.
+
+### The wallet side
+
+`EscrowReader` is a separate port from `Erc8415Reader`, because the escrow is
+an application on the projection and not part of the standard: nothing in the
+projection knows it exists, and nothing it returns may be mistaken for a
+protocol fact. `RpcEscrowReader` reads a deployment; `buildEscrowView` turns
+one atomic `observe` into what a party needs to read.
+
+The display rule that matters: a trade resting on a confirmation carries the
+note that the confirmation is provisional — in the `confirmed` state and in the
+`released` state alike, because releasing did not make it final. A test asserts
+no view says the trade is final, settled or guaranteed, and another asserts a
+passed deadline is never described as anyone having been refused.
 
 ### Verification
 
 ```
 $ npm run verify
 tsc --noEmit            (clean)
-# tests 470
-# pass 470
+# tests 481
+# pass 481
 13 passing              (hardhat, against the reference implementation)
 ```
