@@ -982,9 +982,6 @@ proof shape. `npm run test:evm` is part of `npm run verify` and of CI.
 
 ### Still open
 
-- **No `TransactionSigner` implementation.** Unchanged, and now the gap between
-  the wallet and this contract: the wallet can build the settlement
-  transactions and read the escrow, and still cannot send either.
 - **ETH only, and no ERC-20 variant.** See below.
 - **ETH only.** An ERC-20 denominated trade is the obvious next variant.
 
@@ -1021,4 +1018,62 @@ tsc --noEmit            (clean)
 # tests 481
 # pass 481
 13 passing              (hardhat, against the reference implementation)
+```
+
+---
+
+## The signer
+
+The last hard gap. The wallet could build all three settlement transactions,
+preflight them, and read an escrow, and could send none of it: `TransactionSigner`
+was a type with no implementation.
+
+`Eip1193Signer` (`src/adapters/signing`) is the shipped one, and it holds no key
+material — a browser extension, a hardware wallet behind one, a custodian's
+signing service all expose `request({ method, params })` and all keep the key on
+their own side of it.
+
+### Decisions worth recording
+
+**Raw-key signing stays outside the shipped surface.** Doing it properly means
+secp256k1 with deterministic nonces and low-s normalisation, which is not
+something to hand-roll beside a wallet — and the moment this library accepted a
+key, "it never holds key material" would stop being true. A script that needs
+one brings its own signing library and satisfies the same `TransactionSigner`
+type. A test asserts the signer never asks a provider for `eth_sign`,
+`personal_sign` or `eth_signTransaction`, and that the only two methods it calls
+are `eth_chainId` and `eth_sendTransaction`.
+
+**Three refusals, ordered by how quietly each goes wrong.** The chain first: a
+request carries the chain it was built for, and a user can switch networks
+between building and sending. The same address is a different contract on a
+different chain, so sending there is not a failed transaction — it is a
+successful one against something else. Then the account, because a provider
+handed a `from` it does not hold may substitute its own, and a settlement sent
+from the wrong account is a different act by a different party. Then preflight,
+which only catches a hand-assembled request, and costs nothing.
+
+**Unverifiable is not a refusal.** Treating "could not establish" as "would
+fail" would make every contract without a settlement interface unusable. The
+wallet says what it could not check; the caller decides.
+
+**Nothing is rewritten on the way out.** No gas estimate is added, no field is
+filled. What the user was shown is what is sent.
+
+### Still open
+
+- **No testnet run yet.** The signer makes one possible; a Sepolia script that
+  deploys a projection and an escrow and drives a trade end to end is the next
+  step, and it is where a raw-key signer will live.
+- **ETH only** in the escrow, and no lending or custody primitive. Those are
+  different shapes from a sale, not parameters of it.
+
+### Verification
+
+```
+$ npm run verify
+tsc --noEmit            (clean)
+# tests 492
+# pass 492
+14 passing              (hardhat, against the reference implementation)
 ```

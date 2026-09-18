@@ -115,13 +115,33 @@ table, derived independently from the compiled Solidity ABI, is compared
 against the selectors this wallet derives by hashing, so a drifted signature
 on either side fails the build.
 
+## 8415 Clearing
+
+The escrow layer has a name of its own because it is a separate product from
+the wallet, and one escrow deployment is meant to serve many venues — a wallet,
+a marketplace, an OTC desk, a lending protocol, an exchange, a custodian — all
+opening trades against it.
+
+*Clearing*, not *settlement*. In this repository "settlement" already means one
+thing, in seven hundred places: admitting an entry into the register, through
+`beginSettlement` / `finalizeSettlement` / `cancelSettlement`, closing a gap as
+ADMITTED, CANCELLED or SUPERSEDED. That is the protocol's word and it is not
+available. Clearing is the stage between a trade and its settlement, which is
+exactly the position this contract occupies: it holds both legs while the
+register catches up.
+
+`contracts/escrow/ProjectionEscrow.sol` is the contract; `EscrowReader` and
+`buildEscrowView` are how a venue reads it. Trades are keyed by
+`keyFor(opener, localId)`, so every venue has its own identifier namespace and
+no one can take another's.
+
 ## Status
 
 All six stages delivered. The wallet reads a projection through one port and
 presents it without collapsing any of its signals: the asset view, the
 temporal query, the append-only entry walk, the gap history with the three
 closures distinguished, the risk surfaces, and the watchtower freshness layer
-kept apart from finality. 318 tests, no runtime dependencies.
+kept apart from finality. 492 tests and a contract suite on a real EVM, no runtime dependencies.
 
 The wallet also acts, within the bounds the ERC sets: it builds the three
 settlement operations with a preflight that refuses what would revert and

@@ -89,5 +89,15 @@ export { KitProjectionApi, KitTransportError } from './adapters/kit/kitApi.ts';
 export type { KitApiOptions, KitFetch, KitProjectionSummary, KitSettlement } from './adapters/kit/kitApi.ts';
 export { RpcWatchtowerReader } from './adapters/rpc/watchtowerRpcReader.ts';
 export { RpcEscrowReader } from './adapters/rpc/escrowRpcReader.ts';
+
+// Signing. The one shipped signer keeps the key on the provider's side of the
+// call; a raw-key signer is a script's business and satisfies the same type.
+export {
+  AccountMismatchError,
+  ChainMismatchError,
+  Eip1193Signer,
+  RefusedFailingPreflightError,
+} from './adapters/signing/eip1193Signer.ts';
+export type { Eip1193Provider } from './adapters/signing/eip1193Signer.ts';
 export { HttpCallTransport } from './adapters/rpc/transport.ts';
 export type { CallTransport } from './adapters/rpc/transport.ts';
