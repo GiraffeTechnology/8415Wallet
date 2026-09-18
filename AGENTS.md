@@ -109,8 +109,14 @@ the question a holder actually asks.
 The correct user action is to wait. If the register exceeds its agreed
 commitment window, that is a signal the previous transfer may itself have an
 issue, and the remedy lies in the **trade terms between the parties**, never in
-the protocol and never in this wallet. The wallet reports that the window has
-passed; it does not advise, and it does not act.
+the protocol. The wallet reports that the window has passed; it does not
+advise on what to do about it.
+
+Acting on terms the parties already agreed is a separate thing and is
+permitted: 8415 Clearing releases or returns a trade by reading the register
+against a condition written before the trade began. What stays forbidden is
+the wallet choosing the remedy, scoring the situation, or recommending a
+course of action.
 
 ### Three orthogonal signals
 

@@ -50,6 +50,14 @@ briefing wants kept.** Two claims are welded together in one sentence:
 
 The corrective edit is to separate the two claims, not to delete the sentence.
 
+**Corrected 2026-09-18.** All four locations were edited, separating the two
+claims rather than deleting the sentence. The PRD and README now state the
+commercial MVP alongside the reference role; the PRD §4.7 passage and
+AGENTS.md now say the wallet does not *advise*, and state explicitly that
+executing a term the parties agreed beforehand is not advising and not the
+wallet choosing a remedy. What stays forbidden is unchanged: choosing the
+remedy, scoring the situation, recommending a course of action.
+
 Still accurate and to be preserved:
 
 - `docs/ERC-8415-Wallet-PRD.md:22` "The wallet is not an ownership viewer" —

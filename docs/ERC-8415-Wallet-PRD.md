@@ -12,12 +12,22 @@ not the Kit — is the product.
 
 ## Product Definition
 
-8415Wallet is a reference wallet for ERC-8415 ecosystem applications.
+8415Wallet is the first commercial MVP built on ERC-8415, and the reference
+client for the standard's semantics. Those are one product, not two: what makes
+it a credible reference is what makes it useful commercially — it shows what
+the projection actually says, and it can act on that without ever collapsing
+the signals.
 
 Positioning:
 
 > A temporal asset wallet that exposes ERC-8415 projection, gap and finality
-> semantics to users without collapsing them.
+> semantics to users without collapsing them, and that can execute a trade
+> whose authoritative registration arrives afterwards.
+
+It reads a projection, builds and sends the three settlement transactions the
+standard defines, and clears a trade through **8415 Clearing** while the
+register catches up. It does not advise, and it has no write path into a
+projection beyond transactions the user signs.
 
 The wallet is not an ownership viewer. ERC-8415 tracks two sequences that
 describe the same asset — the ERC-721 ownership sequence and the
@@ -371,8 +381,12 @@ the question a holder actually asks.
 **"What if it takes too long?"** The gap carries a deadline, bounded by
 `settlementPeriod`. When it passes, the wallet says so. What follows is
 governed by the trade terms between the parties — it is not the protocol's
-concern and it is not the wallet's. The wallet reports; it does not advise and
-it does not act.
+concern. The wallet reports the fact; it does not advise on it.
+
+Where the parties have written those terms into a clearing contract, the
+wallet can act on them: 8415 Clearing releases or returns a trade according to
+terms already agreed, and reads the register to decide which. Executing an
+agreed term is not advising, and it is not the wallet deciding the remedy.
 
 **"Who do I contact?"** `registerId` identifies the register and
 `isSettlementAuthority` identifies who may move the answer, both as on-chain

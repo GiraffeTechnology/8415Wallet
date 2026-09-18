@@ -1,12 +1,14 @@
 # 8415Wallet
 
-A reference wallet and client for [ERC-8415 — Asynchronous Register
-Projection for NFTs](https://github.com/GiraffeTechnology/ERC-8415).
+The first commercial MVP built on [ERC-8415 — Asynchronous Register
+Projection for NFTs](https://github.com/GiraffeTechnology/ERC-8415), and the
+reference client for its semantics.
 
 ERC-8415 projects an off-chain register onto an ERC-721 token so that any past
 instant resolves to exactly one confirmed holder, while the chain is still
-behind the register. 8415Wallet is the client that shows a user what that
-projection actually says.
+behind the register. 8415Wallet shows a user what that projection actually
+says — and, through **8415 Clearing**, lets a trade complete while the
+authoritative registration is still on its way.
 
 ## Why a separate wallet
 
