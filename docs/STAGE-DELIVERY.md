@@ -900,3 +900,103 @@ tsc --noEmit            (clean)
 # pass 318
 # fail 0
 ```
+
+---
+
+## Escrow
+
+The layer nothing implemented. The four-layer framework both repositories
+carry — identity, faithful record, diagnosis, remedy — puts escrow in layer
+four, and both said the same thing about it: the Kit's README, that remedy
+"belongs to the transaction terms between the parties"; the semantic model,
+that the escrow pattern is "a non-normative reference pattern". Neither built
+it, and without it a holder can read their position perfectly and still not
+trade on it.
+
+`contracts/escrow/ProjectionEscrow.sol` holds both sides of a trade until the
+register has confirmed the buyer, and returns them if it has not by an agreed
+deadline. It reads the projection and never writes one: there is no path in it
+that admits an entry, opens or cancels a gap, or overrides a register record.
+Money is the only thing it has authority over.
+
+### Decisions worth recording
+
+**Release is gated on a provisional record, deliberately.** Waiting for
+finality would deadlock. An instant is final exactly when
+`firstEntry.effectiveAt <= t < latestEntry.effectiveAt`, so an instant becomes
+final only once a *later* entry exists. The admitting entry's own effective
+time is therefore never final at the moment it is admitted, and an escrow that
+waited for it would be waiting on an unrelated future admission that may never
+come. A test asserts exactly this: at the moment of release, `isFinalAsOf` is
+false for the confirming entry's own instant, and release happens anyway. This
+is the trap an escrow written from a skim of the standard falls into, and it
+fails closed — the money never moves — so it would not show up as a bug until
+a real trade hung.
+
+**Refund is not keyed on cancellation.** The pattern as written in both
+documents says "refund if the gap is cancelled without admission". That is too
+narrow to be safe: a gap closes three ways — ADMITTED, CANCELLED, SUPERSEDED —
+and it can also expire while still open, or never be opened at all. Keyed on
+CANCELLED alone, an escrow hangs in every other case. The condition here is
+the complement of release measured against a deadline, so all of them resolve.
+Nothing is read as a rejection, because the protocol has none: a cancellation
+ends a contest and settles nothing.
+
+**A new entry is required, not merely a favourable one.** The escrow
+snapshots `entryCount` when the trade is funded and requires the releasing
+entry's version to exceed it. Without that, a buyer the register had already
+confirmed before the trade could release it on a record that owes the trade
+nothing. A test funds a trade after the buyer is already the confirmed holder
+and shows release refused.
+
+**An upper bound on `effectiveAt`, and deliberately no lower one.** An entry
+admitted with an effective time far enough out would satisfy "the holder is the
+buyer" while asserting a confirmation nobody traded for — and because effective
+times strictly increase, it would end the projection for that token
+permanently. The parties agree a bound. No lower bound is needed: invariant 3
+already forbids an effective time at or below the previous entry's.
+
+**Both reads happen inside the transaction that moves the value.** This is the
+shape the standard recommends for composing on a projection. A read taken in an
+earlier transaction — even one in the same block — can be overtaken by an
+admission before the value moves.
+
+**Release and refund are permissionless.** The conditions are objective and
+readable by anyone, so neither party can hold the trade hostage by declining to
+call.
+
+**Not a projection is one answer, not three.** A contract that implements
+ERC-165 and returns false, a contract with no `supportsInterface`, and an
+address with no code all reach `NotAProjection` rather than a bare revert from
+a call the caller never knew was made.
+
+### Tested against the reference, not a mock
+
+A mock of the projection would be written by the same hand as the escrow that
+reads it, so the two could agree on a misreading of the standard and the suite
+would pass. `test-evm/escrow.cjs` runs against
+`contracts/reference/RegisterProjectionReference.sol` — the ERC repository's
+own reference implementation, vendored here under CC0 — admitting entries
+through its real settlement path with real validator signatures over the real
+proof shape. `npm run test:evm` is part of `npm run verify` and of CI.
+
+### Still open
+
+- **No `TransactionSigner` implementation.** Unchanged, and now the gap between
+  the wallet and this contract: the wallet can build the settlement
+  transactions and read the escrow, and still cannot send either.
+- **No wallet-side escrow view.** The contract exposes `observe`, which reads
+  the trade state, the confirmation, the confirmed holder and the position
+  atomically and keeps them as separate values. Nothing in `src/wallet` renders
+  it yet.
+- **ETH only.** An ERC-20 denominated trade is the obvious next variant.
+
+### Verification
+
+```
+$ npm run verify
+tsc --noEmit            (clean)
+# tests 470
+# pass 470
+13 passing              (hardhat, against the reference implementation)
+```

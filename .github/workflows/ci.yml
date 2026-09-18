@@ -35,6 +35,12 @@ jobs:
       - name: Test
         run: npm test
 
+      # The escrow holds value, so it is executed rather than only compiled:
+      # hardhat runs it against the ERC-8415 reference implementation on a real
+      # EVM, admitting entries through the real settlement path.
+      - name: Contracts
+        run: npm run test:evm
+
       # Runs the reference client end to end. The suites cover the view models;
       # this catches a renderer or CLI wiring break that leaves them passing.
       - name: Reference client
