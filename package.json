@@ -2,7 +2,8 @@
   "name": "8415wallet",
   "version": "0.1.0",
   "private": true,
-  "description": "Reference wallet and client for ERC-8415 asynchronous register projection",
+  "description": "ERC-8415 temporal asset wallet, with the projection infrastructure it reads",
+  "license": "CC0-1.0",
   "type": "module",
   "engines": {
     "node": ">=22.18.0"
@@ -15,6 +16,7 @@
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "solc": "^0.8.37",
     "typescript": "^5.9.0"
   },
   "exports": {
