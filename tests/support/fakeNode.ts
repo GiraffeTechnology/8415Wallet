@@ -8,7 +8,7 @@ import {
   SETTLEMENT_TYPES,
   type StaticType,
 } from '../../src/codec/abi.ts';
-import { ContractRevertError } from '../../src/sdk/errors.ts';
+import { ContractRevertError, TransportError } from '../../src/sdk/errors.ts';
 import { selectorOf } from '../../src/sdk/interfaceIds.ts';
 import {
   GAP_STATUS_BY_INDEX,
@@ -38,10 +38,45 @@ export class FakeEvmNode implements CallTransport {
     return this.#contract.instantAt(blockNumber);
   }
 
+  /** The modelled chain's head. The contract's log carries block numbers. */
+  async blockNumber(): Promise<bigint> {
+    const logs = encodeLog(this.#contract.log, this.#contract.address);
+    return logs.reduce((highest, log) => (log.blockNumber > highest ? log.blockNumber : highest), 0n);
+  }
+
+  /**
+   * Code appears from the deployment block onwards.
+   *
+   * The reader bisects this to find where to start a log scan, so the fake has
+   * to model the same boundary a real node presents rather than always
+   * answering "deployed".
+   */
+  async codeAt(_address: Address, blockNumber: bigint): Promise<string> {
+    return blockNumber >= this.deploymentBlock ? '0x60006000fd' : '0x';
+  }
+
+  /** Where this fake pretends the contract was deployed. */
+  deploymentBlock = 0n;
+
+  /**
+   * Honours the window bounds, and refuses an unbounded range the way a real
+   * provider does — so a reader that asked for `earliest` would fail here too.
+   */
   async getLogs(filter: Record<string, unknown>): Promise<unknown[]> {
     const topics = (filter['topics'] ?? []) as (string | null)[];
+    const from = filter['fromBlock'];
+    const to = filter['toBlock'];
+    if (from === 'earliest' || to === 'latest') {
+      throw new TransportError('eth_getLogs', 'exceed maximum block range: 50000', -32000);
+    }
+    const low = typeof from === 'string' ? BigInt(from) : 0n;
+    const high = typeof to === 'string' ? BigInt(to) : 0n;
+    if (high - low + 1n > 50_000n) {
+      throw new TransportError('eth_getLogs', 'exceed maximum block range: 50000', -32000);
+    }
     return encodeLog(this.#contract.log, this.#contract.address)
       .filter((log) => matchesFilter(log, { address: this.#contract.address, topics }))
+      .filter((log) => log.blockNumber >= low && log.blockNumber <= high)
       .map((log) => ({
         address: log.address,
         topics: log.topics,

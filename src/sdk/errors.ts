@@ -102,3 +102,30 @@ export class BackendDisagreementError extends Error {
     this.field = field;
   }
 }
+
+/**
+ * The node did not answer.
+ *
+ * Unreachable, rate limited, refusing a query it considers too broad, or
+ * returning something that is not a reply. None of these is a statement about
+ * the contract, and none may be rendered as one: a wallet that reports an
+ * absent backend as a fact about who holds an asset is worse than one that
+ * reports nothing.
+ *
+ * Kept apart from `ContractRevertError` because that distinction has already
+ * failed once here. An unreachable endpoint was reported as "the contract does
+ * not advertise `0x6309e170`", and a provider refusing an over-wide log range
+ * was reported as `call reverted`. Both were transport conditions wearing a
+ * contract's clothes.
+ */
+export class TransportError extends Error {
+  readonly method: string;
+  readonly code: number | undefined;
+
+  constructor(method: string, detail: string, code?: number) {
+    super(`${method}: ${detail}`);
+    this.name = 'TransportError';
+    this.method = method;
+    this.code = code;
+  }
+}

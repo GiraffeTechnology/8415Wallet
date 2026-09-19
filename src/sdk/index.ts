@@ -26,5 +26,6 @@ export {
   InvariantViolationError,
   NonConformantContractError,
   ProjectionNotInitialized,
+  TransportError,
   ValueOutOfRangeError,
 } from './errors.ts';

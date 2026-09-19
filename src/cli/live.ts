@@ -17,7 +17,9 @@ import type { CliOptions } from './args.ts';
 /** Read a live deployment through the same views the scenarios use. */
 export async function runLive(options: CliOptions, banner: (title: string) => void): Promise<void> {
   const transport = new HttpCallTransport(options.rpc!);
-  const chain = new RpcErc8415Reader(transport, options.chainId ?? 1n, options.contract!);
+  const chain = new RpcErc8415Reader(transport, options.chainId ?? 1n, options.contract!, {
+    ...(options.fromBlock === undefined ? {} : { fromBlock: options.fromBlock }),
+  });
 
   /**
    * With `--kit`, the projection is read through the index and everything else

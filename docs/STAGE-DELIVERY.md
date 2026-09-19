@@ -1077,3 +1077,120 @@ tsc --noEmit            (clean)
 # pass 492
 14 passing              (hardhat, against the reference implementation)
 ```
+
+---
+
+## The first real network
+
+Sepolia, 2026-09-19. The ERC-8415 reference implementation at
+`0xaeeb157f40ffdad51693275258a465763be66cd8` and `ProjectionEscrow` at
+`0x50299e4d454fc9ec788f735e004d1ec537767934`, chain 11155111, fourteen
+transactions, both clearing paths driven end to end. Test-only, no real value.
+
+Everything before this was an in-memory contract model, a fake JSON-RPC node,
+or a local EVM. Three predictions were written down in
+`docs/ONCHAIN-TEST-PROMPT.md` before the run so they could be confirmed or
+refuted rather than rationalised afterwards. All three resolved, and two
+defects came out of it.
+
+### The prediction that mattered
+
+Release is gated on an admitted but *provisional* record. The claim was that
+`isFinalAsOf` must return false for the admitting entry's own effective time,
+because an instant becomes final only once a later entry exists — and that an
+escrow waiting for finality would therefore wait on an unrelated future
+admission that may never come.
+
+Read from the live deployment:
+
+```
+token 841501, admitted entry v2, effectiveAt 1789840680
+  isFinalAsOf(1789840680)  false     <- the admitting instant, not final
+  isFinalAsOf(1789833540)  true      <- v1's instant, closed by v2
+  holderAsOf(1789833540)   0x75f6…3089   (the seller)
+  ownerOf(841501)          0xde3c…ec2b   (the buyer)
+```
+
+Release happened while that was false and it is false still. The last two
+lines are the product's whole thesis on a real chain: one token, whose
+position is now the buyer and whose confirmed holder at an earlier instant is
+still the seller, with the divergence resolvable by asking about a time.
+
+The struct return layout decoded correctly field by field, `entryAsOf` and
+`holderAsOf` raised `ContractRevertError` for an instant before the first
+entry against a node using seventeen custom errors and no revert strings,
+`isFinalAsOf` answered false there without reverting, both frozen interface
+identifiers were advertised, and the SDK's `tradeKey` reproduced the on-chain
+key for both trades.
+
+### Two defects, one of them worse than predicted
+
+**An unbounded log range is refused.** Predicted. `fromBlock: 'earliest'` came
+back `exceed maximum block range: 50000` from a public endpoint.
+
+**The refusal arrived as a revert.** Not predicted, and the more serious of
+the two. `HttpCallTransport` turned every JSON-RPC error into
+`ContractRevertError`, so a provider's range policy was reported as
+`call reverted` — a transport condition stated as a fact about the contract.
+That is the same failure this project already fixed once, when an unreachable
+endpoint was reported as "the contract does not advertise `0x6309e170`". The
+shape came back through a different door.
+
+### Decisions worth recording
+
+**A revert is something a contract does, and only `eth_call` executes contract
+code.** Every other method now raises `TransportError`. `eth_call` itself
+raises a revert only when the error looks like one — code 3, or error data
+present, or the message says so — and a transport failure otherwise. The
+asymmetry is deliberate: a revert misread as a transport fault fails loudly,
+while a transport fault misread as a revert is silently absorbed by every
+caller that treats a revert as an answer.
+
+**A short history is indistinguishable from a quiet one.** The scan is walked
+in windows rather than asked for at once, and a window the node refuses raises
+instead of returning what was gathered so far. Nothing returns a recent slice
+and calls it the history.
+
+**The deployment block is found, not guessed — and when it cannot be found,
+that is said.** Bisecting `eth_getCode` locates it in about two dozen requests
+on an archive node. Public endpoints prune state: Sepolia's PublicNode answers
+`state at block #5869973 is pruned` partway through. There the reader refuses
+and names the remedy — supply `--from-block` — because every alternative is
+either a scan of eleven million blocks or a history quietly cut off at the
+wrong end.
+
+This design was written before the run and broken by it within one command.
+The bisection looked general and is not; only the real node showed that.
+
+### Verified against the live deployment after the fix
+
+```
+logs over the contract's whole life   13 in 0.4s, blocks 11739199-11739229
+decoded                                2 RegisterInitialized, 1 RegisterSuperseded,
+                                       1 SettlementStarted, 1 SettlementFinalized,
+                                       6 Transfer
+settlement history                     present, not silently empty
+no fromBlock on a pruning node         TransportError naming the remedy
+an instant before the first entry      ContractRevertError, still
+```
+
+### Still open
+
+- **C3 and E2 were not run**: a dead endpoint reporting a transport failure
+  rather than a conformance finding, and `Eip1193Signer` refusing a chain
+  mismatch without sending.
+- **Release was called by the seller**, not a third party, so the
+  permissionless property was not exercised.
+- The register's validators were the two trading parties, so the separation
+  between registrar and counterparty was not tested. The run's own report says
+  so.
+
+### Verification
+
+```
+$ npm run verify
+tsc --noEmit            (clean)
+# tests 502
+# pass 502
+14 passing              (hardhat, against the reference implementation)
+```

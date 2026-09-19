@@ -44,6 +44,46 @@ said.
 transitions cannot be shown, and the wallet says so rather than rendering an
 empty settlement history.
 
+### Reading a history from a real node
+
+Two things about `getLogs` are not obvious until it meets a public endpoint,
+and both were found by running against one.
+
+A projection's history spans the contract's whole life, and no provider will
+serve that in one request — Sepolia's PublicNode answers `exceed maximum block
+range: 50000`. The reader therefore walks the range in windows
+(`logWindow`, default 10,000). A window the node refuses **raises** rather
+than returning the logs gathered so far: a short history is indistinguishable
+from a projection that never moved, and handing one over would be the quiet
+failure this layer exists to prevent.
+
+The scan starts at the contract's deployment block. With an archive node the
+reader finds it by bisecting `eth_getCode`, about two dozen requests, once.
+Most public endpoints prune state and cannot answer, in which case the reader
+refuses and says so — supply `fromBlock` (or `--from-block` on the CLI), which
+whoever deployed the contract has.
+
+```ts
+new RpcErc8415Reader(transport, chainId, contract, {
+  fromBlock: 11_739_196n,   // the deployment block
+  logWindow: 10_000n,       // below every cap seen so far
+});
+```
+
+### A revert and a failure are not the same thing
+
+`ContractRevertError` means the contract declined. `TransportError` means the
+node did not answer — unreachable, rate limited, refusing a query, or
+returning something that is not a reply. Only `eth_call` can produce a revert,
+because nothing else executes contract code.
+
+This matters more than it looks. The distinction has failed here twice: an
+unreachable endpoint once surfaced as "the contract does not advertise
+`0x6309e170`", and a provider's log-range policy once surfaced as
+`call reverted`. Both were the transport wearing the contract's clothes, and
+both were absorbed by callers that treat a revert as an answer. Nothing above
+the port may render a `TransportError` as a fact about the register.
+
 ## The Native Infrastructure Kit adapter
 
 Built, and composed rather than substituted.

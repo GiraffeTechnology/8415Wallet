@@ -20,6 +20,13 @@ export type CliOptions = {
   readonly token: TokenId | undefined;
   readonly account: Address | undefined;
   readonly instant: Instant | undefined;
+  /**
+   * Block the log scan starts from.
+   *
+   * A public node that prunes state cannot be bisected for the deployment
+   * block, so on those this is required before any history can be read.
+   */
+  readonly fromBlock: bigint | undefined;
   readonly watchtower: Address | undefined;
   readonly assetId: Bytes32 | undefined;
   readonly help: boolean;
@@ -49,6 +56,11 @@ Options:
   --instant <seconds>    the instant to ask about, as uint64 Unix seconds;
                          defaults to the latest block's timestamp
   --chain-id <id>        chain id for provenance labelling (default 1)
+  --from-block <n>       block the log scan starts from, normally the one the
+                         contract was deployed in. Without it the reader
+                         bisects eth_getCode, which only an archive node can
+                         answer; public endpoints prune state and will say so
+                         rather than return a truncated history
   --watchtower <address> a watchtower freshness layer to read alongside
   --asset-id <bytes32>   the feed identifier on that watchtower
   --help
@@ -102,6 +114,7 @@ export function parseArgs(argv: readonly string[]): CliOptions {
     token: integer('token'),
     account: address('account'),
     instant: integer('instant'),
+    fromBlock: integer('from-block'),
     watchtower: address('watchtower'),
     assetId: assetId?.toLowerCase(),
     help,
