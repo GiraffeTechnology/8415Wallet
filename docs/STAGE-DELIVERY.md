@@ -1174,13 +1174,50 @@ no fromBlock on a pruning node         TransportError naming the remedy
 an instant before the first entry      ContractRevertError, still
 ```
 
+### C3 and E2, run afterwards — and a third defect
+
+**C3, an endpoint that is not the contract.** Three variants against the live
+deployment, through the client itself:
+
+| pointed at | says |
+|---|---|
+| a port with nothing listening | `Could not reach the JSON-RPC endpoint: eth_call: did not complete` |
+| a live host that is not a node | `eth_call: HTTP 404` |
+| a real node, an address with no contract | `no contract at 0x75f6…3089: supportsInterface(bytes4) returned no data` |
+
+The first two are what the fix above was for. The third was not: it used to
+say `return payload for 1 word(s) (got 0 bytes) out of range: 0`.
+
+**`eth_call` against an address with no code neither reverts nor fails.** It
+succeeds, and returns nothing. Left to the ABI decoder that became a complaint
+about a truncated payload — a message that reads like a fault in the wallet
+rather than a mistyped address or the wrong chain. It is now named, and named
+separately from non-conformance on purpose: "this address does not advertise
+`0x6309e170`" sends someone hunting for a conformance problem in a contract
+that is not there at all.
+
+Three defects, then, and all three were the same shape: a condition reported
+as the wrong kind of thing. A provider's range policy as a revert, a pruned
+node as nothing in particular, an empty address as a decoder fault.
+
+**E2, the signer's chain check**, against a real Sepolia provider with a
+request the wallet actually built — `isSettlementAuthority` true, no open gap,
+164 bytes of calldata, preflight clean:
+
+```
+chainId rewritten to 1   ChainMismatchError
+methods asked            eth_chainId
+anything broadcast?      no
+a sender it does not hold  AccountMismatchError, nothing broadcast
+```
+
+It refused on the chain identifier alone, before asking the provider for
+anything else.
+
 ### Still open
 
-- **C3 and E2 were not run**: a dead endpoint reporting a transport failure
-  rather than a conformance finding, and `Eip1193Signer` refusing a chain
-  mismatch without sending.
 - **Release was called by the seller**, not a third party, so the
-  permissionless property was not exercised.
+  permissionless property has not been exercised on chain.
 - The register's validators were the two trading parties, so the separation
   between registrar and counterparty was not tested. The run's own report says
   so.
@@ -1190,7 +1227,7 @@ an instant before the first entry      ContractRevertError, still
 ```
 $ npm run verify
 tsc --noEmit            (clean)
-# tests 502
-# pass 502
+# tests 506
+# pass 506
 14 passing              (hardhat, against the reference implementation)
 ```

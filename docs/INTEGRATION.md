@@ -77,6 +77,12 @@ node did not answer — unreachable, rate limited, refusing a query, or
 returning something that is not a reply. Only `eth_call` can produce a revert,
 because nothing else executes contract code.
 
+`NoContractAtAddressError` is a third thing again: `eth_call` against an
+address with no code succeeds and returns nothing, so without naming it the
+ABI decoder ends up reporting a mistyped address as a truncated payload. It is
+kept apart from non-conformance because the remedy differs — one is the wrong
+address, the other is the wrong contract.
+
 This matters more than it looks. The distinction has failed here twice: an
 unreachable endpoint once surfaced as "the contract does not advertise
 `0x6309e170`", and a provider's log-range policy once surfaced as

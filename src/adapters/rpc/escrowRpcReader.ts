@@ -1,6 +1,6 @@
 import { decodeResult, encodeCall } from '../../codec/abi.ts';
 import type { AbiValue, StaticType } from '../../codec/abi.ts';
-import { ValueOutOfRangeError } from '../../sdk/errors.ts';
+import { NoContractAtAddressError, ValueOutOfRangeError } from '../../sdk/errors.ts';
 import {
   TRADE_STATE_BY_INDEX,
   type EscrowReader,
@@ -54,7 +54,11 @@ export class RpcEscrowReader implements EscrowReader {
     returnTypes: readonly StaticType[],
   ): Promise<AbiValue[]> {
     const data = encodeCall(signature, ['bytes32'], args);
-    return decodeResult(returnTypes, await this.#transport.call(this.source.address, data));
+    const result = await this.#transport.call(this.source.address, data);
+    if (result === '0x' || result === '') {
+      throw new NoContractAtAddressError(this.source.address, signature);
+    }
+    return decodeResult(returnTypes, result);
   }
 
   async tradeOf(tradeKey: Bytes32): Promise<Trade> {

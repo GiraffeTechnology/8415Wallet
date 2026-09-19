@@ -129,3 +129,28 @@ export class TransportError extends Error {
     this.code = code;
   }
 }
+
+/**
+ * There is no contract at the address being read.
+ *
+ * `eth_call` against an address with no code does not revert and does not
+ * fail: it succeeds and returns nothing. Left to the ABI decoder that surfaces
+ * as a complaint about a truncated payload — "return payload for 1 word(s)
+ * (got 0 bytes)" — which reads like a fault in the wallet rather than a
+ * mistyped address or the wrong chain.
+ *
+ * Named separately from non-conformance on purpose. "This address does not
+ * advertise `0x6309e170`" sends someone looking for a conformance problem in a
+ * contract that is not there at all.
+ */
+export class NoContractAtAddressError extends Error {
+  readonly address: string;
+  readonly call: string;
+
+  constructor(address: string, call: string) {
+    super(`no contract at ${address}: ${call} returned no data`);
+    this.name = 'NoContractAtAddressError';
+    this.address = address;
+    this.call = call;
+  }
+}

@@ -1,6 +1,10 @@
 import { decodeResult, encodeCall, REGISTER_ENTRY_TYPES, SETTLEMENT_TYPES } from '../../codec/abi.ts';
 import type { AbiValue, StaticType } from '../../codec/abi.ts';
-import { TransportError, ValueOutOfRangeError } from '../../sdk/errors.ts';
+import {
+  NoContractAtAddressError,
+  TransportError,
+  ValueOutOfRangeError,
+} from '../../sdk/errors.ts';
 import type { Erc8415Reader } from '../../sdk/port.ts';
 import {
   GAP_STATUS_BY_INDEX,
@@ -75,6 +79,12 @@ export class RpcErc8415Reader implements Erc8415Reader {
   ): Promise<AbiValue[]> {
     const data = encodeCall(signature, argumentTypes, args);
     const result = await this.#transport.call(this.source.address, data);
+    // An address with no code answers every call successfully and with
+    // nothing. Saying so here is the difference between "you have the wrong
+    // address" and a decoder complaining about a short payload.
+    if (returnTypes.length > 0 && stripsToNothing(result)) {
+      throw new NoContractAtAddressError(this.source.address, signature);
+    }
     return decodeResult(returnTypes, result);
   }
 
@@ -295,6 +305,11 @@ export class RpcErc8415Reader implements Erc8415Reader {
     );
     return authorized as boolean;
   }
+}
+
+/** Whether returndata carries no bytes at all. */
+function stripsToNothing(result: string): boolean {
+  return result === '0x' || result === '0X' || result === '';
 }
 
 function toRawLog(value: unknown): RawLog {

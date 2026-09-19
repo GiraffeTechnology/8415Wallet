@@ -24,6 +24,7 @@ export {
   ContractRevertError,
   IdentityChangedError,
   InvariantViolationError,
+  NoContractAtAddressError,
   NonConformantContractError,
   ProjectionNotInitialized,
   TransportError,

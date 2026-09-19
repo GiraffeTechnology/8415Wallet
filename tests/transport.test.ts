@@ -3,7 +3,13 @@ import { afterEach, describe, test } from 'node:test';
 
 import { RpcErc8415Reader } from '../src/adapters/rpc/rpcReader.ts';
 import { HttpCallTransport } from '../src/adapters/rpc/transport.ts';
-import { ContractRevertError, TransportError } from '../src/sdk/errors.ts';
+import { RpcEscrowReader } from '../src/adapters/rpc/escrowRpcReader.ts';
+import {
+  ContractRevertError,
+  NoContractAtAddressError,
+  TransportError,
+} from '../src/sdk/errors.ts';
+import { detectConformance } from '../src/sdk/conformance.ts';
 
 /**
  * A revert is something a contract does. Everything else is the node.
@@ -192,5 +198,57 @@ describe('reading a whole history without asking for it all at once', () => {
     });
     await reader.getLogs({ address: ADDRESS, topics: [] });
     assert.deepEqual(spans, [{ from: 95_000n, to: 100_000n }]);
+  });
+});
+
+describe('an address with no contract on it', () => {
+  const ADDRESS = `0x${'ef'.repeat(20)}`;
+
+  /**
+   * `eth_call` against an address with no code neither reverts nor fails: it
+   * succeeds and returns nothing. Found by pointing the client at one of the
+   * test wallets on Sepolia, where it surfaced as
+   * "return payload for 1 word(s) (got 0 bytes) out of range: 0" — a decoder
+   * complaint standing in for "you have the wrong address".
+   */
+  const emptyReturn = () => {
+    globalThis.fetch = (async () =>
+      ({ ok: true, status: 200, json: async () => ({ result: '0x' }) }) as unknown as Response) as typeof fetch;
+  };
+
+  test('is named, rather than left to the ABI decoder', async () => {
+    emptyReturn();
+    const reader = new RpcErc8415Reader(new HttpCallTransport('https://node.example'), 1n, ADDRESS);
+    await assert.rejects(() => reader.registerId(), (error: unknown) => {
+      assert.ok(error instanceof NoContractAtAddressError);
+      assert.match(error.message, /no contract at/);
+      assert.match(error.message, /registerId/);
+      return true;
+    });
+  });
+
+  test('is not reported as a conformance finding', async () => {
+    // "does not advertise 0x6309e170" sends someone hunting for a conformance
+    // problem in a contract that is not there at all.
+    emptyReturn();
+    const reader = new RpcErc8415Reader(new HttpCallTransport('https://node.example'), 1n, ADDRESS);
+    await assert.rejects(() => detectConformance(reader), NoContractAtAddressError);
+  });
+
+  test('the escrow reader says the same thing', async () => {
+    emptyReturn();
+    const escrow = new RpcEscrowReader(new HttpCallTransport('https://node.example'), 1n, ADDRESS);
+    await assert.rejects(() => escrow.tradeOf(`0x${'11'.repeat(32)}`), NoContractAtAddressError);
+  });
+
+  test('a real answer still decodes', async () => {
+    globalThis.fetch = (async () =>
+      ({
+        ok: true,
+        status: 200,
+        json: async () => ({ result: `0x${'00'.repeat(31)}01` }),
+      }) as unknown as Response) as typeof fetch;
+    const reader = new RpcErc8415Reader(new HttpCallTransport('https://node.example'), 1n, ADDRESS);
+    assert.equal(await reader.supportsInterface('0x6309e170'), true);
   });
 });
