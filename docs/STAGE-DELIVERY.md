@@ -1231,3 +1231,77 @@ tsc --noEmit            (clean)
 # pass 506
 14 passing              (hardhat, against the reference implementation)
 ```
+
+---
+
+## A register with its own clock
+
+Everything in this repository modelled the projection once it existed. Nothing
+modelled the institution that produces it — and the first Sepolia run did not
+either: its validators were the buyer and the seller, and the admission
+followed the trade by about a minute because someone ran the next command. That
+demonstrates a projection being written. It does not demonstrate a projection
+lagging behind a market, which is the entire reason the standard exists.
+
+`AsynchronousRegistrar` (`src/adapters/memory/registrar.ts`) is that register.
+Transfers every 30 seconds against a register that takes 180 seconds a hop.
+
+### Decisions worth recording
+
+**Serial, not pipelined.** The first draft computed a record's due time as
+`effectiveAt + latency`, which models a register that works on every change at
+once. A real one has a queue and a clerk: each hop starts when its predecessor
+finishes. The difference is not cosmetic — it is the difference between a lag
+that stays at three minutes and one that **grows with every trade**:
+
+```
+t=0     A -> B      recorded at t=180
+t=30    B -> C      recorded at t=360
+t=60    C -> D      recorded at t=540
+```
+
+Sixty seconds in, the token is three owners ahead of its own record and still
+falling behind. That is why a consumer has to ask about an *instant* rather
+than about *now*, and a fixture that kept a constant lag would have hidden the
+reason.
+
+**Backdated on purpose.** An entry admitted at 12:03 for a transfer at 12:00
+carries `effectiveAt` of 12:00. This is what makes a past instant resolvable at
+all: the record says when the change took effect, not when the registrar got
+round to it.
+
+**So finality arrives in arrears.** Each hop settles the one before it. After
+the first record the trade instant is still provisional, because nothing later
+exists; after the second it is final, and resolves to the holder the first hop
+named. The newest instant is never final. A test asserts both halves.
+
+**It records; it does not decide.** There is no method here that approves,
+rejects, or refuses a change, because the register has none either.
+
+### A test assertion that was wrong in an instructive way
+
+The first version asserted the registration view contains no `/fail|blocked/i`.
+It failed — against copy that reads "This is not a failure" and "Your token is
+not blocked and never will be by this". Banning the word flags the sentence
+written to rule the thing out. The assertions now check for the denial.
+
+This project made the same mistake once before, on the same kind of copy.
+
+### Still open — handed to Codex
+
+`docs/issues/001-asynchronous-registrar-on-chain.md`. The simulator is
+in-process; the same shape on a real chain with real elapsed time needs a
+signing key, which this session does not have. The issue covers a registrar
+that is **not** a counterparty, three hops 30 seconds apart, sampling the
+divergence while it is open, finality arriving in arrears, a clearing trade
+whose deadline the backlog misses, and release called by a fourth party.
+
+### Verification
+
+```
+$ npm run verify
+tsc --noEmit            (clean)
+# tests 513
+# pass 513
+14 passing              (hardhat, against the reference implementation)
+```

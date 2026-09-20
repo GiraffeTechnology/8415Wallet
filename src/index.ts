@@ -82,6 +82,8 @@ export type * from './sdk/events.ts';
 // Adapters. Two paths to the same register, behind one port: the chain
 // directly, or the Native Infrastructure Kit's index for the projection reads
 // with the chain still answering for the position, the clock and conformance.
+export { AsynchronousRegistrar } from './adapters/memory/registrar.ts';
+export type { PendingChange, RegistrarOptions } from './adapters/memory/registrar.ts';
 export { RpcErc8415Reader } from './adapters/rpc/rpcReader.ts';
 export { KitErc8415Reader, KitCapabilityError } from './adapters/kit/kitReader.ts';
 export type { ChainCompanion, KitReaderOptions } from './adapters/kit/kitReader.ts';
