@@ -19,9 +19,13 @@ ERC-8415 separates:
 
 8415Wallet keeps these sequences separate and never substitutes one for the other.
 
-## Current implementation status (2026-09-20)
+## Current implementation status (2026-09-25)
 
-The repository has progressed from a read-only reference client into an ERC-8415 settlement-aware wallet prototype.
+PR [#2](https://github.com/GiraffeTechnology/8415Wallet/pull/2) is merged at
+`438dd8ecc468d5d7af7f4fe3e19f92be5b887892`. The repository contains the
+settlement-aware wallet, Kit components, external-provider signing and legacy
+single-trade clearing. The v3.0 linked-wallet requirements below are an
+additive development target; this documentation does not claim their delivery.
 
 ## Implemented
 
@@ -48,7 +52,7 @@ The wallet now contains transaction construction support for:
 
 Signing is separated from wallet logic through an external EIP-1193 provider interface. The wallet does not hold private keys.
 
-### Clearing reference implementation
+### Legacy single-trade clearing
 
 `ProjectionEscrow` provides a reference clearing pattern:
 
@@ -57,7 +61,10 @@ Signing is separated from wallet logic through an external EIP-1193 provider int
 - release after projection confirmation;
 - refund path after unsuccessful confirmation.
 
-This is an application pattern, not part of ERC-8415 itself.
+This is an application pattern, not part of ERC-8415 itself. It holds both the
+token and payment for one trade. It remains available in standalone mode; its
+tests do not demonstrate the buyer-held token and linked obligations required
+by v3.0.
 
 ### Asynchronous registry simulation
 
@@ -68,6 +75,65 @@ The repository contains an asynchronous registrar simulation demonstrating:
 - backlog accumulation;
 - finality arriving after later entries close previous intervals.
 
+
+## Two supported modes
+
+v3.0 extends the original PRD. The original 8415Wallet remains the foundation,
+with its readers, temporal queries, dual histories, disclosure, protocol
+transactions and existing clearing path preserved.
+
+- **Standalone:** use the wallet independently against its configured chain,
+  with optional Kit-backed reads. ArtFi, Oracle and a linked-wallet network
+  are not prerequisites.
+- **Linked:** compatible wallets connect their unresolved transfer conditions
+  while the same token moves downstream. Each leg keeps its own reserved
+  payment, enforceable accepted conditions and original refund route.
+
+For A → B → C → D, the token can be in D while B's payment is held for A's
+sale, C's for B's and D's for C's. Seller-associated escrow is a segregated
+record, not a seller's spendable balance; separate contract addresses for
+every seller are not required. The active tail grows while completed heads
+detach, and completed legs remain in history.
+
+### Completion rule — CP-01 resolved
+
+A leg S→B is commercially complete when **both current owner and admitted
+register holder are at B or a later verified position in the same token's
+accepted transfer chain**. Position is verified leg/occurrence order, never
+a numeric comparison of wallet addresses.
+
+For A→B→C→D with owner=D and holder=B, release AB's reserved payment to A
+and detach AB. BC and CD may still be unresolved. With holder=C, AB and BC
+can complete in prefix order. Neither observation needs to equal the other,
+and the token does not have to return to B before AB completes.
+
+After AB completes, a later callback cannot cross that boundary and return
+the token to A. A's completed obligation cannot be revived. ERC
+`isFinalAsOf(tokenId, t)` still reports its own temporal finality: a latest
+interval may remain provisional while the commercial leg is complete.
+The wallet displays both facts accurately.
+
+CP-01 is resolved as a requirement; implementation and acceptance are still
+required. Do not reintroduce an extra confirming entry or a historical
+finality query as an unstated payment-release prerequisite.
+
+### Callback and refunds
+
+For an accepted failure of unresolved AB, return requests propagate B→C→D;
+actual token returns proceed D→C→B→A. Each leg refunds its own original
+payer after its required return. If AB has already detached, a failure of BC
+stops at B and cannot involve A.
+
+The recipient must accept an executable, scoped return mechanism and all
+still-active inherited conditions. A notification or revocable allowance is
+not proof of enforceable recall. Duplicate actions, interrupted returns and
+release-versus-callback races must preserve one outcome and each leg's reserved
+principal. The wallet executes accepted terms without choosing a discretionary
+remedy or rewriting ERC history.
+
+See [PRD §9](docs/ERC-8415-Wallet-PRD.md#9-v30-increment--standalone-and-linked-use)
+for the model, owner-confirmed rule, boundaries and W-01–W-20 acceptance cases.
+
 ## Verification status
 
 Current repository evidence includes:
@@ -76,7 +142,15 @@ Current repository evidence includes:
 - Hardhat EVM validation against ERC-8415 reference implementations;
 - documented Sepolia engineering validation run (2026-09-19).
 
-The Sepolia run validates the engineering path. It is not a production deployment.
+The recorded Sepolia run remains a real engineering test of its historical
+candidate, not a production deployment or v3.0 linked-chain acceptance.
+
+For the PR #2 merge, the exact code tree was tested on CTYun Linux using Node
+v22.23.3 and v24.21.0: each passed typecheck, 513/513 unit tests, 14/14 EVM
+tests and the reference client. [CI evidence](https://github.com/GiraffeTechnology/8415Wallet/pull/2#issuecomment-5822071405)
+records the commits and distinguishes those executed checks from the
+GitHub-hosted jobs blocked before startup by the account billing/spending-limit
+condition. No existing failed Actions result has been relabelled as a pass.
 
 Remaining validation areas:
 
@@ -144,8 +218,17 @@ It reports protocol facts. Applications and users decide how those facts are use
 3. Production-grade Kit integration verification.
 4. Browser/mobile wallet UX.
 5. Institutional registrar and source integration.
+6. The v3.0 linked responsibility model, enforceable inheritance, independent
+   per-leg payments, monotonic head detachment, callback/refund and recovery.
+   Legacy escrow tests alone do not establish these features.
 
 These are delivery items. They do not change ERC-8415 semantics.
+
+Keep the existing Stage 0–5 numbering and completed foundation work. Stage 4
+adds the linked model, protected forwarding, head detachment, callback/refund
+and recovery; Stage 5 demonstrates the integrated account/backend, independent
+delayed registrar, testnet and real desktop/mobile journey. Full acceptance
+requires standalone use plus W-01–W-20 at their stated execution levels.
 
 ## Documents
 
@@ -161,7 +244,7 @@ The ERC specification remains the source of truth.
 Node 22.18 or newer.
 
 ```sh
-npm install
+npm ci
 npm run verify
 npm run wallet
 ```

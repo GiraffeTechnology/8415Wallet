@@ -1,4 +1,12 @@
-# ERC-8415 Wallet PRD v2.2
+# ERC-8415 Wallet PRD v3.0 — additive responsibility-chain iteration
+
+Version decision (2026-09-25): v3.0 extends the existing wallet PRD; it does
+not replace the original wallet. Sections 1–8 and the historical semantic
+corrections remain the standalone foundation. Section 9 adds linked use.
+Both modes are required. CP-01 is resolved by the owner-approved completion
+rule in §9.4; this document records requirements, not implementation acceptance.
+
+## Preserved v2.x revision history
 
 Supersedes v2.1. See **Appendix A** for the v1.0 corrections and **Appendix B**
 for what v2.1 added from the eth-magicians discussion (thread t/29634), which
@@ -33,7 +41,8 @@ The wallet is not an ownership viewer. ERC-8415 tracks two sequences that
 describe the same asset — the ERC-721 ownership sequence and the
 register-confirmed holder sequence. At rest they agree; in flight they
 diverge. The wallet's job is to show both faithfully, show whether they align
-at a given instant, and stop there.
+at a given instant. The standalone foundation remains available on its own;
+linked mode adds acceptance and execution of agreed obligations under §9.
 
 ---
 
@@ -165,8 +174,8 @@ The wallet MUST NOT redefine ERC-8415 semantics.
 
 # 3. Data Model
 
-The wallet's types mirror the ERC. It adds display state, never protocol
-state.
+The protocol types mirror the ERC and add no new protocol state. Display
+state and the application obligation model in §9 are separate from ERC state.
 
 ## 3.1 Instants
 
@@ -357,7 +366,9 @@ behalf:
   permanently ends the projection for that token. Surface it if present.
 
 These are reported as facts. The wallet does not score them, does not produce
-a safe/unsafe verdict, and does not gate any action on them.
+a safe/unsafe verdict, and does not invent a remedy from these observations.
+Linked mode validates the explicitly accepted conditions in §9 before executing
+an action.
 
 ## 4.7 What a holder is actually asking
 
@@ -394,8 +405,9 @@ identifiers. Resolving either to a party a person can contact is profile-defined
 and off-chain. The wallet shows the identifiers and states plainly that it
 cannot resolve them, rather than leaving a user to assume no one is reachable.
 
-Throughout: the wallet never blocks the token. `ownerOf` is live and stays
-live.
+A register gap alone never blocks ordinary ERC-721 transfers. In linked mode,
+a participating account enforces its accepted forwarding/return obligations;
+that application authorization is not a registrar-imposed protocol lock.
 
 ## 4.8 Before acquiring
 
@@ -406,9 +418,9 @@ behind it, and that the instant of their own purchase will never be final at
 the moment it happens — the present never is.
 
 The wallet presents those facts. It does not score the token, does not say
-whether acquiring is wise, and does not gate the action. Whether that risk is
-acceptable is the acquirer's decision, reflected in their trade terms, exactly
-as with any other settlement risk.
+whether acquiring is wise. Whether that risk is acceptable is the acquirer's
+decision, reflected in their trade terms. Protected linked receipt additionally
+requires the explicit, enforceable acceptance described in §9.
 
 ## 4.9 Collisions the protocol does not prevent
 
@@ -467,9 +479,9 @@ cases, because a stale attestation must not be handled as ordinary pending:
 Naming the third case separately is the point. Conflating stale with pending
 makes a silently dead register look like ordinary delay.
 
-The wallet stops at reporting. It holds no consideration, releases nothing,
-refunds nothing, and recommends none of the three. Which of them a given asset
-warrants is a risk decision belonging to the parties' terms.
+The reporting layer recommends no remedy. The existing clearing integration
+and linked mode may execute terms accepted by the parties, including release,
+return and refund. The wallet does not choose new terms or adjudicate rights.
 
 ## Custody
 
@@ -555,9 +567,10 @@ adapter once the Native Infrastructure Kit exposes its Register API.
 
 ---
 
-# 8. Definition of Done
+# 8. Standalone foundation — definition of done
 
-8415Wallet is complete when a user can, for any token and any instant:
+The retained standalone reading foundation is complete when a user can, for any
+token and any instant:
 
 1. see the tradeable position and the confirmed holder as two separate facts,
    and whether they agree;
@@ -575,6 +588,210 @@ adapter once the Native Infrastructure Kit exposes its Register API.
 7. understand, in their own words, what a pending registration means for them,
    that it is not a failure, that waiting is the action, and where the remedy
    lies if the commitment window passes.
+
+---
+
+
+# 9. v3.0 increment — standalone and linked use
+
+## 9.1 Scope and preservation
+
+8415Wallet supports two modes:
+
+| Mode | Required behavior |
+| --- | --- |
+| Standalone | The original wallet remains independently usable: projection and temporal reads, dual histories, disclosure, conformance and identity checks, protocol transaction builders, authorized signing, and the existing single-trade clearing pattern. ArtFi, Oracle and other wallets are not mandatory dependencies. |
+| Linked | Participating wallets coordinate unresolved transfer obligations for the same token, preserve each leg's escrow and accepted upstream conditions, detach completed heads, and execute authorized callbacks with original-route refunds. |
+
+The existing `ProjectionEscrow` holds both asset and payment for one trade.
+Keep that implementation and its tests as the legacy single-trade mode.
+The linked mode instead leaves the token in the supported recipient wallet;
+only that leg's payment remains in seller-associated escrow. Existing escrow
+tests do not prove the new forwarding path.
+
+This is an application increment. Preserve the reader port, direct-chain path,
+optional Kit adapter, ERC interfaces, semantic distinctions and historical
+evidence. Do not add a matching engine, order book, centralized clearing
+operator, cross-chain bridge or legal adjudication service. ArtFi is a consumer
+of this independent product; Oracle/Kit integration does not own wallet keys.
+
+## 9.2 Four distinct records and per-leg identity
+
+Keep token transfers, admitted register history, active responsibility and
+per-leg payment escrow separately visible. An open protocol gap is none of the
+other three records.
+
+For A → B → C → D, the same token reaches D while AB, BC and CD may all remain
+unresolved. B's payment is reserved for A's sale, C's for B's sale and D's for
+C's sale. Seller-associated escrow is segregated principal, not the seller's
+spendable balance. It may use isolated records in a shared contract; a new
+contract for every seller is not required.
+
+Each leg binds at least:
+
+- a unique replay-resistant leg ID, chain/asset contract/token ID and verified
+  sequence position;
+- seller, buyer and original payer; predecessor leg and active dependencies;
+- accepted terms/version, inherited conditions and scoped return authorization;
+- segregated consideration, denomination, escrow and exact release/refund
+  recipients;
+- token-transfer and admitted-holder evidence with source/block provenance;
+- current commercial outcome and confirmed execution progress.
+
+An address is not a leg ID. A → B → A → C has distinct occurrences. Use
+lossless protocol integers and explicit application outcome names; do not add
+commercial states to ERC enums or reinterpret protocol events.
+
+## 9.3 Establishment and downstream acceptance
+
+For AB, B accepts AB's exact terms and an executable, bounded conditional-return
+mechanism. Reserve B's exact payment and deliver the token to B. On forwarding
+BC, C accepts BC and every still-active inherited condition; reserve C's
+payment separately and deliver the same token to C. AB need not complete first.
+
+Prefer atomic establishment. If multiple transactions are necessary, protect
+and expose intermediate states; payment approval is not escrow funding. A
+notification, generic wallet-connection signature or revocable allowance alone
+does not prove enforceable future recall. Demonstrate that alternate transfer
+paths cannot silently drop already accepted obligations. If the selected
+account mechanism cannot provide that protection, report the path unsupported
+before accepting funds on a recall promise.
+
+Forwarding may append a tail as completed heads detach. Removing a terminated
+dependency does not require acceptance of the same unchanged trade again.
+Conflicting revisions/forks must be detected; no concurrent update may lose a
+new tail or revive a detached condition.
+
+## 9.4 CP-01 resolved — per-leg commercial completion
+
+Owner-confirmed rule (2026-09-25): for an active leg S → B, its commercial
+completion condition is satisfied when **both the current on-chain owner and
+the admitted register holder have reached B or a later verified position in
+that token's same transfer chain**.
+
+In application notation, where `position` means a verified occurrence/leg
+position, not an address value:
+
+```text
+ownerPosition >= buyerPosition(leg)
+AND
+holderPosition >= buyerPosition(leg)
+```
+
+Both observations must be bound to this asset, leg and accepted chain, and
+revalidated at the authoritative execution boundary. The holder comes from
+admitted register evidence, never inferred from `ownerOf`. Unknown, ambiguous,
+unrelated or unavailable evidence does not satisfy the condition.
+
+For A → B → C → D:
+
+| Current owner | Admitted holder | Completion consequence |
+| --- | --- | --- |
+| B | A | AB remains unresolved; A's payment stays reserved. |
+| B | B | AB completes and its payment is released to A. |
+| D | B | AB completes; BC and CD remain unresolved. |
+| D | C | AB and BC can complete in prefix order; CD remains unresolved. |
+| D | D | AB, BC and CD can complete in prefix order. |
+
+The owner and holder need not equal each other, and neither must still equal
+the leg's buyer. Do not wait for every descendant, require an extra confirming
+entry, or choose an arbitrary older instant whose `isFinalAsOf` is true.
+
+Once AB completes, release its reserved payment to A exactly once, detach AB
+from active responsibility, and make B the earliest remaining return boundary.
+The token **cannot subsequently be recalled to A under AB**, and AB cannot be
+reactivated by later holder changes. For example, failure of unresolved BC
+after AB detached stops at B. Historical AB evidence remains available.
+
+“Commercially complete” is an application outcome. ERC temporal finality
+continues to come from `isFinalAsOf(tokenId, t)`; a latest interval can remain
+protocol-provisional while a commercial leg is complete. Show both accurately.
+Their agreement is not a claim of legal identity or title. The earlier v3.0
+proposal `TRANSFER_LINKED_ADMISSION_V1` and its pending confirmation do not
+override this owner-confirmed predicate. **CP-01 is closed as a requirements
+decision**; implementation and acceptance testing remain outstanding.
+
+## 9.5 Detachment, callback and original-route refunds
+
+Only the completed active prefix detaches. A descendant may accumulate its own
+evidence but cannot dispose of principal needed for a still-live inherited
+callback. No leg must wait for its descendants to complete.
+
+Accepted terms define the failure trigger, authority, deadline where relevant
+and affected scope. Delay, stale feeds, unavailable RPC, gap closure or protocol
+cancellation do not independently create a commercial rejection or callback.
+
+For unresolved AB failure with the token at D, requests propagate B → C → D.
+Actual returns proceed D → C → B → A. Each return is bound to the correct
+asset, leg, callback and recipient; CD refunds D, BC refunds C and AB refunds B
+from each leg's own original principal. A request, signature or UI flag is not
+a completed return. Verify that leg's required return before completing its
+refund; preserve an explicit refund-due state if transfer and payment cannot
+be atomic. Never substitute recipients, net price differences or spend another
+leg's reserved principal.
+
+Authenticated bounded hops may be resumed after interruptions. Serialize
+release versus callback, reject stale/duplicate actions, and permit exactly
+one terminal commercial outcome. Once a valid callback commits, forwarding
+must not escape it. Late register admissions remain separately visible and
+cannot rewrite historical outcomes or erase append-only protocol records.
+
+## 9.6 Views and execution boundaries
+
+Extend existing views to show active head/tail, detached history, inherited
+conditions, token location, per-leg reserved payments and return/refund progress.
+Before protected receipt, show the precise terms, completion predicate and
+return scope. User-visible completion must derive from confirmed execution.
+
+Retain chain/contract/profile binding, real ERC-165 discovery, accurate error
+classification and bounded requests. Separate unavailable, unsupported,
+not-covered and provisional results. An `apparently-registered` history
+correlation or unverified backend `complete: true` cannot release funds.
+
+Keep the supplied Giraffe VI/fonts and actual desktop/mobile journey in the UI
+acceptance scope. CLI, API and contract work can proceed if browser tooling is
+unavailable, but they do not replace UI evidence.
+
+## 9.7 Stages and required acceptance scenarios
+
+Stages 0–5 remain in place. Extend Stage 4 with the responsibility model,
+protected forwarding, head detachment, callback/refund and recovery; extend
+Stage 5 with the actual account/backend integration, delayed registrar,
+testnet and desktop/mobile journey. Preserve completed foundation work.
+
+| ID | Required linked-mode observation |
+| --- | --- |
+| W-01 | AB places the token in B and B's payment in A-associated escrow. |
+| W-02 | The same token reaches D while AB/BC/CD payments remain independently reserved and inherited conditions remain enforceable. |
+| W-03 | Ordinary register lag creates no invented rejection or registrar transfer lock. |
+| W-04 | Owner and holder at B or beyond complete AB; its payment releases and the unresolved tail remains. |
+| W-05 | Holder progression to C before AB processing does not require the holder to return to B or prevent AB completion. |
+| W-06 | Head detachment concurrent with tail extension preserves all new legs and conditions. |
+| W-07 | Unresolved AB failure returns D→C→B→A and refunds each original payer from its own escrow. |
+| W-08 | After AB completion, BC failure stops at B; A receives no callback and AB remains detached. |
+| W-09 | A descendant's evidence cannot release principal still required for a live inherited obligation. |
+| W-10 | A callback request without actual token return cannot complete a refund. |
+| W-11 | Mid-hop token/payment failure remains truthful and resumable. |
+| W-12 | Duplicate callback, replay and restart produce one outcome, not duplicate transfers/payments. |
+| W-13 | An unsupported recipient without enforceable acceptance cannot establish a protected leg. |
+| W-14 | Alternate transfer paths cannot silently discard accepted obligations. |
+| W-15 | Repeated wallet addresses retain distinct leg/occurrence bindings; addresses are never numerically ranked. |
+| W-16 | RPC faults, malformed responses and unsupported interfaces cannot become successful evidence. |
+| W-17 | Release/callback races select one authorized outcome. |
+| W-18 | Late register admission does not rewrite a completed return/refund. |
+| W-19 | Both owner/holder progress are required; owner-only/holder-only/ambiguous progress is refused; protocol provisional status remains accurately displayed after commercial completion. |
+| W-20 | One deployed same-token multi-wallet journey demonstrates views, acceptance, escrow, detachment and callback/refund. |
+
+Reuse the illustrative 30-second transfer / 180-second independent registrar
+cadence where useful, recording actual times. No local time jump is real
+elapsed testnet time. Reuse authorized test assets and preserve earlier
+Sepolia evidence; no mainnet or real-asset authorization is created here.
+
+Full delivery requires both the standalone foundation and the linked-mode
+scenarios at their stated execution levels. Source, local tests, EVM tests,
+public-testnet receipts and UI evidence remain distinct. PR #2's existing
+513-test suite and 14 EVM tests establish its tested baseline; they do not
+establish W-01–W-20 or retroactively validate v3.0.
 
 ---
 
