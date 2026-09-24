@@ -47,6 +47,26 @@ keys, credentials or raw consent signatures in reports.
   presentation, with explicit authority-trust disclosure. No automatic execution.
 - `index.ts`: isolated experimental entry point; the stable root wallet surface
   and legacy standalone behavior have not been replaced.
+- `accounts.ts`: factory-registered account discovery, explicit account creation,
+  pinned-token deposit and policy-checked standalone withdrawal with actual
+  Transfer-event receipt reconciliation.
+- `payments.ts`: independent optional adapter binding, exact funded terms,
+  allocation and exact-recipient withdrawal; unfunded/due/paid states remain
+  distinct from responsibility outcomes. These sources are also untested.
+
+## Stage PR tracking
+
+- PR #3 remains the unchanged foundation at `bc99ff0` and is not merged.
+- Stage 4B draft: PR #4, remote `a7cd45a5cc0203db8ba4fb92ef931f3679fd224e`,
+  tree `e52c4332db5f2ad2f3360f16251699bbc6281369`, base PR #3 branch.
+- Stage 5A draft: PR #5, initially remote `c4bae7dd239b72429466cfe5194ee91cdee4e415`,
+  tree `41a3aa4d07e17bb52d366c8ce8a34bfec858a329`, base Stage 4B branch.
+- Initial local commits `96caa1f` and `7b095a9` have identical trees to their
+  respective remote commits. Direct git push timed out; GitHub Git Data API
+  published the exact trees with different commit metadata. Do not force-push
+  local divergent history. Use verified remote heads for subsequent updates.
+- Initial PR workflow queries returned no runs for either remote head. No
+  CI configuration was changed. This is a scheduling fact, not validation.
 
 ## Explicit implementation assumptions — not audited guarantees
 
@@ -73,8 +93,8 @@ keys, credentials or raw consent signatures in reports.
 
 ## Remaining development (not acceptance claims)
 
-- Complete account setup/deposit/standalone-withdrawal integration and optional
-  payment client, including clear unfunded/due/withdrawn presentation.
+- Complete application-facing setup/payment/recovery presentation around the
+  newly written account/payment clients. Do not label them validated yet.
 - Finish acceptance display/recovery integration and exact action workflows;
   never surface speculative state as executed state.
 - Write unified regression, adversarial/EVM and public-testnet run tooling for

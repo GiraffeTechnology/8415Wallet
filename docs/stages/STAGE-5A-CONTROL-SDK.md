@@ -9,9 +9,10 @@ safe recovery journal, linked read-view adapter, shared fixed account/payment
 transport. Entry point: `src/controls/index.ts` (experimental; not substituted
 for the stable standalone wallet surface).
 
-Still developing: actual account setup/deposit/withdraw integration, payment
-client, consent/recovery workflows, unified test/tooling and public-testnet/UI
-acceptance scripts. Creating this PR is not stage completion.
+Account setup/deposit/withdraw and payment client source is now written but
+untested. Still developing: full consent/recovery presentation, unified
+test/tooling and public-testnet/UI acceptance scripts. Creating this PR is not
+stage completion.
 
 No raw-key support, automatic retries or assumption that a hash means success.
 Provider timeout leaves the outcome uncertain; reconcile before a new send.
