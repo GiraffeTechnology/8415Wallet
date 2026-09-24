@@ -1,202 +1,167 @@
 # 8415Wallet
 
-The first commercial MVP built on [ERC-8415 — Asynchronous Register
-Projection for NFTs](https://github.com/GiraffeTechnology/ERC-8415), and the
-reference client for its semantics.
+A reference wallet and client for [ERC-8415 — Asynchronous Register Projection for NFTs](https://github.com/GiraffeTechnology/ERC-8415).
 
-ERC-8415 projects an off-chain register onto an ERC-721 token so that any past
-instant resolves to exactly one confirmed holder, while the chain is still
-behind the register. 8415Wallet shows a user what that projection actually
-says — and, through **8415 Clearing**, lets a trade complete while the
-authoritative registration is still on its way.
+ERC-8415 projects an off-chain register onto an ERC-721 token so that a past instant can resolve to a confirmed holder while the tradeable blockchain position may already have changed. 8415Wallet is designed to expose this distinction to users and applications.
 
 ## Why a separate wallet
 
-An ordinary wallet answers one question: *who owns this token now?* For a
-token that stands for a record kept somewhere else, that answer is not the
-record. ERC-8415 keeps two sequences apart on purpose:
+An ordinary wallet answers:
 
-- **the tradeable position** — `ownerOf`, which moves the moment the market
-  moves;
-- **the confirmed holder** — the register's own record, which moves only when
-  a proof admits an entry.
+> Who owns this token now?
 
-At rest they agree. In flight they diverge, and nothing in a conventional
-wallet tells a user which one they are looking at. 8415Wallet shows both, and
-shows whether they agree at whichever instant is being asked about.
+For asynchronous registered assets, this is only one part of the answer.
 
-## What it shows
+ERC-8415 separates:
 
-For any token and any instant:
+- **tradeable position** — `ownerOf`, the current blockchain position;
+- **confirmed holder** — the register projection, updated through valid admission.
 
-| Question | Source |
-| --- | --- |
-| Who holds the tradeable position? | `ownerOf` |
-| Who did the register confirm at instant *t*? | `holderAsOf(tokenId, t)` |
-| Can a later admission still change that? | `isFinalAsOf(tokenId, t)` |
-| Which entry admitted it? | `entryAsOf(tokenId, t)` |
-| Is a change in flight covering *t*? | `openGapOf` + the gap's `openedAt` |
-| What is this a projection of? | `registerId`, `verificationProfile` |
-| Who may move the answer? | `isSettlementAuthority` |
-| When did each sequence move, side by side? | `Transfer` logs + the entry walk |
+8415Wallet keeps these sequences separate and never substitutes one for the other.
 
-It also answers the questions a holder actually asks — what a pending
-registration means for them, that it is not a failure, that waiting is the
-action, how many transfers are still queued behind the one being registered,
-and where the remedy lies if the commitment window passes. It never blocks the
-token.
+## Current implementation status (2026-09-20)
 
-Three signals, never merged into one badge:
+The repository has progressed from a read-only reference client into an ERC-8415 settlement-aware wallet prototype.
 
-- **final / provisional** — whether a later admission can still change this
-  instant's holder;
-- **contested / not contested** — whether a gap is open that opened at or
-  before this instant;
-- **fresh / stale / reorg-safe** — the optional watchtower freshness layer,
-  which measures on-chain reorg exposure, *not* registrar finality.
+## Implemented
 
-Finality does not depend on whether a gap is open, and closing a gap does not
-make any instant final. A stale feed is reported as stale whatever the
-projection says — conflating stale with pending is what makes a silently dead
-register look like ordinary delay.
+### ERC-8415 reading and interpretation
 
-## What it does not do
+- ERC-8415 projection reader interface;
+- temporal queries:
+  - `entryAsOf`;
+  - `holderAsOf`;
+  - `isFinalAsOf`;
+- append-only entry history reading;
+- ownership discovery from ERC-721 transfer history;
+- dual sequence presentation:
+  - tradeable position;
+  - confirmed register holder.
 
-ERC-8415 is a faithful record and audit trail across an asynchronous
-boundary — a mirror, not a tribunal. The wallet sits on the same side of that
-line:
+### Settlement capability
 
-- it does not adjudicate legal title, entitlement or compliance;
-- it does not decide remedy — cancellation, escrow, timeouts, refunds and
-  unwinding belong to the parties' own terms;
-- it does not score risk or produce a safe/unsafe verdict;
-- it does not redefine, extend or recompute protocol semantics;
-- it does not present agreement between `ownerOf` and the confirmed holder as
-  verified identity of the underlying right — the protocol does not, and
-  cannot, verify that;
-- it has no rollback, veto or override path into the projection — the only
-  operations it can build are the three the ERC defines, and it signs none of
-  them.
+The wallet now contains transaction construction support for:
 
-It reports. The user decides.
+- `beginSettlement`;
+- `finalizeSettlement`;
+- `cancelSettlement`.
 
-## Architecture
+Signing is separated from wallet logic through an external EIP-1193 provider interface. The wallet does not hold private keys.
+
+### Clearing reference implementation
+
+`ProjectionEscrow` provides a reference clearing pattern:
+
+- asset locking;
+- payment locking;
+- release after projection confirmation;
+- refund path after unsuccessful confirmation.
+
+This is an application pattern, not part of ERC-8415 itself.
+
+### Asynchronous registry simulation
+
+The repository contains an asynchronous registrar simulation demonstrating:
+
+- chain position moving ahead of registration;
+- registration latency;
+- backlog accumulation;
+- finality arriving after later entries close previous intervals.
+
+## Verification status
+
+Current repository evidence includes:
+
+- unit and integration tests for wallet semantics;
+- Hardhat EVM validation against ERC-8415 reference implementations;
+- documented Sepolia engineering validation run (2026-09-19).
+
+The Sepolia run validates the engineering path. It is not a production deployment.
+
+Remaining validation areas:
+
+- independent institutional registrar integration;
+- production signer and custody environment;
+- complete browser/mobile wallet UX;
+- production operational deployment.
+
+## ERC-8415 Kit and Oracle integration boundary
+
+The intended ecosystem architecture is:
+
+```
+Application
+    |
+Oracle
+    |
+ERC8415-Kit
+    |
+ERC-8415
+```
+
+8415Wallet is an independent wallet product.
+
+It may consume ERC-8415 projection data through an application/infrastructure integration layer, but it is not part of ArtFi and does not embed Oracle business logic.
+
+The current repository contains the wallet-side adapter direction; production Kit integration remains an integration stage rather than a completed production dependency.
+
+## Architecture principle
 
 ```
 User
  |
-8415Wallet UI
+8415Wallet
  |
-ERC-8415 SDK port  (Erc8415Reader)
- |                        \
- |                         Native Infrastructure Kit — projection reads
+ERC-8415 reader / transaction layer
  |
- direct chain reads — conformance, ownerOf, the clock, settlement, logs
- |
-ERC-8415 conforming ERC-721 contract
+ERC-8415 conforming asset
 ```
 
-The SDK port is the wallet's only window onto the projection: a typed
-interface mirroring `IRegisterProjection` (ERC-165 `0x6309e170`) and
-`IProjectionSettlement` (`0xf4a7d71b`). Conformance is discovered, not
-assumed; a contract may implement the projection without the settlement
-interface, in which case it has no gaps and no contested instants.
+The wallet intentionally does not collapse protocol signals:
 
-Two adapters satisfy that port and both are held to the same conformance
-harness. **rpc** reads the contract directly and is complete on its own.
-**kit** reads the projection through a Native Infrastructure Kit deployment —
-the entry walk, temporal resolution, finality and the open gap in one round
-trip apiece — and composes with an rpc reader for the rest, because the
-tradeable position, ERC-165 conformance and `block.timestamp` are facts about
-the chain and not about the register. `--kit` therefore requires `--rpc`.
+- finality is not freshness;
+- a pending registration gap is not rejection;
+- blockchain ownership is not automatically confirmed registration.
 
-The two are cross-checked rather than trusted in turn. `registerId` and
-`verificationProfile` are specified immutable, so a Kit answering for a
-different register is caught on the first read; and the Kit's own selector
-table, derived independently from the compiled Solidity ABI, is compared
-against the selectors this wallet derives by hashing, so a drifted signature
-on either side fails the build.
+## What it does not do
 
-## 8415 Clearing
+8415Wallet is a protocol client, not an authority system.
 
-The escrow layer has a name of its own because it is a separate product from
-the wallet, and one escrow deployment is meant to serve many venues — a wallet,
-a marketplace, an OTC desk, a lending protocol, an exchange, a custodian — all
-opening trades against it.
+It does not:
 
-*Clearing*, not *settlement*. In this repository "settlement" already means one
-thing, in seven hundred places: admitting an entry into the register, through
-`beginSettlement` / `finalizeSettlement` / `cancelSettlement`, closing a gap as
-ADMITTED, CANCELLED or SUPERSEDED. That is the protocol's word and it is not
-available. Clearing is the stage between a trade and its settlement, which is
-exactly the position this contract occupies: it holds both legs while the
-register catches up.
+- adjudicate legal title;
+- decide remedies between parties;
+- provide investment or compliance ratings;
+- write directly into the register projection;
+- override register history.
 
-`contracts/escrow/ProjectionEscrow.sol` is the contract; `EscrowReader` and
-`buildEscrowView` are how a venue reads it. Trades are keyed by
-`keyFor(opener, localId)`, so every venue has its own identifier namespace and
-no one can take another's.
+It reports protocol facts. Applications and users decide how those facts are used.
 
-## Status
+## Known development gaps
 
-All six stages delivered. The wallet reads a projection through one port and
-presents it without collapsing any of its signals: the asset view, the
-temporal query, the append-only entry walk, the gap history with the three
-closures distinguished, the risk surfaces, and the watchtower freshness layer
-kept apart from finality. 492 tests and a contract suite on a real EVM, no runtime dependencies.
+1. Error classification and network failure handling hardening.
+2. Security review of transaction and identity boundaries.
+3. Production-grade Kit integration verification.
+4. Browser/mobile wallet UX.
+5. Institutional registrar and source integration.
 
-The wallet also acts, within the bounds the ERC sets: it builds the three
-settlement operations with a preflight that refuses what would revert and
-names what it cannot check, and hands the unsigned request to a signer the
-caller supplies. It never holds key material. `WalletSession` is the surface
-an application integrates against, and an audit trail exports entries and gap
-transitions in a form a third party can re-check against the chain.
-
-`npm run wallet` renders all of it for the bundled scenarios, and
-`--kit <url>` alongside `--rpc` moves the projection reads onto a Kit
-deployment. Binding a different backend is described in
-[docs/INTEGRATION.md](docs/INTEGRATION.md). The stage roadmap is in
-[docs/ERC-8415-Wallet-PRD.md](docs/ERC-8415-Wallet-PRD.md) §7 and delivery
-evidence per stage is in
-[docs/STAGE-DELIVERY.md](docs/STAGE-DELIVERY.md).
+These are delivery items. They do not change ERC-8415 semantics.
 
 ## Documents
 
-- [AGENTS.md](AGENTS.md) — engineering rules, semantic boundaries, and the
-  forbidden inferences every change is checked against;
-- [docs/ERC-8415-Wallet-PRD.md](docs/ERC-8415-Wallet-PRD.md) — product
-  requirements, data model, feature specification and stage plan;
-- [docs/STAGE-DELIVERY.md](docs/STAGE-DELIVERY.md) — per-stage delivery
-  evidence, coverage against the ERC's own test cases, and what is
-  deliberately not covered;
-- [docs/INTEGRATION.md](docs/INTEGRATION.md) — binding a backend to the SDK
-  port, and the conformance harness every adapter must pass.
+- [AGENTS.md](AGENTS.md) — engineering rules and semantic boundaries;
+- [docs/ERC-8415-Wallet-PRD.md](docs/ERC-8415-Wallet-PRD.md) — product requirements;
+- [docs/STAGE-DELIVERY.md](docs/STAGE-DELIVERY.md) — delivery evidence and verification history;
+- [docs/INTEGRATION.md](docs/INTEGRATION.md) — backend integration and conformance requirements.
 
-The ERC itself is the source of truth above all three. Where this repository and
-the ERC disagree, the ERC wins and this repository gets fixed.
+The ERC specification remains the source of truth.
 
 ## Development
 
-Node 22.18 or newer — that is where Node runs TypeScript from source without
-a flag, which is what lets this project ship with no build step.
+Node 22.18 or newer.
 
 ```sh
 npm install
-npm run verify   # typecheck + tests
-npm run wallet   # render the views for the bundled scenarios
+npm run verify
+npm run wallet
 ```
-
-To read a live deployment:
-
-```sh
-npm run wallet -- --rpc <url> --contract <address> --account <address>
-npm run wallet -- --rpc <url> --contract <address> --token <id>
-npm run wallet -- --help
-```
-
-With `--account` and no `--token`, the client discovers which tokens the
-account holds by scanning `Transfer` logs and confirming each against
-`ownerOf` — ERC-721 enumeration is optional and most deployments omit it.
-
-CI runs the same steps on Node 22 and 24, plus the reference client as a smoke
-test, on every push to `main` and every pull request.
