@@ -37,7 +37,13 @@ accounts use distinct occurrences. Currency amounts and payment failures cannot
 authorize or revive responsibility. Existing standalone sessions and legacy
 ProjectionEscrow remain unchanged; the new kernel does not import them.
 
-## Critical integration boundary — not yet implemented
+## Critical integration boundary
+
+Update: on-chain accounts/controller, consent/receipt SDK and read-view source
+are now being implemented locally. They are not compiled, tested, deployed or
+audited; see [current checkpoint](../CONTROL-DEVELOPMENT-STATUS.md). The following
+warnings remain applicable to the pure kernel itself. New source is not a
+completed authenticated integration or acceptance evidence.
 
 `prepareResponsibilityTransition` returns `UNCOMMITTED_PROPOSAL`. It does not
 authenticate signatures, prove accepted terms, transfer tokens, commit state or
