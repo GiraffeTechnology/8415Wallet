@@ -16,8 +16,8 @@ function chain(addresses = parties): LinkedChainSnapshot {
     legs: addresses.slice(1).map((buyer, i) => ({
       id: hash(i + 1), predecessorId: i === 0 ? null : hash(i),
       buyerOccurrenceId: hash(101 + i), seller: addresses[i]!, buyer,
-      originalPayer: buyer, termsHash: hash(400 + i), paymentAsset: ZERO_ADDRESS,
-      principal: BigInt(i + 1) * 1_000_000_000_000_000_001n, outcome: 'reserved',
+      termsHash: hash(400 + i), control: { controlId: hash(500), acceptanceHash: hash(600 + i) },
+      outcome: 'active',
     })),
   };
 }
@@ -75,11 +75,14 @@ describe('CP-01 dual-position predicate (snapshot only)', () => {
     assert.deepEqual(buildLinkedChainView(snapshot, evidence(snapshot, 3, 2)).completionPrefix, [hash(1), hash(2)]);
     assert.equal(evidence(snapshot, 3, 0).admittedHolder.account, evidence(snapshot, 3, 2).admittedHolder.account);
   });
-  test('preserves large integers, principal isolation and original payer', () => {
-    const snapshot = changeLeg(chain(), 0, { originalPayer: `0x${'ff'.repeat(20)}` });
+  test('responsibility exists and completes without any escrow or payment record', () => {
+    const snapshot = chain();
     const view = buildLinkedChainView(snapshot, evidence(snapshot));
-    assert.equal(view.legs[0]!.originalPayer, snapshot.legs[0]!.originalPayer);
-    assert.deepEqual(view.legs.map(x => x.principal), snapshot.legs.map(x => x.principal));
+    assert.deepEqual(view.completionPrefix, [hash(1)]);
+    assert.equal('principal' in view.legs[0]!, false);
+    assert.equal('paymentAsset' in view.legs[0]!, false);
+    assert.deepEqual(view.legs[0]!.control, snapshot.legs[0]!.control);
+    assert.notEqual(view.legs[0]!.control, snapshot.legs[0]!.control);
   });
   test('pure: frozen source records remain unchanged after repeated evaluations', () => {
     const snapshot = chain();
@@ -89,14 +92,14 @@ describe('CP-01 dual-position predicate (snapshot only)', () => {
     const first = buildLinkedChainView(snapshot, evidence(snapshot, 3, 3));
     const second = buildLinkedChainView(snapshot, evidence(snapshot, 3, 3));
     assert.deepEqual(first, second);
-    assert(snapshot.legs.every(x => x.outcome === 'reserved'));
-    assert.match(first.note, /not payment release or recall authorization/);
+    assert(snapshot.legs.every(x => x.outcome === 'active'));
+    assert.match(first.note, /not obligation completion or recall authorization/);
   });
 });
 
 describe('executed prefix and return boundaries', () => {
-  test('released AB stays detached despite later holder regression', () => {
-    const snapshot = changeLeg(chain(), 0, { outcome: 'released' });
+  test('completed AB stays detached despite later holder regression', () => {
+    const snapshot = changeLeg(chain(), 0, { outcome: 'completed' });
     const view = buildLinkedChainView(snapshot, evidence(snapshot, 3, 0));
     assert.deepEqual(view.detachedLegIds, [hash(1)]);
     assert.equal(view.returnBoundary.account, parties[1]);
@@ -105,39 +108,39 @@ describe('executed prefix and return boundaries', () => {
     assert.deepEqual(view.completionPrefix, []);
   });
   test('detached history survives unavailable evidence; no new release is invented', () => {
-    const snapshot = changeLeg(chain(), 0, { outcome: 'released' });
+    const snapshot = changeLeg(chain(), 0, { outcome: 'completed' });
     const view = buildLinkedChainView(snapshot, { kind: 'unavailable' });
     assert.deepEqual(view.detachedLegIds, [hash(1)]);
     assert.deepEqual(view.completionPrefix, []);
     assert.equal(view.returnBoundary.account, parties[1]);
   });
   test('head detachment retains all existing tail records', () => {
-    const snapshot = changeLeg(chain(), 0, { outcome: 'released' });
+    const snapshot = changeLeg(chain(), 0, { outcome: 'completed' });
     const view = buildLinkedChainView(snapshot, evidence(snapshot, 3, 2));
     assert.deepEqual(view.completionPrefix, [hash(2)]);
     assert.equal(view.legs.length, 3);
-    assert.equal(view.legs[2]!.outcome, 'reserved');
+    assert.equal(view.legs[2]!.outcome, 'active');
   });
-  test('all released: latest buyer is the boundary, no duplicate release preview', () => {
-    const snapshot = { ...chain(), legs: chain().legs.map(x => ({ ...x, outcome: 'released' as const })) };
+  test('all completed: latest buyer is the boundary, no duplicate completion preview', () => {
+    const snapshot = { ...chain(), legs: chain().legs.map(x => ({ ...x, outcome: 'completed' as const })) };
     const view = buildLinkedChainView(snapshot, evidence(snapshot, 3, 3));
     assert.equal(view.detachedLegIds.length, 3);
     assert.deepEqual(view.completionPrefix, []);
     assert.equal(view.returnBoundary.account, parties[3]);
   });
-  for (const outcome of ['returning', 'refunded'] as const) {
-    test(`${outcome} cannot race into a release preview on late admission`, () => {
+  for (const outcome of ['returning', 'returned'] as const) {
+    test(`${outcome} cannot race into a completion preview on late admission`, () => {
       const snapshot = changeLeg(chain(), 2, { outcome });
       const view = buildLinkedChainView(snapshot, evidence(snapshot, 3, 3));
       assert.deepEqual(view.completionPrefix, []);
       assert.equal(view.legs[2]!.outcome, outcome);
     });
   }
-  test('cannot mark a descendant released through an unresolved predecessor', () => {
-    refused(changeLeg(chain(), 1, { outcome: 'released' }), { kind: 'unavailable' }, 'LINKED_RELEASE_PREFIX_INVALID');
+  test('cannot mark a descendant completed through an unresolved predecessor', () => {
+    refused(changeLeg(chain(), 1, { outcome: 'completed' }), { kind: 'unavailable' }, 'LINKED_COMPLETION_PREFIX_INVALID');
   });
-  test('cannot complete upstream refund before downstream returns', () => {
-    refused(changeLeg(chain(), 0, { outcome: 'refunded' }), { kind: 'unavailable' }, 'LINKED_REFUND_SUFFIX_INVALID');
+  test('cannot complete upstream return before downstream returns', () => {
+    refused(changeLeg(chain(), 0, { outcome: 'returned' }), { kind: 'unavailable' }, 'LINKED_RETURN_SUFFIX_INVALID');
   });
 });
 
@@ -175,11 +178,10 @@ describe('malformed sequence refuses instead of showing success', () => {
     ['reused occurrence', 1, { buyerOccurrenceId: hash(101) }, 'LINKED_OCCURRENCE_REUSED'],
     ['initial occurrence collision', 0, { buyerOccurrenceId: initial }, 'LINKED_OCCURRENCE_REUSED'],
     ['zero buyer', 0, { buyer: ZERO_ADDRESS }, 'LINKED_PARTICIPANT_INVALID'],
-    ['malformed payer', 0, { originalPayer: 'buyer' }, 'LINKED_PARTICIPANT_INVALID'],
     ['missing terms', 0, { termsHash: ZERO_BYTES32 }, 'LINKED_TERMS_INVALID'],
-    ['negative principal', 0, { principal: -1n }, 'LINKED_TERMS_INVALID'],
-    ['overflow principal', 0, { principal: 1n << 256n }, 'LINKED_TERMS_INVALID'],
-    ['invalid denomination', 0, { paymentAsset: 'ETH' }, 'LINKED_TERMS_INVALID'],
+    ['missing control', 0, { control: { controlId: ZERO_BYTES32, acceptanceHash: hash(600) } }, 'LINKED_CONTROL_BINDING_INVALID'],
+    ['missing acceptance', 0, { control: { controlId: hash(500), acceptanceHash: ZERO_BYTES32 } }, 'LINKED_CONTROL_BINDING_INVALID'],
+    ['replayed acceptance', 1, { control: { controlId: hash(500), acceptanceHash: hash(600) } }, 'LINKED_CONTROL_BINDING_INVALID'],
   ];
   for (const [label, index, delta, code] of deltas) {
     test(label, () => refused(changeLeg(chain(), index, delta), { kind: 'unavailable' }, code));
@@ -204,7 +206,7 @@ describe('public read-only integration seam', () => {
     const text = renderLinkedChain(view);
     assert.match(text, /READ-ONLY SNAPSHOT/);
     assert.match(text, /ERC temporal finality: provisional/);
-    assert.match(text, /Recorded outcome: reserved; completion predicate: satisfied/);
+    assert.match(text, /Recorded outcome: active; completion predicate: satisfied/);
     assert.match(text, /Predicate-satisfying prefix \(not executed\): 1/);
     assert.match(text, /Detached history: 0/);
     assert(text.includes(snapshot.asset.tokenId.toString()));

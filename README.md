@@ -85,15 +85,15 @@ transactions and existing clearing path preserved.
 - **Standalone:** use the wallet independently against its configured chain,
   with optional Kit-backed reads. ArtFi, Oracle and a linked-wallet network
   are not prerequisites.
-- **Linked:** compatible wallets connect their unresolved transfer conditions
-  while the same token moves downstream. Each leg keeps its own reserved
-  payment, enforceable accepted conditions and original refund route.
+- **Linked:** independent condition/execution controls connect unresolved
+  obligations while the same token moves downstream. Each leg has accepted
+  conditions and scoped return authority; payment is a separate optional adapter.
 
-For A → B → C → D, the token can be in D while B's payment is held for A's
-sale, C's for B's and D's for C's. Seller-associated escrow is a segregated
-record, not a seller's spendable balance; separate contract addresses for
-every seller are not required. The active tail grows while completed heads
-detach, and completed legs remain in history.
+Responsibility does **not** depend on escrow, a payment record or a positive
+amount. For A → B → C → D, controls preserve accepted conditions while the
+active tail grows and completed heads detach. In a funded scenario, a separate
+adapter reserves B's payment for A, C's for B and D's for C; it cannot authorize
+or revive responsibility. Completed legs remain in history.
 
 ### Completion rule — CP-01 resolved
 
@@ -102,8 +102,9 @@ register holder are at B or a later verified position in the same token's
 accepted transfer chain**. Position is verified leg/occurrence order, never
 a numeric comparison of wallet addresses.
 
-For A→B→C→D with owner=D and holder=B, release AB's reserved payment to A
-and detach AB. BC and CD may still be unresolved. With holder=C, AB and BC
+For A→B→C→D with owner=D and holder=B, the control completes and detaches AB.
+If payment exists, settle it separately to A without reviving AB on payment
+failure. BC and CD may still be unresolved. With holder=C, AB and BC
 can complete in prefix order. Neither observation needs to equal the other,
 and the token does not have to return to B before AB completes.
 
@@ -120,23 +121,28 @@ finality query as an unstated payment-release prerequisite.
 ### Callback and refunds
 
 For an accepted failure of unresolved AB, return requests propagate B→C→D;
-actual token returns proceed D→C→B→A. Each leg refunds its own original
-payer after its required return. If AB has already detached, a failure of BC
+actual token returns proceed D→C→B→A. In funded scenarios, each leg's payment
+adapter refunds its original payer after the required return. If AB has already detached, a failure of BC
 stops at B and cannot involve A.
 
 The recipient must accept an executable, scoped return mechanism and all
 still-active inherited conditions. A notification or revocable allowance is
 not proof of enforceable recall. Duplicate actions, interrupted returns and
-release-versus-callback races must preserve one outcome and each leg's reserved
-principal. The wallet executes accepted terms without choosing a discretionary
+completion-versus-callback races must preserve one responsibility outcome.
+Optional payment adapters separately protect each leg's principal.
+The wallet executes accepted terms without choosing a discretionary
 remedy or rewriting ERC history.
 
 See [PRD §9](docs/ERC-8415-Wallet-PRD.md#9-v30-increment--standalone-and-linked-use)
-for the model, owner-confirmed rule, boundaries and W-01–W-20 acceptance cases.
+for the model, owner-confirmed rule, boundaries and W-01–W-21 acceptance cases.
 
-The first code increment exposes a read-only linked sequence model, CP-01
-completion preview and text renderer. It does not move funds or enforce
-conditional returns. See [implementation scope and remaining work](docs/LINKED-MODE-IMPLEMENTATION.md).
+The current increment provides a read-only sequence view and an independent
+experimental responsibility kernel in `src/controls/`. The kernel prepares
+forwarding, prefix completion and reverse-hop callback transitions without any
+escrow import. Its output is explicitly `UNCOMMITTED_PROPOSAL`, not permission,
+a receipt or an executed transfer. Authenticated atomic account enforcement is
+not shipped yet. See [implementation scope](docs/LINKED-MODE-IMPLEMENTATION.md)
+and [security/audit gates](docs/RESPONSIBILITY-CONTROLS-SECURITY.md).
 
 ## Verification status
 
@@ -222,9 +228,10 @@ It reports protocol facts. Applications and users decide how those facts are use
 3. Production-grade Kit integration verification.
 4. Browser/mobile wallet UX.
 5. Institutional registrar and source integration.
-6. The v3.0 linked responsibility model, enforceable inheritance, independent
-   per-leg payments, monotonic head detachment, callback/refund and recovery.
-   Legacy escrow tests alone do not establish these features.
+6. Production execution of the independent responsibility controls: verified
+   consent, protected recipient/account enforcement, monotonic detachment,
+   callback recovery and optional per-leg payment adapters. The local kernel
+   and legacy escrow tests alone do not establish these features.
 
 These are delivery items. They do not change ERC-8415 semantics.
 
@@ -232,7 +239,8 @@ Keep the existing Stage 0–5 numbering and completed foundation work. Stage 4
 adds the linked model, protected forwarding, head detachment, callback/refund
 and recovery; Stage 5 demonstrates the integrated account/backend, independent
 delayed registrar, testnet and real desktop/mobile journey. Full acceptance
-requires standalone use plus W-01–W-20 at their stated execution levels.
+requires standalone use plus W-01–W-21 and the independent security-audit gates
+at their stated execution levels.
 
 ## Documents
 

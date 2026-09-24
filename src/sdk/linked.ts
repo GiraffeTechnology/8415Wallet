@@ -7,6 +7,13 @@ export type LinkedAsset = {
   readonly tokenId: TokenId;
 };
 
+/** Binding to the condition/execution control that owns this obligation. */
+export type LinkedControlBinding = {
+  readonly controlId: Bytes32;
+  /** Commitment to this leg's accepted conditions and scoped authority. */
+  readonly acceptanceHash: Bytes32;
+};
+
 export type LinkedLeg = {
   readonly id: Bytes32;
   readonly predecessorId: Bytes32 | null;
@@ -14,12 +21,10 @@ export type LinkedLeg = {
   readonly buyerOccurrenceId: Bytes32;
   readonly seller: Address;
   readonly buyer: Address;
-  readonly originalPayer: Address;
   readonly termsHash: Bytes32;
-  readonly paymentAsset: Address; // zero address denotes native currency
-  readonly principal: bigint;
-  /** Actual outcome read from the execution backend, never inferred from the predicate. */
-  readonly outcome: 'reserved' | 'released' | 'returning' | 'refunded';
+  readonly control: LinkedControlBinding;
+  /** Actual responsibility outcome read from the control, not payment/escrow status. */
+  readonly outcome: 'active' | 'completed' | 'returning' | 'returned';
 };
 
 export type LinkedChainSnapshot = {
@@ -60,11 +65,11 @@ export type LinkedCompletionEvidence =
     };
 
 /**
- * Read-only backend seam. Return one coherent snapshot; authenticate source,
+ * Read-only condition/execution-control seam. Return one coherent snapshot; authenticate source,
  * conformance, accepted terms, occurrence proofs, outcomes and block identity.
- * No production linked backend is shipped yet. This port cannot release funds.
+ * Payment adapters are optional and separate. No production control adapter is shipped yet.
  */
-export type LinkedChainReader = {
+export type LinkedControlReader = {
   observe(sequenceId: Bytes32): Promise<{
     readonly snapshot: LinkedChainSnapshot;
     readonly evidence: LinkedCompletionEvidence;

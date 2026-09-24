@@ -19,6 +19,10 @@ export { buildLinkedChainView, readLinkedChainView, LinkedChainInputError } from
 export type { LinkedChainView } from './wallet/linkedChainView.ts';
 export { renderLinkedChain } from './wallet/renderLinkedChain.ts';
 
+// Experimental escrow-independent kernel; proposals require authenticated atomic execution.
+export { prepareResponsibilityTransition, ResponsibilityControlError } from './controls/responsibility.ts';
+export type * from './controls/responsibility.ts';
+
 // Views.
 export { buildAssetView } from './wallet/assetView.ts';
 export type * from './wallet/assetView.ts';

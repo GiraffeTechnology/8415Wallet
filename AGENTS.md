@@ -284,9 +284,11 @@ Conformance is discovered, not assumed:
 
 1. v3.0 extends the original PRD; do not remove the standalone wallet or
    relabel legacy single-trade escrow tests as linked-mode acceptance.
-2. Preserve four distinct records: token transfers, admitted register history,
-   active obligations and segregated per-leg consideration. The linked-mode
-   token rests with the recipient wallet, not with its payment escrow.
+2. Responsibility depends on condition/execution controls, NOT escrow. Keep
+   token transfers, admitted history and control-owned obligations distinct.
+   Payment is an optional separate adapter. An escrow record, amount or released
+   payment is never authority for acceptance, completion or return. The token
+   rests with the recipient wallet; no payment is required to model responsibility.
 3. A downstream recipient accepts executable, scoped conditions for its own
    leg and every still-active upstream obligation. Demonstrate enforcement
    across alternate transfer paths; a message or revocable allowance alone
@@ -296,7 +298,8 @@ Conformance is discovered, not assumed:
    means a proved occurrence/leg index, never numeric address order. Bind the
    observations to chain, asset, leg and accepted terms; refuse missing or
    ambiguous evidence.
-5. Once AB completes, release its payment to A once and detach AB permanently.
+5. Once the control confirms AB completion, detach AB permanently. If payment
+   exists, settle it separately to A once; payment failure must not revive AB.
    For A→B→C→D with owner=D/holder=B, AB can complete without BC or CD.
    With owner=D/holder=C, AB and BC can complete in prefix order. A later
    callback cannot return the token across AB to A.
@@ -306,17 +309,23 @@ Conformance is discovered, not assumed:
    commercial completion and protocol temporal finality are distinct.
 7. Only completed prefixes detach. Preserve history and the unresolved tail,
    including concurrent tail extensions and repeated address occurrences.
-8. A valid callback affects only active dependencies. For unresolved AB,
-   propagate B→C→D and return D→C→B→A, then refund each leg's original payer
-   from that leg's principal after its required return. If AB detached, BC's
-   return boundary is B. No substituted recipient, pooled refund principal,
-   double release/refund or reactivated obligation is allowed.
+8. A control-authorized callback affects only active dependencies. For unresolved
+   AB, propagate B→C→D and return D→C→B→A. In funded scenarios, refund each
+   original payer after its required return using separate payment records.
+   If AB detached, BC's return boundary is B. No reactivated obligation is allowed.
+   Payment adapters must separately prevent substituted recipients, pooled
+   principal and double settlement/refund.
 9. Revalidate and serialize at execution; persist confirmed progress and
    resume bounded hops after failure. Protocol delay, RPC failure or a
    cancelled gap cannot invent an unaccepted callback condition.
 10. CP-01 is closed as a product decision by the rule above. Do not reopen it
     using the superseded proposed completion profile. Implementation,
-    enforcement and W-01–W-20 evidence remain required.
+    enforcement and W-01–W-21 evidence remain required.
+11. Develop responsibility controls as an independent module, not a wrapper
+    around escrow. The local kernel is an uncommitted proposal generator, not
+    verified consent or account enforcement. Its input facts are a trust boundary.
+    Do not connect it to signing/execution before authenticated atomic adapters,
+    alternate-path protection and independent security audit are complete.
 
 ---
 
@@ -350,7 +359,8 @@ instant, and without conflating them:
   move the answer.
 
 Full product delivery also requires independent standalone use and PRD §9's
-linked-mode W-01–W-20 scenarios, including real selected account enforcement,
-escrow, detachment, callback/refund, recovery and deployed UI evidence. Report
+linked-mode W-01–W-21 scenarios, including real selected account enforcement,
+independent controls without escrow, optional funded flows, detachment,
+callback/refund, recovery, independent security audit and deployed UI evidence. Report
 baseline, local EVM, public-testnet and UI results separately; a documentation
 change or one completed leg is not full acceptance.

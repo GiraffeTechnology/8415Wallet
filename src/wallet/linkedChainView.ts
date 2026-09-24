@@ -1,5 +1,5 @@
 import type {
-  LinkedAsset, LinkedChainReader, LinkedChainSnapshot, LinkedCompletionEvidence, LinkedLeg,
+  LinkedAsset, LinkedControlReader, LinkedChainSnapshot, LinkedCompletionEvidence, LinkedLeg,
 } from '../sdk/linked.ts';
 import { ZERO_ADDRESS, ZERO_BYTES32, type Bytes32 } from '../sdk/types.ts';
 
@@ -21,12 +21,12 @@ export type LinkedChainView = {
   readonly evidenceStatus: 'bound' | 'unavailable' | 'ambiguous';
   readonly protocolFinality: boolean | null;
   readonly detachedLegIds: readonly Bytes32[];
-  /** Predicate-satisfying active prefix only. NOT released funds or authorization. */
+  /** Predicate-satisfying active prefix only. NOT executed obligation completion or authorization. */
   readonly completionPrefix: readonly Bytes32[];
   readonly legs: readonly (LinkedLeg & {
     readonly completionPredicate: 'satisfied' | 'not-yet' | 'unavailable' | 'not-applicable';
   })[];
-  /** Earliest permitted return boundary according to already executed releases. */
+  /** Earliest permitted return boundary according to the control's already completed obligations. */
   readonly returnBoundary: { readonly occurrenceId: Bytes32; readonly account: string };
   readonly executionRequired: true;
   readonly note: string;
@@ -34,8 +34,8 @@ export type LinkedChainView = {
 
 const UINT256_MAX = (1n << 256n) - 1n;
 const MAX_LEGS = 4096;
-const NOTE = 'Read-only snapshot, not payment release or recall authorization. ' +
-  'The execution backend must revalidate atomically and enforce accepted terms. ' +
+const NOTE = 'Read-only snapshot, not obligation completion or recall authorization. ' +
+  'The condition/execution control must revalidate atomically and enforce accepted terms. ' +
   'Commercial completion is separate from ERC temporal finality and legal title.';
 
 function requireInput(ok: boolean, code: string): asserts ok {
@@ -50,9 +50,9 @@ function hash(value: string): boolean {
   return typeof value === 'string' && /^0x[0-9a-f]{64}$/.test(value) && value !== ZERO_BYTES32;
 }
 
-function address(value: string, allowZero = false): boolean {
+function address(value: string): boolean {
   return typeof value === 'string' && /^0x[0-9a-f]{40}$/.test(value) &&
-    (allowZero || value !== ZERO_ADDRESS);
+    value !== ZERO_ADDRESS;
 }
 
 function validateAsset(asset: LinkedAsset): void {
@@ -79,32 +79,37 @@ function validateSnapshot(snapshot: LinkedChainSnapshot): {
   const occurrences = new Map([[snapshot.initialOccurrenceId,
     { account: snapshot.initialHolder, position: 0 }]]);
   const legIds = new Set<Bytes32>();
+  const acceptances = new Set<Bytes32>();
   let predecessor: Bytes32 | null = null;
   let previousHolder = snapshot.initialHolder;
   let activeSeen = false;
-  let refundedSeen = false;
+  let returnedSeen = false;
   let detachedCount = 0;
   for (const [index, leg] of snapshot.legs.entries()) {
     requireInput(hash(leg.id) && !legIds.has(leg.id), 'LINKED_LEG_ID_INVALID');
     requireInput(leg.predecessorId === predecessor && leg.seller === previousHolder,
       'LINKED_PREDECESSOR_MISMATCH');
-    requireInput(address(leg.seller) && address(leg.buyer) && address(leg.originalPayer),
+    requireInput(address(leg.seller) && address(leg.buyer),
       'LINKED_PARTICIPANT_INVALID');
     requireInput(hash(leg.buyerOccurrenceId) && !occurrences.has(leg.buyerOccurrenceId),
       'LINKED_OCCURRENCE_REUSED');
-    requireInput(hash(leg.termsHash) && address(leg.paymentAsset, true) && uint(leg.principal, true),
+    requireInput(hash(leg.termsHash),
       'LINKED_TERMS_INVALID');
-    requireInput(['reserved', 'released', 'returning', 'refunded'].includes(leg.outcome),
+    requireInput(['active', 'completed', 'returning', 'returned'].includes(leg.outcome),
       'LINKED_OUTCOME_INVALID');
-    // Successful releases form a prefix; completed returns form a suffix.
-    if (leg.outcome === 'released') {
-      requireInput(!activeSeen, 'LINKED_RELEASE_PREFIX_INVALID');
+    requireInput(leg.control !== undefined && hash(leg.control.controlId) &&
+      hash(leg.control.acceptanceHash) && !acceptances.has(leg.control.acceptanceHash),
+    'LINKED_CONTROL_BINDING_INVALID');
+    acceptances.add(leg.control.acceptanceHash);
+    // Completed obligations form a prefix; executed returns form a suffix.
+    if (leg.outcome === 'completed') {
+      requireInput(!activeSeen, 'LINKED_COMPLETION_PREFIX_INVALID');
       detachedCount++;
     } else {
       activeSeen = true;
     }
-    if (leg.outcome === 'refunded') refundedSeen = true;
-    else requireInput(!refundedSeen, 'LINKED_REFUND_SUFFIX_INVALID');
+    if (leg.outcome === 'returned') returnedSeen = true;
+    else requireInput(!returnedSeen, 'LINKED_RETURN_SUFFIX_INVALID');
     occurrences.set(leg.buyerOccurrenceId, { account: leg.buyer, position: index + 1 });
     legIds.add(leg.id);
     predecessor = leg.id;
@@ -116,6 +121,7 @@ function validateSnapshot(snapshot: LinkedChainSnapshot): {
 /**
  * Evaluate CP-01 over explicitly bound occurrences, never address ordering.
  * No mutation, state transition, signing, transaction or optimistic detachment.
+ * Completion comes from the control, never from escrow existence or a payment.
  */
 export function buildLinkedChainView(
   snapshot: LinkedChainSnapshot,
@@ -148,17 +154,17 @@ export function buildLinkedChainView(
   }
 
   const completionPrefix: Bytes32[] = [];
-  // A committed callback selects a competing outcome: no release preview.
-  let prefixOpen = !snapshot.legs.some(leg => leg.outcome === 'returning' || leg.outcome === 'refunded');
+  // A committed callback selects a competing outcome: no completion-execution preview.
+  let prefixOpen = !snapshot.legs.some(leg => leg.outcome === 'returning' || leg.outcome === 'returned');
   const legs = snapshot.legs.map((leg, index) => {
-    const completionPredicate = leg.outcome !== 'reserved' ? 'not-applicable' as const :
+    const completionPredicate = leg.outcome !== 'active' ? 'not-applicable' as const :
       ownerPosition === undefined || holderPosition === undefined ? 'unavailable' as const :
       ownerPosition >= index + 1 && holderPosition >= index + 1 ? 'satisfied' as const : 'not-yet' as const;
-    if (leg.outcome !== 'released') {
+    if (leg.outcome !== 'completed') {
       if (prefixOpen && completionPredicate === 'satisfied') completionPrefix.push(leg.id);
       else prefixOpen = false;
     }
-    return { ...leg, completionPredicate };
+    return { ...leg, control: { ...leg.control }, completionPredicate };
   });
   const lastDetached = snapshot.legs[detachedCount - 1];
   return {
@@ -182,7 +188,7 @@ export function buildLinkedChainView(
 
 /** Backend errors propagate; no owner/holder fallback or cached-success path. */
 export async function readLinkedChainView(
-  reader: LinkedChainReader, sequenceId: Bytes32,
+  reader: LinkedControlReader, sequenceId: Bytes32,
 ): Promise<LinkedChainView> {
   requireInput(hash(sequenceId), 'LINKED_SEQUENCE_ID_INVALID');
   const { snapshot, evidence } = await reader.observe(sequenceId);

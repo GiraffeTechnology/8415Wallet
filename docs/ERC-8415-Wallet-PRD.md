@@ -6,6 +6,12 @@ corrections remain the standalone foundation. Section 9 adds linked use.
 Both modes are required. CP-01 is resolved by the owner-approved completion
 rule in §9.4; this document records requirements, not implementation acceptance.
 
+Owner clarification (2026-09-25): responsibility is control-driven, not
+escrow-driven. The condition/execution control owns acceptance, inheritance,
+completion/detachment and return obligations. Escrow is an optional payment
+adapter; it is neither the source of responsibility nor a prerequisite for it.
+All funded examples below describe an optional payment scenario.
+
 ## Preserved v2.x revision history
 
 Supersedes v2.1. See **Appendix A** for the v1.0 corrections and **Appendix B**
@@ -601,13 +607,15 @@ token and any instant:
 | Mode | Required behavior |
 | --- | --- |
 | Standalone | The original wallet remains independently usable: projection and temporal reads, dual histories, disclosure, conformance and identity checks, protocol transaction builders, authorized signing, and the existing single-trade clearing pattern. ArtFi, Oracle and other wallets are not mandatory dependencies. |
-| Linked | Participating wallets coordinate unresolved transfer obligations for the same token, preserve each leg's escrow and accepted upstream conditions, detach completed heads, and execute authorized callbacks with original-route refunds. |
+| Linked | Participating wallets use condition/execution controls to preserve accepted upstream obligations, detach completed heads, and execute authorized callbacks. If payment terms are present, a separate payment adapter settles or refunds each leg. |
 
 The existing `ProjectionEscrow` holds both asset and payment for one trade.
 Keep that implementation and its tests as the legacy single-trade mode.
-The linked mode instead leaves the token in the supported recipient wallet;
-only that leg's payment remains in seller-associated escrow. Existing escrow
-tests do not prove the new forwarding path.
+The linked mode instead leaves the token in the supported recipient wallet.
+Its responsibility controls do not depend on an escrow contract, escrow record,
+positive payment amount or payment lifecycle. Escrow may protect a payment when
+the accepted terms require it. Existing escrow tests do not prove the new
+forwarding path or the responsibility control.
 
 This is an application increment. Preserve the reader port, direct-chain path,
 optional Kit adapter, ERC interfaces, semantic distinctions and historical
@@ -617,26 +625,30 @@ of this independent product; Oracle/Kit integration does not own wallet keys.
 
 ## 9.2 Four distinct records and per-leg identity
 
-Keep token transfers, admitted register history, active responsibility and
-per-leg payment escrow separately visible. An open protocol gap is none of the
-other three records.
+Keep token transfers, admitted register history and control-owned active
+responsibility separate. Where payment exists, display its adapter records
+separately as a fourth record. An open protocol gap is not an obligation or
+payment. A control-owned completion is not an escrow RELEASED flag.
 
 For A → B → C → D, the same token reaches D while AB, BC and CD may all remain
-unresolved. B's payment is reserved for A's sale, C's for B's sale and D's for
+unresolved. In the optional funded scenario, B's payment is reserved for A's sale, C's for B's sale and D's for
 C's sale. Seller-associated escrow is segregated principal, not the seller's
 spendable balance. It may use isolated records in a shared contract; a new
 contract for every seller is not required.
 
-Each leg binds at least:
+Each responsibility leg binds at least:
 
 - a unique replay-resistant leg ID, chain/asset contract/token ID and verified
   sequence position;
-- seller, buyer and original payer; predecessor leg and active dependencies;
-- accepted terms/version, inherited conditions and scoped return authorization;
-- segregated consideration, denomination, escrow and exact release/refund
-  recipients;
+- sender/seller and recipient/buyer; predecessor leg and active dependencies;
+- control identity, accepted terms/version, inherited conditions and scoped
+  return authorization;
 - token-transfer and admitted-holder evidence with source/block provenance;
-- current commercial outcome and confirmed execution progress.
+- current control-owned responsibility outcome and confirmed execution progress.
+
+Optional payment records bind the leg ID, original payer, denomination, amount
+and exact settlement/refund recipients. Their absence does not remove or prevent
+responsibility, forwarding, CP-01 evaluation, detachment or authorized return.
 
 An address is not a leg ID. A → B → A → C has distinct occurrences. Use
 lossless protocol integers and explicit application outcome names; do not add
@@ -645,9 +657,10 @@ commercial states to ERC enums or reinterpret protocol events.
 ## 9.3 Establishment and downstream acceptance
 
 For AB, B accepts AB's exact terms and an executable, bounded conditional-return
-mechanism. Reserve B's exact payment and deliver the token to B. On forwarding
-BC, C accepts BC and every still-active inherited condition; reserve C's
-payment separately and deliver the same token to C. AB need not complete first.
+mechanism through the responsible control and receives the token. On forwarding
+BC, C accepts BC and every still-active inherited condition through its control.
+AB need not complete first. In the funded scenario, a separate payment adapter
+reserves each leg's exact payment; an escrow record cannot replace acceptance.
 
 Prefer atomic establishment. If multiple transactions are necessary, protect
 and expose intermediate states; payment approval is not escrow funding. A
@@ -687,8 +700,8 @@ For A → B → C → D:
 
 | Current owner | Admitted holder | Completion consequence |
 | --- | --- | --- |
-| B | A | AB remains unresolved; A's payment stays reserved. |
-| B | B | AB completes and its payment is released to A. |
+| B | A | AB remains unresolved; if funded, A's associated payment stays reserved. |
+| B | B | The control completes AB; if funded, its payment settles separately to A. |
 | D | B | AB completes; BC and CD remain unresolved. |
 | D | C | AB and BC can complete in prefix order; CD remains unresolved. |
 | D | D | AB, BC and CD can complete in prefix order. |
@@ -697,8 +710,10 @@ The owner and holder need not equal each other, and neither must still equal
 the leg's buyer. Do not wait for every descendant, require an extra confirming
 entry, or choose an arbitrary older instant whose `isFinalAsOf` is true.
 
-Once AB completes, release its reserved payment to A exactly once, detach AB
-from active responsibility, and make B the earliest remaining return boundary.
+Once the control confirms AB completion, detach AB from active responsibility
+and make B the earliest remaining return boundary. If AB has reserved payment,
+settle it to A exactly once through the payment adapter; a failed payment stays
+explicitly settlement-due and does not resurrect AB's return obligation.
 The token **cannot subsequently be recalled to A under AB**, and AB cannot be
 reactivated by later holder changes. For example, failure of unresolved BC
 after AB detached stops at B. Historical AB evidence remains available.
@@ -713,22 +728,22 @@ decision**; implementation and acceptance testing remain outstanding.
 
 ## 9.5 Detachment, callback and original-route refunds
 
-Only the completed active prefix detaches. A descendant may accumulate its own
-evidence but cannot dispose of principal needed for a still-live inherited
-callback. No leg must wait for its descendants to complete.
+Only the control-confirmed completed active prefix detaches. A descendant may
+accumulate evidence but cannot shed a live inherited obligation. Where a funded
+payment scenario applies, its adapter also protects principal required for an
+accepted callback. No leg must wait for its descendants to complete.
 
 Accepted terms define the failure trigger, authority, deadline where relevant
 and affected scope. Delay, stale feeds, unavailable RPC, gap closure or protocol
 cancellation do not independently create a commercial rejection or callback.
 
 For unresolved AB failure with the token at D, requests propagate B → C → D.
-Actual returns proceed D → C → B → A. Each return is bound to the correct
-asset, leg, callback and recipient; CD refunds D, BC refunds C and AB refunds B
-from each leg's own original principal. A request, signature or UI flag is not
-a completed return. Verify that leg's required return before completing its
-refund; preserve an explicit refund-due state if transfer and payment cannot
-be atomic. Never substitute recipients, net price differences or spend another
-leg's reserved principal.
+Actual returns proceed D → C → B → A under the controls' accepted authority.
+Each return is bound to the correct asset, leg, callback and recipient. A request,
+signature or UI flag is not a completed return. In the funded scenario, CD refunds
+D, BC refunds C and AB refunds B from each leg's original principal after its
+required return; preserve refund-due separately if payment fails. Never substitute
+recipients, net price differences or spend another leg's reserved principal.
 
 Authenticated bounded hops may be resumed after interruptions. Serialize
 release versus callback, reject stale/duplicate actions, and permit exactly
@@ -761,8 +776,8 @@ testnet and desktop/mobile journey. Preserve completed foundation work.
 
 | ID | Required linked-mode observation |
 | --- | --- |
-| W-01 | AB places the token in B and B's payment in A-associated escrow. |
-| W-02 | The same token reaches D while AB/BC/CD payments remain independently reserved and inherited conditions remain enforceable. |
+| W-01 | In the funded scenario, AB places the token in B and B's payment in A-associated escrow; the independent control owns the accepted obligation. |
+| W-02 | The same token reaches D with inherited conditions enforced; in the funded scenario AB/BC/CD payments also remain independently reserved. |
 | W-03 | Ordinary register lag creates no invented rejection or registrar transfer lock. |
 | W-04 | Owner and holder at B or beyond complete AB; its payment releases and the unresolved tail remains. |
 | W-05 | Holder progression to C before AB processing does not require the holder to return to B or prevent AB completion. |
@@ -780,7 +795,8 @@ testnet and desktop/mobile journey. Preserve completed foundation work.
 | W-17 | Release/callback races select one authorized outcome. |
 | W-18 | Late register admission does not rewrite a completed return/refund. |
 | W-19 | Both owner/holder progress are required; owner-only/holder-only/ambiguous progress is refused; protocol provisional status remains accurately displayed after commercial completion. |
-| W-20 | One deployed same-token multi-wallet journey demonstrates views, acceptance, escrow, detachment and callback/refund. |
+| W-20 | One deployed same-token multi-wallet journey demonstrates views, independent control acceptance, detachment and callback; a funded variant also demonstrates segregated payments/refunds. |
+| W-21 | The same responsibility control works with no escrow/payment adapter: accepted forwarding, CP-01 completion, detachment and scoped return remain valid; attaching payment does not become the authority for responsibility. |
 
 Reuse the illustrative 30-second transfer / 180-second independent registrar
 cadence where useful, recording actual times. No local time jump is real
@@ -791,7 +807,43 @@ Full delivery requires both the standalone foundation and the linked-mode
 scenarios at their stated execution levels. Source, local tests, EVM tests,
 public-testnet receipts and UI evidence remain distinct. PR #2's existing
 513-test suite and 14 EVM tests establish its tested baseline; they do not
-establish W-01–W-20 or retroactively validate v3.0.
+establish W-01–W-21 or retroactively validate v3.0.
+
+## 9.8 Independent controls and security-audit acceptance
+
+Develop a separate responsibility control suite. It must support standalone
+receipt and linked forwarding with no escrow/payment dependency. The suite owns
+accepted condition inheritance, controlled transfer, CP-01 completion and
+permanent detachment, scoped callback and bounded recovery. A payment adapter
+is optional and must never become authority for these responsibility decisions.
+
+Before execution, authenticate the actor and recipient acceptance over the exact
+chain/token/sequence/control/revision/terms/return authority and all active
+inherited conditions. An acceptance hash or a caller-supplied `verified` flag is
+not a signature check. Bind admitted-holder evidence to a proved occurrence;
+never infer it from ownership or address order. Read and revalidate at the atomic
+execution boundary, serialize revision changes, and commit state only together
+with successful token effects. Reverts/crashes/reorgs must not produce optimistic
+detachment, returns or lost recovery progress.
+
+Recipient account protection must cover alternate transfers, approvals,
+arbitrary execution, delegation and upgrades; a UI restriction or revocable
+allowance is insufficient. Do not claim a generic ERC-721 prevents bypasses.
+Prove completed boundaries cannot be crossed or revived, including replay,
+reentrancy, concurrent tail extension, callback/completion races and optional
+payment failure. Reject unsupported account/evidence adapters rather than
+pretending a protected transfer is available.
+
+Security acceptance requires a version/hash-bound independent audit of the
+actual kernel, account/execution adapters, signature and evidence verifiers,
+deployed contracts, recovery and optional payment integration. Preserve findings
+and retest fixes; unresolved critical/high findings block release. Local models,
+static checks and self-tests are preparation, not independent audit approval.
+Complete W-01–W-21 at their specified local/EVM/testnet/UI levels after integration.
+
+The current TypeScript kernel only emits uncommitted proposals. Production
+authentication, atomic on-chain enforcement and external audit remain delivery
+work, not capabilities implied by this requirements section.
 
 ---
 

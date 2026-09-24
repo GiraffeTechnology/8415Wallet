@@ -1,80 +1,69 @@
-# Linked mode: first implementation increment
+# Independent responsibility controls — implementation increment
 
-This increment implements the **read-only application model and completion
-preview**, not a linked payment contract, protected account or live-chain
-execution. It does not replace standalone wallet behavior or ProjectionEscrow.
+User clarification, 2026-09-25: responsibility depends on controls, NOT escrow.
+v3.0 extends the original wallet and supports standalone and linked use.
 
-## Public surface
+## Implemented locally
 
-- `LinkedChainSnapshot` separates the accepted sequence and per-leg principal,
-  original payer, terms, currency and actual execution outcome.
-- `LinkedChainReader.observe` is an optional read-only integration port.
-- `buildLinkedChainView` checks structural and observation bindings, then
-  evaluates the user-confirmed CP-01 predicate.
-- `readLinkedChainView` calls the configured reader once and refuses a response
-  for another sequence. Backend failures propagate without a cached fallback.
-- `renderLinkedChain` distinguishes recorded outcome, unexecuted predicate,
-  protocol temporal finality and the historical return boundary.
+- `src/sdk/linked.ts`: control-bound accepted leg records, without mandatory
+  principal, currency or escrow fields.
+- `src/wallet/linkedChainView.ts` and `renderLinkedChain.ts`: coherent read-only
+  sequence/CP-01 preview, recorded outcomes and return boundary. Predicate
+  satisfaction is not confirmed execution. The view conservatively suppresses
+  new completion previews when callback/returned history exists; it is not used
+  as the execution kernel.
+- `src/controls/responsibility.ts`: independent deterministic transition kernel,
+  no wallet-view, payment, escrow, signer, storage or network dependency.
 
-All exports are available from `src/index.ts`; no dependency, signing method,
-RPC endpoint, protocol interface or existing wallet session changed.
+Kernel commands:
 
-## Evidence contract
+| Command | Local invariant | Proposed effect |
+| --- | --- | --- |
+| `forward` | Current owner; exact recipient consent record; all active inherited terms | Append active obligation plus one token transfer |
+| `complete-prefix` | Both bound occurrences at buyer or later; no callback in flight | Permanently complete the selected prefix; no payment call |
+| `begin-return` | Active root; accepted return authority/condition; no competing callback | Mark its unresolved suffix returning; no token movement yet |
+| `return-hop` | Correct authority; last outstanding hop first | One exact return transfer and its returned outcome |
 
-The adapter is a **trust boundary**, not implemented authentication. It must
-authenticate the accepted sequence, terms, execution outcomes and both owner
-and admitted-holder occurrence associations. A `kind: 'bound'` object is not a
-cryptographic proof. Never forward untrusted JSON directly to this view.
-The existing ownership-history `apparently-registered` correlation is not such
-an adapter and is deliberately not used here.
+Every proposal binds chain/token/sequence/control/revision; the next revision
+increments once. Completed history is never reactivated. Returned history is
+preserved. A shorter callback may leave earlier active obligations to complete
+or return later. Forwarding a sequence with returned history is conservatively
+refused (`CONTROL_SEQUENCE_RESTART_REQUIRED`); a safe new-sequence lifecycle is
+not shipped. Work is bounded to 4,096 legs, not silently truncated.
 
-Inputs bind chain ID, contract, lossless token ID, sequence ID, revision, block
-number and hash. The adapter must increment revision for every accepted terms,
-sequence or outcome change and read all facts from a coherent block. Repeated
-addresses require explicit unique occurrences; missing or ambiguous association
-has no completion prefix. Evidence at a different block/revision is refused.
+For A→B→C→D, owner D/holder B permits AB completion, independently of ERC
+temporal finality. After AB completes, BC's callback stops at B. Duplicate
+accounts use distinct occurrences. Currency amounts and payment failures cannot
+authorize or revive responsibility. Existing standalone sessions and legacy
+ProjectionEscrow remain unchanged; the new kernel does not import them.
 
-The model accepts canonical lowercase addresses and nonzero 32-byte IDs;
-principal is a positive uint256 in base units. Native currency uses the zero
-payment-asset address. Processing is bounded to 4,096 complete legs; an oversized
-sequence is refused rather than truncated and reported as complete. This is a
-local SDK limit, not a new protocol rule.
+## Critical integration boundary — not yet implemented
 
-## CP-01 and outcomes
+`prepareResponsibilityTransition` returns `UNCOMMITTED_PROPOSAL`. It does not
+authenticate signatures, prove accepted terms, transfer tokens, commit state or
+produce execution receipts. Tests supply model facts, not cryptographic proofs.
+Do NOT expose the function directly to arbitrary JSON callers or treat its
+`next` state as already committed. Structural matching of consent/facts is not
+proof of their authenticity. The same warning applies to `kind: bound` view data.
 
-Owner and holder positions are sequence positions, never numeric addresses.
-For A→B→C→D, owner=D/holder=B yields AB in `completionPrefix`; holder=C yields
-AB and BC. A provisional or unavailable ERC finality answer does not invent an
-extra completion prerequisite. Owner-only or holder-only progress is insufficient.
+The future production adapter must authenticate actor and full recipient consent,
+verify callback conditions and the admitted-holder occurrence, read authoritative
+state, compare-and-swap the revision, execute effects and persist the next state
+**atomically**. A transfer failure must revert state; retry must check persisted
+progress and not replay a confirmed transfer. A local read/check followed by a
+separate transaction does not close TOCTOU. Completion evidence must be read
+inside that same execution boundary, not trusted from an earlier snapshot.
 
-`completionPrefix` is **not execution authorization** and never mutates an
-outcome. Only actual backend `released` records create detached history and move
-the return boundary. Those records must form a prefix. A later holder regression
-does not reinterpret a recorded release. Actual refunds form a suffix; a
-committed return/refund suppresses release previews so competing outcomes are
-not advertised together. This does not itself authenticate callback authority
-or enforce monotonic persistence across backend snapshots.
+The recipient/account component must actually prevent alternative transfer,
+approval, arbitrary-call, delegation and upgrade bypasses. It must retain
+standalone functionality when no active condition applies. No production account
+or evidence adapter is shipped in this increment.
 
-Each principal and original payer remains separate; no amount is pooled, netted
-or transferred. Duplicate reads have no side effects. Real execution must
-atomically revalidate the predicate and terms, serialize callbacks/releases,
-enforce scoped forwarding and persist receipt-backed progress.
+## Audit and remaining delivery
 
-## Verification and outstanding delivery
-
-`node --test tests/linkedChain.test.ts` covers the 16 owner/holder combinations,
-repeated addresses, exact domain/block/revision binding, malformed chains,
-released-prefix/refunded-suffix consistency, no optimistic detachment, late
-admission during callback, transport errors and truthful text rendering.
-
-This is local coverage of **parts** of W-04/W-05/W-08/W-09/W-15/W-16/W-19, not
-acceptance of those scenarios. Still required:
-
-1. Authenticated coherent linked backend and receipt-backed durable outcomes.
-2. Enforceable recipient account acceptance and alternate-path protection.
-3. Segregated payment contract with atomic release and actual return/refund.
-4. Concurrency, crash/restart and callback progression at the execution layer.
-5. Real testnet multi-wallet and desktop/mobile journeys (W-20).
-
-No new chain transactions, wallet changes or testnet acceptance are claimed.
-The earlier real Sepolia evidence remains historical evidence for its candidate.
+See [security review scope](RESPONSIBILITY-CONTROLS-SECURITY.md). Self-tests cover
+the local state machine, not production enforcement or an independent audit.
+Remaining: authenticated account/execution/evidence adapters; new-sequence
+recovery after return; receipt/reorg-backed persistence; separately scoped funded
+adapter integration; full EVM adversarial tests; actual testnet and UI W-01–W-21;
+independent security audit and remediation. No new chain activity is claimed.

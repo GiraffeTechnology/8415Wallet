@@ -14,7 +14,7 @@ export function renderLinkedChain(view: LinkedChainView): string {
     lines.push(
       `Leg ${leg.id}: ${leg.seller} -> ${leg.buyer}`,
       `  Recorded outcome: ${leg.outcome}; completion predicate: ${leg.completionPredicate}`,
-      `  Original payer: ${leg.originalPayer}; principal: ${leg.principal} base units; asset: ${leg.paymentAsset}`,
+      `  Control: ${leg.control.controlId}; acceptance: ${leg.control.acceptanceHash}`,
     );
   }
   lines.push(
