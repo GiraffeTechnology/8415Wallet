@@ -134,6 +134,10 @@ remedy or rewriting ERC history.
 See [PRD §9](docs/ERC-8415-Wallet-PRD.md#9-v30-increment--standalone-and-linked-use)
 for the model, owner-confirmed rule, boundaries and W-01–W-20 acceptance cases.
 
+The first code increment exposes a read-only linked sequence model, CP-01
+completion preview and text renderer. It does not move funds or enforce
+conditional returns. See [implementation scope and remaining work](docs/LINKED-MODE-IMPLEMENTATION.md).
+
 ## Verification status
 
 Current repository evidence includes:

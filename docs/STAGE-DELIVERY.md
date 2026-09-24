@@ -14,6 +14,35 @@ documentation and evidence. Stages are defined in
 | 5 | Freshness annex and ecosystem integration | Delivered |
 | — | Usability pass: the write path, the application seam, audit export | Delivered |
 | — | PRD v2.1: requirements from the eth-magicians discussion | Delivered |
+| — | v3.0 linked sequence/CP-01 read-only preview | Implemented and locally tested; execution and W-01–W-20 acceptance remain open |
+
+## v3.0 first code increment — 2026-09-25
+
+`src/sdk/linked.ts`, `src/wallet/linkedChainView.ts` and
+`src/wallet/renderLinkedChain.ts` add an optional read-only public SDK surface.
+Standalone sessions and the legacy escrow remain unchanged. The trusted backend
+contract, supported records, CP-01 rules and remaining execution work are in
+[LINKED-MODE-IMPLEMENTATION.md](LINKED-MODE-IMPLEMENTATION.md).
+
+Executed on Windows, Node v24.19.0:
+
+- strict TypeScript check: exit 0;
+- linked increment: 59/59 tests;
+- full Node suite: 572/572 tests, 104 suites, zero skipped;
+- local EVM: 14/14 existing escrow tests; six Solidity files compiled;
+- existing reference CLI: exit 0;
+- patch whitespace check: clean.
+
+The first full-suite attempt found `python3` unavailable on Windows. A temporary
+command-name alias to the existing Python 3.12.14 runtime was used with its DLL
+search path and PYTHONHOME; the entire suite then ran from zero. No test was
+removed or skipped. Temporary executable aliases and generated Python 3.12
+bytecode were removed. Existing tracked Python 3.11 files were not changed.
+
+These are local model/baseline regression results, NOT linked-contract, public
+testnet, protected-recipient, payment-release, callback/refund or UI acceptance.
+The model deliberately produces no transactions. The earlier real Sepolia test
+remains evidence for its original candidate, not this v3.0 increment.
 
 ---
 
