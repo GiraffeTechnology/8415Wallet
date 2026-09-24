@@ -6,14 +6,18 @@
  * they encode inline as consecutive words with no head/tail split. That keeps
  * this codec to fixed 32-byte words and no offset arithmetic.
  *
- * `finalizeSettlement` takes `bytes calldata proofData` and is therefore not
- * static. It is a write, and the wallet's read port does not carry it.
+ * `finalizeSettlement` takes `bytes calldata proofData`, so `encodeCallWithTail`
+ * handles a head/tail split for dynamic `bytes`. It is the only dynamic type
+ * the ERC-8415 surface uses.
  */
 
 import { ValueOutOfRangeError } from '../sdk/errors.ts';
 import { selectorOf } from '../sdk/interfaceIds.ts';
 
 export type StaticType = 'uint256' | 'uint64' | 'uint8' | 'address' | 'bool' | 'bytes32' | 'bytes4';
+
+/** Every type the ERC-8415 call surface uses. `bytes` is the only dynamic one. */
+export type AbiType = StaticType | 'bytes';
 
 export type AbiValue = bigint | boolean | string;
 
@@ -139,3 +143,57 @@ export const SETTLEMENT_TYPES: readonly StaticType[] = [
   'uint64', // deadline
   'uint8', // status
 ];
+
+const WORD_BYTES = 32;
+
+/**
+ * Encode a call whose arguments may include dynamic `bytes`.
+ *
+ * Static arguments sit in the head in place; each `bytes` argument puts a
+ * byte offset in the head and its length-prefixed, right-padded contents in
+ * the tail. Offsets are measured from the start of the argument block, after
+ * the selector.
+ */
+export function encodeCallWithTail(
+  signature: string,
+  argumentTypes: readonly AbiType[],
+  args: readonly AbiValue[],
+): string {
+  if (argumentTypes.length !== args.length) {
+    throw new ValueOutOfRangeError(
+      `argument count for ${signature} (expected ${argumentTypes.length}, got ${args.length})`,
+      0n,
+    );
+  }
+
+  const head: string[] = [];
+  const tail: string[] = [];
+  let tailBytes = 0;
+  const headBytes = argumentTypes.length * WORD_BYTES;
+
+  for (const [index, type] of argumentTypes.entries()) {
+    const value = args[index]!;
+    if (type !== 'bytes') {
+      head.push(encodeWord(type, value));
+      continue;
+    }
+
+    head.push(encodeUint(BigInt(headBytes + tailBytes), 256, 'offset'));
+    const encoded = encodeBytes(value as string);
+    tail.push(encoded);
+    tailBytes += encoded.length / 2;
+  }
+
+  return `${selectorOf(signature)}${head.join('')}${tail.join('')}`;
+}
+
+/** Length word followed by the contents, right-padded to a whole number of words. */
+function encodeBytes(value: string): string {
+  const body = stripPrefix(value).toLowerCase();
+  if (body.length % 2 !== 0 || !/^[0-9a-f]*$/.test(body)) {
+    throw new ValueOutOfRangeError(`bytes payload ${JSON.stringify(value)}`, 0n);
+  }
+  const byteLength = body.length / 2;
+  const padded = body.padEnd(Math.ceil(byteLength / WORD_BYTES) * WORD_BYTES * 2, '0');
+  return `${encodeUint(BigInt(byteLength), 256, 'bytes length')}${padded}`;
+}

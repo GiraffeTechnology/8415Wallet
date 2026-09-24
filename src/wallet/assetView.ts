@@ -121,6 +121,14 @@ export type AssetView = {
   readonly presentFinality: PresentFinalityView;
   readonly gap: GapView;
   readonly authority: AuthorityView;
+  /**
+   * The maximum a gap may run for, from `settlementPeriod`.
+   *
+   * Part of contract identity, not of any particular gap: it bounds how long a
+   * future gap could hold instants contested, which is worth seeing while none
+   * is open. `undefined` when the contract offers no settlement interface.
+   */
+  readonly settlementPeriod: bigint | undefined;
   readonly identityNote: string;
 };
 
@@ -141,11 +149,15 @@ const DISCLOSURE_HOLDER =
 
 const NOTE_ALIGNED =
   'The position and the confirmed holder currently agree. They are still two ' +
-  'separate facts, and they may diverge again at any time.';
+  'separate facts, and they may diverge again at any time. Agreement is not ' +
+  'verified identity: the protocol does not, and cannot, check that these two ' +
+  'records refer to the same underlying right. It reports what each side says.';
 
 const NOTE_DIVERGED =
   'The position and the confirmed holder currently differ. This is the design, ' +
-  'not a fault: the token keeps trading while the register catches up.';
+  'not a fault: the token keeps trading while the register catches up. Neither ' +
+  'agreement nor divergence is verified identity — the protocol does not, and ' +
+  'cannot, check that these two records refer to the same underlying right.';
 
 const NOTE_IDENTITY_WITH_PROFILE =
   'This projection is attributable to the register and profile above. Whether ' +
@@ -226,6 +238,10 @@ export async function buildAssetView(
       explanation: explainPresentFinality(presentFinal, observedAt, latest.effectiveAt),
     },
     gap: await buildGapView(reader, tokenId, conformance, observedAt),
+    settlementPeriod:
+      conformance.settlement && reader.settlementPeriod !== undefined
+        ? await reader.settlementPeriod()
+        : undefined,
     authority: await buildAuthorityView(reader, tokenId, conformance, options.account),
     identityNote:
       identity.verificationProfile === undefined

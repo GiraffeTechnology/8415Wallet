@@ -24,6 +24,19 @@ export type EventDefinition = {
 };
 
 export const EVENT_DEFINITIONS = {
+  /**
+   * ERC-721's own transfer event.
+   *
+   * Not an ERC-8415 event, and never treated as one: it moves the tradeable
+   * position and says nothing about the projection. It is defined here because
+   * finding which tokens an account holds has no other source — ERC-721
+   * enumeration is optional and most deployments do not implement it.
+   */
+  Transfer: {
+    signature: 'Transfer(address,address,uint256)',
+    indexed: ['address', 'address', 'uint256'],
+    data: [],
+  },
   RegisterInitialized: {
     signature: 'RegisterInitialized(uint256,bytes32,address,uint64,uint64)',
     indexed: ['uint256', 'bytes32', 'address'],
@@ -77,6 +90,7 @@ export function encodeTopic(type: StaticType, value: bigint | string | boolean):
  * stated here rather than assumed.
  */
 export const TOKEN_TOPIC_INDEX: Record<EventName, number> = {
+  Transfer: 3,
   RegisterInitialized: 1,
   RegisterSuperseded: 1,
   SettlementStarted: 2,
@@ -108,6 +122,12 @@ export type LogPosition = {
 
 export type Erc8415Event = LogPosition &
   (
+    | {
+        readonly kind: 'Transfer';
+        readonly from: Address;
+        readonly to: Address;
+        readonly tokenId: TokenId;
+      }
     | {
         readonly kind: 'RegisterInitialized';
         readonly tokenId: TokenId;
@@ -182,6 +202,14 @@ export function decodeLog(log: RawLog): Erc8415Event | undefined {
   const position: LogPosition = { blockNumber: log.blockNumber, logIndex: log.logIndex };
 
   switch (name) {
+    case 'Transfer':
+      return {
+        ...position,
+        kind: name,
+        from: indexed[0] as Address,
+        to: indexed[1] as Address,
+        tokenId: indexed[2] as bigint,
+      };
     case 'RegisterInitialized':
       return {
         ...position,

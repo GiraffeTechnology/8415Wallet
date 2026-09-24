@@ -10,6 +10,8 @@ export {
   foldInterfaceId,
   selectorOf,
 } from './interfaceIds.ts';
+export { TRADE_STATE_BY_INDEX, tradeKey } from './escrow.ts';
+export type * from './escrow.ts';
 export { ContractIdentityPin } from './identity.ts';
 export type { ContractIdentity } from './identity.ts';
 export {
@@ -18,11 +20,13 @@ export {
   requireSettlementConformance,
 } from './conformance.ts';
 export {
+  BackendDisagreementError,
   ContractRevertError,
   IdentityChangedError,
   InvariantViolationError,
+  NoContractAtAddressError,
   NonConformantContractError,
-  ProjectionDoesNotCoverInstant,
   ProjectionNotInitialized,
+  TransportError,
   ValueOutOfRangeError,
 } from './errors.ts';

@@ -1,4 +1,4 @@
-import type { Instant, TokenId } from './types.ts';
+import type { TokenId } from './types.ts';
 
 /**
  * A contract call reverted.
@@ -17,31 +17,6 @@ export class ContractRevertError extends Error {
     this.name = 'ContractRevertError';
     this.call = call;
     this.data = data;
-  }
-}
-
-/**
- * The instant asked about precedes the token's first entry.
- *
- * `entryAsOf` and `holderAsOf` revert there by specification. This is not a
- * fault: it means the projection does not cover the instant. Established by
- * comparing the instant against `entryAt(tokenId, 1).effectiveAt`, never by
- * reading a revert string.
- */
-export class ProjectionDoesNotCoverInstant extends Error {
-  readonly tokenId: TokenId;
-  readonly instant: Instant;
-  readonly firstEffectiveAt: Instant;
-
-  constructor(tokenId: TokenId, instant: Instant, firstEffectiveAt: Instant) {
-    super(
-      `the projection for token ${tokenId} begins at ${firstEffectiveAt} ` +
-        `and does not cover instant ${instant}`,
-    );
-    this.name = 'ProjectionDoesNotCoverInstant';
-    this.tokenId = tokenId;
-    this.instant = instant;
-    this.firstEffectiveAt = firstEffectiveAt;
   }
 }
 
@@ -103,5 +78,79 @@ export class InvariantViolationError extends Error {
     super(`projection invariant violated (${invariant}): ${detail}`);
     this.name = 'InvariantViolationError';
     this.invariant = invariant;
+  }
+}
+
+/**
+ * Two backends answering for the same contract disagree about its identity.
+ *
+ * `registerId` and `verificationProfile` are specified as immutable, so two
+ * faithful readers of one deployment must report the same pair. A mismatch
+ * means at least one of them is answering for something else — an indexer
+ * pointed at the wrong register, a tenant misrouted, a stale mirror — and the
+ * wallet has no basis for choosing which. It reports the disagreement instead
+ * of picking a side.
+ */
+export class BackendDisagreementError extends Error {
+  readonly field: string;
+
+  constructor(field: string, fromBackend: string, fromChain: string) {
+    super(
+      `${field} differs between backends: the indexer reports ${fromBackend}, the chain reports ${fromChain}`,
+    );
+    this.name = 'BackendDisagreementError';
+    this.field = field;
+  }
+}
+
+/**
+ * The node did not answer.
+ *
+ * Unreachable, rate limited, refusing a query it considers too broad, or
+ * returning something that is not a reply. None of these is a statement about
+ * the contract, and none may be rendered as one: a wallet that reports an
+ * absent backend as a fact about who holds an asset is worse than one that
+ * reports nothing.
+ *
+ * Kept apart from `ContractRevertError` because that distinction has already
+ * failed once here. An unreachable endpoint was reported as "the contract does
+ * not advertise `0x6309e170`", and a provider refusing an over-wide log range
+ * was reported as `call reverted`. Both were transport conditions wearing a
+ * contract's clothes.
+ */
+export class TransportError extends Error {
+  readonly method: string;
+  readonly code: number | undefined;
+
+  constructor(method: string, detail: string, code?: number) {
+    super(`${method}: ${detail}`);
+    this.name = 'TransportError';
+    this.method = method;
+    this.code = code;
+  }
+}
+
+/**
+ * There is no contract at the address being read.
+ *
+ * `eth_call` against an address with no code does not revert and does not
+ * fail: it succeeds and returns nothing. Left to the ABI decoder that surfaces
+ * as a complaint about a truncated payload — "return payload for 1 word(s)
+ * (got 0 bytes)" — which reads like a fault in the wallet rather than a
+ * mistyped address or the wrong chain.
+ *
+ * Named separately from non-conformance on purpose. "This address does not
+ * advertise `0x6309e170`" sends someone looking for a conformance problem in a
+ * contract that is not there at all.
+ */
+export class NoContractAtAddressError extends Error {
+  readonly address: string;
+  readonly call: string;
+
+  constructor(address: string, call: string) {
+    super(`no contract at ${address}: ${call} returned no data`);
+    this.name = 'NoContractAtAddressError';
+    this.address = address;
+    this.call = call;
   }
 }

@@ -1,0 +1,10 @@
+services:
+  wallet:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    working_dir: /srv/8415wallet
+    volumes:
+      - ..:/srv/8415wallet
+      - /srv/8415wallet/node_modules
+    command: npm run verify

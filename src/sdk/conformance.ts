@@ -1,4 +1,4 @@
-import { NonConformantContractError } from './errors.ts';
+import { ContractRevertError, NonConformantContractError } from './errors.ts';
 import {
   INTERFACE_ID_ERC165,
   INTERFACE_ID_PROJECTION_SETTLEMENT,
@@ -17,13 +17,20 @@ import type { Conformance } from './types.ts';
  * A contract that does not answer ERC-165 at all reports every level false.
  * That is a finding, not an error: the wallet simply may not present
  * projection data for it.
+ *
+ * Only a revert counts as that answer. A transport failure is not the contract
+ * declining to advertise an interface — it is the wallet having failed to ask —
+ * and it propagates rather than being reported as non-conformance. Swallowing
+ * it would tell a user their contract is not an ERC-8415 contract because their
+ * node was down, which is a cause the wallet never established.
  */
 export async function detectConformance(reader: Erc8415Reader): Promise<Conformance> {
   const supports = async (interfaceId: string): Promise<boolean> => {
     try {
       return await reader.supportsInterface(interfaceId);
-    } catch {
-      return false;
+    } catch (error) {
+      if (error instanceof ContractRevertError) return false;
+      throw error;
     }
   };
 

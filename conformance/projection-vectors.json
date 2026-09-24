@@ -1,0 +1,97 @@
+{
+  "$comment": "Shared ERC-8415 projection conformance vectors. Authoritative copy lives in GiraffeTechnology/ERC8415-Kit. Any implementation answering holderAsOf / isFinalAsOf should reproduce every expectation below exactly.",
+  "schemaVersion": 1,
+  "rule": "final(t) iff entries[0].effectiveAt <= t < entries[last].effectiveAt; nothing else, in particular not an open gap",
+  "cases": [
+    {
+      "id": "empty",
+      "why": "No entry has been admitted, so no instant resolves and none is final.",
+      "entries": [],
+      "expect": [
+        { "instant": 0, "holder": null, "final": false },
+        { "instant": 100, "holder": null, "final": false }
+      ]
+    },
+    {
+      "id": "single-entry",
+      "why": "One entry resolves its own instants but closes no interval, so nothing is final yet.",
+      "entries": [{ "effectiveAt": 100, "holder": "A" }],
+      "expect": [
+        { "instant": 99, "holder": null, "final": false },
+        { "instant": 100, "holder": "A", "final": false },
+        { "instant": 1000000, "holder": "A", "final": false }
+      ]
+    },
+    {
+      "id": "two-entries",
+      "why": "The worked example. [100,200) is closed and final; 200 onward stays provisional.",
+      "entries": [
+        { "effectiveAt": 100, "holder": "A" },
+        { "effectiveAt": 200, "holder": "B" }
+      ],
+      "expect": [
+        { "instant": 0, "holder": null, "final": false },
+        { "instant": 99, "holder": null, "final": false },
+        { "instant": 100, "holder": "A", "final": true },
+        { "instant": 150, "holder": "A", "final": true },
+        { "instant": 199, "holder": "A", "final": true },
+        { "instant": 200, "holder": "B", "final": false },
+        { "instant": 1000000, "holder": "B", "final": false }
+      ]
+    },
+    {
+      "id": "confirming-entry",
+      "why": "A later entry admitting the same holder finalises the earlier interval without moving the holder.",
+      "entries": [
+        { "effectiveAt": 100, "holder": "A" },
+        { "effectiveAt": 300, "holder": "A" }
+      ],
+      "expect": [
+        { "instant": 150, "holder": "A", "final": true },
+        { "instant": 300, "holder": "A", "final": false }
+      ]
+    },
+    {
+      "id": "three-entries",
+      "why": "Only the newest interval is open-ended, however many entries precede it.",
+      "entries": [
+        { "effectiveAt": 10, "holder": "A" },
+        { "effectiveAt": 20, "holder": "B" },
+        { "effectiveAt": 30, "holder": "C" }
+      ],
+      "expect": [
+        { "instant": 9, "holder": null, "final": false },
+        { "instant": 10, "holder": "A", "final": true },
+        { "instant": 19, "holder": "A", "final": true },
+        { "instant": 20, "holder": "B", "final": true },
+        { "instant": 29, "holder": "B", "final": true },
+        { "instant": 30, "holder": "C", "final": false }
+      ]
+    }
+  ],
+  "gapCases": [
+    {
+      "id": "gap-does-not-change-finality",
+      "why": "A gap says what is expected, not what can still arrive. Opening one changes no answer.",
+      "entries": [
+        { "effectiveAt": 100, "holder": "A" },
+        { "effectiveAt": 200, "holder": "B" }
+      ],
+      "openGapAt": 120,
+      "expect": [
+        { "instant": 99, "final": false },
+        { "instant": 100, "final": true },
+        { "instant": 150, "final": true },
+        { "instant": 200, "final": false }
+      ]
+    },
+    {
+      "id": "cancelled-gap-finalises-nothing",
+      "why": "Cancellation admits no entry, so it cannot make any instant final.",
+      "entries": [],
+      "openGapAt": 300,
+      "cancelGap": true,
+      "expect": [{ "instant": 300, "final": false }]
+    }
+  ]
+}
