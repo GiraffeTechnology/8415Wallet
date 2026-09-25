@@ -44,3 +44,127 @@ explicit trust boundary, not cryptographic proof of off-chain legal identity.
 No deployment wallet is generated or imported by this handoff. Missing genuine
 provider, signing capability, funding, review or brand inputs must be reported
 precisely while other authorized validation continues. Do not fabricate evidence.
+
+---
+
+## First unified validation batch — 2026-09-25
+
+Run against the exact trees below, on this repository's own CI pipeline
+definitions, executed locally. **GitHub Actions did not run any of it**, for
+the reason recorded under "CI could not be evaluated".
+
+### 1. Exact surface
+
+| Branch | PR | Head | Node cases | EVM cases |
+| --- | --- | --- | --- | --- |
+| `docs/v3-standalone-linked-completion` | #3 | `bc99ff0` | 607 | 14 |
+| `feat/stage4b-independent-controls` | #4 | `a7cd45a` | 607 | 14 |
+| `feat/stage5a-control-sdk` | #5 | `d3d428b` | 607 | 14 |
+| `feat/stage5b-wallet-workflows` | #6 | `10fbfad` | 615 | 14 |
+| `feat/stage5c-validation-tooling` | #7 | `d022929` + this batch | 622 | 27 |
+
+Runtime: Node v22.22.2, npm lockfile v3, `npm ci` clean on every tree.
+Compiler: TypeScript 5.9 via `tsc --noEmit`; solc 0.8.37 through Hardhat.
+
+### 2. Every step of each branch's own `ci.yml`, run locally
+
+Each branch was checked against **its own** workflow, not the tip's — only
+Stage 5C's pipeline carries the `Browser entry` step, and the earlier branches
+neither define `wallet:browser:build` nor need it.
+
+| Branch | typecheck | node tests | browser entry | EVM | reference client |
+| --- | --- | --- | --- | --- | --- |
+| #3 | pass | pass | n/a | pass | pass |
+| #4 | pass | pass | n/a | pass | pass |
+| #5 | pass | pass | n/a | pass | pass |
+| #6 | pass | pass | n/a | pass | pass |
+| #7 | pass | pass | pass | pass | pass |
+
+The emitted browser bundle contains no `node:` import, so step 3's
+"no Node-only runtime dependency" check holds. Its **real desktop and mobile
+interaction half is NOT_RUN** — no browser is driven here.
+
+Only the Node 22 leg of the `[22, 24]` matrix was executed. **Node 24 is
+NOT_RUN**: this environment has one runtime.
+
+### 3. Finding, fixed in this batch
+
+`runExtendedJourneys` was exported from the scenario kit and called only by
+`scripts/controls/public-testnet.cjs`. That runner has never been executed, so
+locally the journeys were dead code and every EVM run this repository has made
+skipped them. Among them was the **only linked-mode observation of W-03** — a
+real open gap is ordinary lag and never blocks an accepted forward — together
+with the tail-extension, repeated-occurrence and callback-race journeys.
+
+They pass as written; only the wiring was missing. The local EVM suite now
+calls them: 26 cases to 27.
+
+### 4. W-01 – W-21, individually
+
+Local EVM evidence is local-level evidence. It is not testnet evidence and not
+UI evidence, and nothing below should be read as either.
+
+| ID | Local EVM | Testnet | UI |
+| --- | --- | --- | --- |
+| W-01 | pass | NOT_RUN | NOT_RUN |
+| W-02 | pass | NOT_RUN | NOT_RUN |
+| W-03 | pass (wired in this batch) | NOT_RUN | NOT_RUN |
+| W-04 | pass | NOT_RUN | NOT_RUN |
+| W-05 | pass | NOT_RUN | NOT_RUN |
+| W-06 | pass | NOT_RUN | NOT_RUN |
+| W-07 | pass | NOT_RUN | NOT_RUN |
+| W-08 | pass | NOT_RUN | NOT_RUN |
+| W-09 | pass | NOT_RUN | NOT_RUN |
+| W-10 | pass | NOT_RUN | NOT_RUN |
+| W-11 | pass | NOT_RUN | NOT_RUN |
+| W-12 | pass | NOT_RUN | NOT_RUN |
+| W-13 | pass | NOT_RUN | NOT_RUN |
+| W-14 | pass | NOT_RUN | NOT_RUN |
+| W-15 | pass | NOT_RUN | NOT_RUN |
+| W-16 | pass | NOT_RUN | NOT_RUN |
+| W-17 | pass | NOT_RUN | NOT_RUN |
+| W-18 | pass | NOT_RUN | NOT_RUN |
+| W-19 | pass | NOT_RUN | NOT_RUN |
+| W-20 | **BLOCKED** | **BLOCKED** | **BLOCKED** |
+| W-21 | pass | NOT_RUN | NOT_RUN |
+
+W-20 asks for one *deployed* same-token multi-wallet journey. It cannot be
+satisfied locally by construction, and no signing key, funded account or
+provider exists in this environment.
+
+### 5. CI could not be evaluated
+
+Every GitHub Actions run in this repository since 2026-09-19 has failed, and
+they fail without running anything:
+
+```
+job      verify (22) / verify (24)
+steps    []            (no step ever started)
+runner   runner_id=0, runner_name=""
+elapsed  3-4 seconds
+```
+
+This is not the branches. A push to `main` — the already-merged, previously
+green tree — fails identically (`438dd8ec`, 3s, `runner_id=0`), while runs on
+2026-09-18 and earlier succeeded on that same pipeline. No runner is being
+assigned to this repository's jobs, which is an account/billing setting rather
+than anything a commit can change.
+
+So handoff step 7's "evaluate CI" is **BLOCKED**, and the table in section 2 is
+what stands in its place: the same pipeline, the same commands, run here.
+
+### 6. Still outstanding, unchanged by this batch
+
+- independent security audit of the exact kernel, adapters, verifiers and
+  deployed contracts (step 4) — **NOT_RUN**. Local suites are preparation;
+  this batch does not self-certify one;
+- public-testnet deployment and real transactions (step 5) — **NOT_RUN**,
+  no signing capability here;
+- real desktop and mobile journeys (step 3) — **NOT_RUN**;
+- W-20 — **BLOCKED**, as above;
+- Node 24 matrix leg — **NOT_RUN**.
+
+Status remains `SOURCE_COMPLETE_PENDING_UNIFIED_VALIDATION` for everything
+above. This batch raises local execution evidence from "untested" to "the full
+local pipeline passes on all five trees"; it does not make anything a
+release PASS.
