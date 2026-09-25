@@ -7,7 +7,7 @@ and consent/receipt/view adapters. This changes the review surface, not the
 approval status. See [development checkpoint](../CONTROL-DEVELOPMENT-STATUS.md)
 for the authority-backed occurrence/return profile, token proxy limitations,
 separate funding and remaining release gates. The first unified local campaign
-completed after source closure: 622 Node and 26 EVM cases passed. This does not
+completed after source closure: 622 Node and 28 EVM cases passed. This does not
 replace independent review or deployed UI/testnet evidence.
 Execution adapters now exist as development source; none is production
 approved. Do not interpret a proposal as permission. Earlier escrow audit/tests are not an

@@ -25,16 +25,35 @@ exact changes. No package version or lockfile was changed.
 | Browser TypeScript emit | exit 0; Node-only runtime imports absent |
 | Node complete suite | 622 tests / 107 suites; 622 pass, 0 fail, 0 skipped |
 | Hardhat 2.29.0 compiler | 6 new Solidity files compiled, solc 0.8.26, viaIR, optimizer 200 |
-| EVM complete suite | 26 pass: 14 legacy + 12 new control/adversarial cases |
+| EVM complete suite | 28 pass: 14 legacy + 14 new control/adversarial/SDK cases |
 | Standalone CLI | exit 0, retained original reference-client output |
 | Actual loopback HTTP/module closure | 49 resources loaded, 3 forbidden paths returned 404, POST returned 403 |
 | Genuine browser UI | NOT_RUN: browser tool kernel-asset write failed with OS error 3 before tab creation; one reset/retry identical |
 | New V3 public-testnet transactions | NOT_RUN |
 | Independent security review | NOT_COMPLETED |
+| GitHub CI run 36113801906 | FAILURE before any step; both Node 22/24 jobs runner_id=0, steps=[]; log retrieval BlobNotFound |
 
 Lock SHA-256: `76f6bf9e45013bf4a22e3e174aa2c6ce08a16001f7c06bfbafd4b3a4c92c8f17`.
 Compiler config SHA-256: `97367501d7f80a22af1bf6f5f01d789ea41fdf1490205c50ab067ca4ddc2067f`.
 HTTP checks are transport checks, not a screenshot, wallet prompt or UI PASS.
+
+The two added SDK/EVM integration cases actually use the application SDK for
+EIP-712 review/signing, exact receipt recovery, protocol observations, completion,
+standalone withdrawal, optional payment allocation/refund, and refusal of omitted
+upstream conditions. Contract calls and signatures execute on the local EVM;
+only selected-account presentation is a test fixture. This is not genuine UI.
+
+GitHub CI head: `d02292969515d48a9a129961b8faa211a2a36833`. Its exact runner
+failure cause could not be retrieved: the available connector rejects the check
+annotation endpoint, and neither job produced a log. Do not infer a code failure,
+billing diagnosis or PASS. Codex independently reported review Running on that
+head after the explicit PR #7 request; no final review verdict is available yet.
+
+A limited changed-source scan found one credential-shaped URL in an unchanged
+dummy refusal fixture in tests/kit/sdk.test.ts. The added diff contains no such
+literal. No private-key block or supported access-token pattern was found by
+that limited scan; it is not a comprehensive secret audit. The temporary
+loopback UI process was stopped after the HTTP check.
 
 ## Failures preserved and repairs
 
