@@ -7,6 +7,12 @@ const {createScenario,runCoreJourney,runExtendedJourneys}=require('./scenario-ki
 
 const hash=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 const refuse=code=>{throw Object.assign(new Error(code),{safeCode:code});};
+// Explicit bounded wait policy, not a promise about network liveness. Three
+// minutes for inclusion plus 24 seconds per additional requested confirmation.
+function confirmationWaitMs(confirmations){
+  if(!Number.isSafeInteger(confirmations)||confirmations<1||confirmations>64)refuse('TESTNET_CONFIRMATIONS_REFUSED');
+  return 180000+(confirmations-1)*24000;
+}
 const integer=(name,min,max)=>{
   const v=process.env[name];if(!v||!/^\d+$/.test(v))refuse('TESTNET_EXPLICIT_BUDGET_REQUIRED');
   const n=BigInt(v);if(n<min||n>max)refuse('TESTNET_BUDGET_REFUSED');return n;
@@ -19,6 +25,7 @@ async function main(){
   const totalBudget=integer('WALLET_TESTNET_TOTAL_BUDGET_WEI',1n,1000000000000000000n);
   const maxGas=integer('WALLET_TESTNET_MAX_GAS_PER_TX',21000n,15000000n);
   const confirms=Number(integer('WALLET_TESTNET_CONFIRMATIONS',1n,64n));
+  const confirmationTimeoutMs=confirmationWaitMs(confirms);
   const sourceCommit=process.env.WALLET_TESTNET_SOURCE_COMMIT;
   if(!sourceCommit||!/^[0-9a-f]{40}$/.test(sourceCommit))refuse('TESTNET_SOURCE_BINDING_REQUIRED');
   const root=path.resolve(__dirname,'../..');
@@ -112,9 +119,10 @@ async function main(){
       return parsed;
     };
     await record({kind:'start',scope:'TEST_ONLY_NO_REAL_VALUE',chainId:chainId.toString(),sourceCommit,sourceTree,
+      confirmations:confirms,confirmationTimeoutMs,
       startedAt:new Date().toISOString(),roles:['A','B','C','D','registrar'].map((role,i)=>({role,address:selected[i]}))});
     try{
-      const k=await createScenario({ethers,provider,signers,artifact,confirmations:confirms,timeout:180000,record:async r=>{
+      const k=await createScenario({ethers,provider,signers,artifact,confirmations:confirms,timeout:confirmationTimeoutMs,record:async r=>{
         if(r.kind==='deployment')deployments.set(r.name,r);await record(r);
       }});
       await runCoreJourney(k,{funded:false});await runCoreJourney(k,{funded:true});
@@ -135,4 +143,4 @@ async function main(){
   }finally{if(evidenceFd!==null)fs.closeSync(evidenceFd);provider.destroy();}
 }
 if(require.main===module)main().catch(e=>{process.stderr.write((e?.safeCode??'TESTNET_EXECUTION_REFUSED')+'\n');process.exitCode=1;});
-module.exports={main};
+module.exports={main,confirmationWaitMs};

@@ -177,3 +177,47 @@ export function parseFixedSubmission(json: string): FixedSubmission {
   return Object.freeze({ schema: '8415-fixed-submission/1', pin: p, guards: Object.freeze(guards), actor,
     value: decimal(r.value), nonce: decimal(r.nonce), transactionHash: hex(r.transactionHash, 32), calldataHash: hex(r.calldataHash, 32), event });
 }
+
+export type SupersededNonceProof = { readonly state: 'superseded-at-confirmation-depth';
+  readonly replacementHash: string; readonly nonce: bigint; readonly blockNumber: bigint;
+  readonly blockHash: string; readonly confirmations: bigint; readonly originalExecutionConfirmed: false };
+
+/** A nonce count alone is insufficient: bind a DIFFERENT canonical transaction
+ * to this actor, chain and nonce, including its receipt and confirmation depth.
+ */
+export async function proveSupersededNonce(provider: Eip1193Provider, expected: {
+  readonly pin: ControlDeploymentPin; readonly actor: string; readonly nonce: bigint;
+  readonly value: bigint; readonly calldataHash: string; readonly transactionHash: string;
+}, replacementHash: string, minimumConfirmations = 1n): Promise<SupersededNonceProof> {
+  const r = structuredClone(expected);
+  check(controlHex(replacementHash, 32) && !/^0x0+$/i.test(replacementHash) &&
+    replacementHash.toLowerCase() !== r.transactionHash.toLowerCase() &&
+    minimumConfirmations >= 1n && minimumConfirmations <= 1024n, 'CONTROL_REPLACEMENT_PROOF_REFUSED');
+  address(r.actor); uint(r.nonce); uint(r.value); await verifyControlDeployment(provider, r.pin);
+  const receipt = rpcObject(await controlRpc(provider, 'eth_getTransactionReceipt', [replacementHash]));
+  const tx = rpcObject(await controlRpc(provider, 'eth_getTransactionByHash', [replacementHash]));
+  const same = (a: unknown, b: string) => typeof a === 'string' && a.toLowerCase() === b.toLowerCase();
+  check(controlHex(receipt.blockHash, 32) && same(receipt.transactionHash, replacementHash) &&
+    same(tx.hash, replacementHash) && same(receipt.from, r.actor) && same(tx.from, r.actor) &&
+    same(tx.blockHash, receipt.blockHash) && rpcQuantity(tx.blockNumber) === rpcQuantity(receipt.blockNumber) &&
+    rpcQuantity(tx.chainId) === r.pin.chainId && rpcQuantity(tx.nonce) === r.nonce && controlHex(tx.input) &&
+    (tx.to === null ? receipt.to === null : controlHex(tx.to, 20) && same(receipt.to, tx.to)),
+    'CONTROL_REPLACEMENT_BINDING_REFUSED');
+  const status = rpcQuantity(receipt.status); check(status === 0n || status === 1n, 'CONTROL_RECEIPT_STATUS_REFUSED');
+  check(!same(tx.to, r.pin.controller) || rpcQuantity(tx.value) !== r.value ||
+    hashControlBytes(tx.input) !== r.calldataHash.toLowerCase(), 'CONTROL_REPLACEMENT_IS_ORIGINAL_INTENT');
+  const blockHash = receipt.blockHash.toLowerCase(), blockNumber = rpcQuantity(receipt.blockNumber);
+  const canonical = async () => {
+    const b = rpcObject(await controlRpc(provider, 'eth_getBlockByNumber', [`0x${blockNumber.toString(16)}`, false]));
+    check(same(b.hash, blockHash) && rpcQuantity(await controlRpc(provider, 'eth_chainId', [])) === r.pin.chainId,
+      'CONTROL_REPLACEMENT_REORGED');
+  };
+  await canonical();
+  const head = rpcQuantity(await controlRpc(provider, 'eth_blockNumber', []));
+  check(head >= blockNumber && head - blockNumber + 1n >= minimumConfirmations, 'CONTROL_REPLACEMENT_CONFIRMATIONS_REQUIRED');
+  const count = rpcQuantity(await controlRpc(provider, 'eth_getTransactionCount', [r.actor, { blockHash, requireCanonical: true }]));
+  check(count > r.nonce, 'CONTROL_REPLACEMENT_NONCE_NOT_CONSUMED');
+  await canonical();
+  return { state: 'superseded-at-confirmation-depth', replacementHash: replacementHash.toLowerCase(), nonce: r.nonce,
+    blockNumber, blockHash, confirmations: head - blockNumber + 1n, originalExecutionConfirmed: false };
+}

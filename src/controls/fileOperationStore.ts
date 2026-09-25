@@ -16,6 +16,19 @@ export class FilePublicOperationStore implements PublicOperationStore {
     const stat = fs.lstatSync(this.#root);
     check(stat.isDirectory() && !stat.isSymbolicLink() && fs.realpathSync(this.#root) === this.#root, 'CONTROL_JOURNAL_ROOT_REFUSED');
     this.#identity = `${stat.dev}:${stat.ino}`;
+    // Reject a host/filesystem without a real directory flush BEFORE a send can
+    // be authorized. Windows Node's ordinary fs API may not provide this primitive.
+    this.#syncRoot();
+  }
+  #syncRoot(): void {
+    this.#checkRoot(); let fd: number | undefined;
+    try {
+      fd = fs.openSync(this.#root, fs.constants.O_RDONLY);
+      const s = fs.fstatSync(fd);
+      check(s.isDirectory() && `${s.dev}:${s.ino}` === this.#identity, 'CONTROL_JOURNAL_ROOT_REFUSED');
+      fs.fsyncSync(fd); this.#checkRoot();
+    } catch { throw new ControlAdapterError('CONTROL_JOURNAL_DURABILITY_UNAVAILABLE'); }
+    finally { if (fd !== undefined) fs.closeSync(fd); }
   }
   #checkRoot(): void {
     const s = fs.lstatSync(this.#root);
@@ -56,6 +69,7 @@ export class FilePublicOperationStore implements PublicOperationStore {
       const fd = fs.openSync(temporary, 'wx', 0o600); created = true;
       try { fs.writeFileSync(fd, serializeOperation(safe), 'utf8'); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
       this.#checkRoot(); fs.renameSync(temporary, join(this.#root, 'operation.json')); created = false;
+      this.#syncRoot();
       const back = this.#read();
       check(back !== null && serializeOperation(back) === serializeOperation(safe), 'CONTROL_JOURNAL_COMMIT_REFUSED');
       return true;
@@ -63,7 +77,7 @@ export class FilePublicOperationStore implements PublicOperationStore {
     finally {
       // Only exact files created by this operation; never recursively deletes a root.
       try { if (created) fs.unlinkSync(temporary); }
-      finally { fs.closeSync(lockFd); this.#checkRoot(); fs.unlinkSync(lock); }
+      finally { fs.closeSync(lockFd); this.#checkRoot(); fs.unlinkSync(lock); this.#syncRoot(); }
     }
   }
 }

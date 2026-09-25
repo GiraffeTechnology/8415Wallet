@@ -27,10 +27,12 @@ settlement-aware wallet, Kit components, external-provider signing and legacy
 single-trade clearing. The v3.0 linked-wallet requirements below are an
 additive development target; this documentation does not claim their delivery.
 
-PR #3 remains **unmerged**. The current local development increment adds
+Remote observation: another execution merged PRs #3–#7 on 2026-09-25; this task
+did not perform those merges or waive its earlier PR #3 hold. Review repairs are
+being delivered separately and are not automatically merged. The increment adds
 independent responsibility contracts and a separately imported experimental
 SDK under `src/controls/index.ts`. The implementation pass is complete and its
-first unified local validation has run: **622/622 Node tests, 28/28 EVM tests,
+latest unified local validation has run: **630/630 Node tests, 30/30 EVM tests,
 typecheck and browser build PASS**. This is **not independently audited or
 deployed as V3**. Original Sepolia receipts remain historical, not V3 acceptance.
 CI, independent review, genuine desktop/mobile UI and actual public-testnet
