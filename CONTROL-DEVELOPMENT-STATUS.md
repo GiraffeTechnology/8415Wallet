@@ -14,7 +14,7 @@ CI scheduling as a substitute for development or change runner configuration.
 ## Latest actual validation
 
 After Stage 5C source freeze and PR #7 publication, the unified local campaign
-ran: integrated Stage 5E Node 636/636, EVM 46/46, typecheck and browser build PASS; earlier standalone CLI PASS.
+ran: integrated Stage 5E Node 636/636, EVM 48/48, typecheck and browser build PASS; earlier standalone CLI PASS.
 Two initial Python-backed cases failed because python3 was not on the Windows
 PATH; explicit interpreter selection fixed the environment contract, not the
 assertions. Independent review then found nonce-race recovery and directory-fsync

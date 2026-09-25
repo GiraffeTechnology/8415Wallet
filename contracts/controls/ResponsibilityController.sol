@@ -304,10 +304,10 @@ contract ResponsibilityController {
         }
     }
 
-    /// @notice Seller's authenticated transaction + recipient's exact EIP-712/1271 consent.
-    /// State, nonce and token movement revert together if any transfer/check fails.
-    function forward(ForwardConsent calldata c, bytes calldata recipientSignature) external nonReentrant {
-        Sequence storage s = _live(c.sequenceId, c.expectedRevision);
+    /// @dev Shared by reservation/review and execution. This checks present
+    /// eligibility, not authorization or a guarantee against later state changes.
+    function _forwardState(ForwardConsent calldata c) private view returns (Sequence storage s) {
+        s = _live(c.sequenceId, c.expectedRevision);
         _requireIdentity(s);
         if (s.callbackRootPlusOne != 0) revert CallbackActive();
         if (s.cursor != s.appended) revert SequenceRestartRequired();
@@ -324,21 +324,35 @@ contract ResponsibilityController {
         if (c.token != s.token || c.tokenId != s.tokenId || c.fromAccount != s.currentAccount ||
             c.evidenceAuthority != s.evidenceAuthority) revert InvalidInput();
         if (!IProjectionSettlement(s.token).isSettlementAuthority(s.tokenId, s.evidenceAuthority)) revert Unauthorized();
-        if (ControlledWallet(c.fromAccount).owner() != msg.sender) revert Unauthorized();
         if (!registeredAccount[c.toAccount] || c.toAccount == c.fromAccount) revert RecipientUnsupported();
         if (c.inheritedHash != inheritedHash(c.sequenceId)) revert InheritanceMismatch();
         if (block.timestamp > c.deadline) revert ConsentRefused();
         address recipientOwner = ControlledWallet(c.toAccount).owner();
-        bytes32 digest = consentDigest(c);
-        if (c.recipientNonce != recipientNonces[recipientOwner] ||
-            !ControlSignatures.valid(recipientOwner, digest, recipientSignature)) revert ConsentRefused();
+        if (c.recipientNonce != recipientNonces[recipientOwner]) revert ConsentRefused();
         if (IControlToken(s.token).ownerOf(s.tokenId) != c.fromAccount) revert TokenLocationMismatch();
         if (c.paymentAdapter == address(0)) {
             if (c.paymentAmount != 0) revert InvalidInput();
         } else {
             if (c.paymentAdapter != nativePayments || c.paymentAmount == 0) revert InvalidInput();
-            NativeResponsibilityPayments(nativePayments).consumeReservation(c);
         }
+    }
+
+    /// @notice Read-only eligibility, also enforced before a payment reservation.
+    /// No consent signature is accepted and no funds/token/state move here.
+    function checkForwardEligibility(ForwardConsent calldata c) external view returns (bool) {
+        _forwardState(c);
+        return true;
+    }
+
+    /// @notice Seller's authenticated transaction + recipient's exact EIP-712/1271 consent.
+    /// State, nonce and token movement revert together if any transfer/check fails.
+    function forward(ForwardConsent calldata c, bytes calldata recipientSignature) external nonReentrant {
+        Sequence storage s = _forwardState(c);
+        if (ControlledWallet(c.fromAccount).owner() != msg.sender) revert Unauthorized();
+        address recipientOwner = ControlledWallet(c.toAccount).owner();
+        bytes32 digest = consentDigest(c);
+        if (!ControlSignatures.valid(recipientOwner, digest, recipientSignature)) revert ConsentRefused();
+        if (c.paymentAdapter != address(0)) NativeResponsibilityPayments(nativePayments).consumeReservation(c);
         recipientNonces[recipientOwner]++;
         _legs[c.sequenceId][s.appended] = Leg({ id: c.legId, fromAccount: c.fromAccount,
             toAccount: c.toAccount, termsHash: c.termsHash, acceptanceHash: digest,

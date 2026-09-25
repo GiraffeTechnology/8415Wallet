@@ -1,7 +1,7 @@
 # V3 review and unified validation handoff
 
 Source closure is not release acceptance. Source was UNTESTED at initial freeze;
-latest integrated Stage 5E local validation passed 636 Node and 46 EVM cases after review repairs.
+latest integrated Stage 5E local validation passed 636 Node and 48 EVM cases after review repairs.
 Fresh independent review, genuine UI and public-testnet gates remain open.
 Preserve historical Sepolia receipts; do not relabel them as V3.
 
