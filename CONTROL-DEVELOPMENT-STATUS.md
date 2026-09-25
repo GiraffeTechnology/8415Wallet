@@ -93,6 +93,12 @@ keys, credentials or raw consent signatures in reports.
 
 ## Remaining development (not acceptance claims)
 
+Stage 5B source now adds consent review, durable public intent/recovery state,
+standalone/linked browser actions and canonical-block payment presentation.
+Eight new workflow cases are written but unexecuted. See
+`docs/stages/STAGE-5B-WALLET-WORKFLOWS.md`; implementation and validation are not
+complete, no new chain/UI result is asserted.
+
 - Complete application-facing setup/payment/recovery presentation around the
   newly written account/payment clients. Do not label them validated yet.
 - Finish acceptance display/recovery integration and exact action workflows;

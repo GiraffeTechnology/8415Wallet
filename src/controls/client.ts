@@ -106,9 +106,11 @@ function encodeAction(action: ControlAction): string {
 export class ResponsibilityControlClient {
   readonly deployment: ControlDeploymentPin;
   readonly #provider: Eip1193Provider;
-  constructor(provider: Eip1193Provider, deployment: ControlDeploymentPin) {
+  readonly #beforeSend: ((template: ControlSubmission) => Promise<void>) | undefined;
+  constructor(provider: Eip1193Provider, deployment: ControlDeploymentPin, beforeSend?: (template: ControlSubmission) => Promise<void>) {
     validateControlPin(deployment);
     this.#provider = provider;
+    this.#beforeSend = beforeSend;
     this.deployment = Object.freeze({ ...deployment });
   }
 
@@ -179,14 +181,16 @@ export class ResponsibilityControlClient {
     const simulated = await controlRpc(this.#provider, 'eth_call', [tx, 'latest']);
     requireValue(controlHex(simulated), 'CONTROL_PREFLIGHT_RESPONSE_REFUSED');
     await verifyControlDeployment(this.#provider, this.deployment); await accounts();
-    const hash = await controlRpc(this.#provider, 'eth_sendTransaction', [tx]);
-    requireValue(controlHex(hash, 32), 'CONTROL_TRANSACTION_HASH_REFUSED');
-    return { schema: '8415-control-submission/1', deployment: { ...this.deployment }, kind: fixed.kind,
-      transactionHash: hash.toLowerCase(), actor: actor.toLowerCase(), calldataHash: hashControlBytes(data),
+    const template: ControlSubmission = { schema: '8415-control-submission/1', deployment: { ...this.deployment }, kind: fixed.kind,
+      transactionHash: `0x${'0'.repeat(64)}`, actor: actor.toLowerCase(), calldataHash: hashControlBytes(data),
       sequenceId: fixed.kind === 'forward' ? fixed.consent.sequenceId : 'sequenceId' in fixed ? fixed.sequenceId : null,
       legId: fixed.kind === 'forward' ? fixed.consent.legId : fixed.kind === 'return-hop' ? fixed.legId : fixed.kind === 'begin-return' ? fixed.rootLegId : null,
       expectedRevision: fixed.kind === 'forward' ? fixed.consent.expectedRevision : 'expectedRevision' in fixed ? fixed.expectedRevision : null,
       acceptanceHash: fixed.kind === 'forward' ? forwardConsentDigest(this.deployment, fixed.consent) : null };
+    if (this.#beforeSend) await this.#beforeSend(template);
+    const hash = await controlRpc(this.#provider, 'eth_sendTransaction', [tx]);
+    requireValue(controlHex(hash, 32), 'CONTROL_TRANSACTION_HASH_REFUSED');
+    return { ...template, transactionHash: hash.toLowerCase() };
   }
 
   /** One bounded observation; no automatic resubmission when pending, failed or reorged. */

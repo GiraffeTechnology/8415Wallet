@@ -13,8 +13,11 @@ export type ControlledAccount = { readonly owner: string; readonly account: stri
 export class ControlledAccountClient {
   readonly #provider: Eip1193Provider;
   readonly #control: ResponsibilityControlClient;
-  constructor(provider: Eip1193Provider, controller: ControlDeploymentPin) {
-    this.#provider = provider; this.#control = new ResponsibilityControlClient(provider, controller);
+  readonly #beforeSend: ((template: FixedSubmission | ControlSubmission) => Promise<void>) | undefined;
+  constructor(provider: Eip1193Provider, controller: ControlDeploymentPin,
+    beforeSend?: (template: FixedSubmission | ControlSubmission) => Promise<void>) {
+    this.#provider = provider; this.#control = new ResponsibilityControlClient(provider, controller, beforeSend);
+    this.#beforeSend = beforeSend;
   }
   create(owner: string): Promise<ControlSubmission> {
     return this.#control.submit({ kind: 'create-account' }, owner);
@@ -56,7 +59,7 @@ export class ControlledAccountClient {
     return submitFixed(this.#provider, { pin: fixedToken, guards: [account.controller, account.pin], actor: owner,
       data: encodeCall('safeTransferFrom(address,address,uint256)', ['address', 'address', 'uint256'], [owner, account.account, tokenId]),
       value: 0n, event: { address: fixedToken.controller, signature: 'Transfer(address,address,uint256)',
-        indexed: [wordAddress(owner), wordAddress(account.account), wordUint(tokenId)], dataHash: hashControlBytes('0x') } });
+        indexed: [wordAddress(owner), wordAddress(account.account), wordUint(tokenId)], dataHash: hashControlBytes('0x') } }, this.#beforeSend);
   }
   async withdraw(owner: string, token: ControlDeploymentPin, tokenId: bigint, destination: string): Promise<FixedSubmission> {
     address(destination); const fixedToken = Object.freeze({ ...token });
@@ -70,7 +73,7 @@ export class ControlledAccountClient {
     return submitFixed(this.#provider, { pin: account.pin, guards: [account.controller, fixedToken], actor: owner,
       data: encodeCall('withdrawStandalone(address,uint256,address)', ['address', 'uint256', 'address'], [fixedToken.controller, tokenId, destination]),
       value: 0n, event: { address: fixedToken.controller, signature: 'Transfer(address,address,uint256)',
-        indexed: [wordAddress(account.account), wordAddress(destination), wordUint(tokenId)], dataHash: hashControlBytes('0x') } });
+        indexed: [wordAddress(account.account), wordAddress(destination), wordUint(tokenId)], dataHash: hashControlBytes('0x') } }, this.#beforeSend);
   }
   receipt(record: FixedSubmission, minimumConfirmations = 1n): Promise<FixedReceipt> {
     check(record.guards.some(p => p.chainId === this.#control.deployment.chainId &&

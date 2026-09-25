@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <title>8415Wallet — responsibility controls</title><link rel="stylesheet" href="wallet.css">
+</head>
+<body><header><h1>8415Wallet</h1><p>Standalone and linked responsibility · Development candidate, not security approved</p></header>
+<main>
+  <section aria-labelledby="connection"><h2 id="connection">Connection and deployment identity</h2>
+    <p>Use a genuine wallet provider. No keys are imported. This reference UI enables testnets only.</p>
+    <label>Public deployment manifest <input id="deployment" type="file" accept="application/json,.json"></label>
+    <button id="connect" type="button">Connect selected wallet</button><p id="identity">Not connected</p>
+  </section>
+  <nav aria-label="Mode"><button id="standalone-tab" type="button">Standalone account</button><button id="linked-tab" type="button">Linked responsibilities</button></nav>
+  <section id="standalone"><h2>Standalone account</h2><p>Original projection readers remain available independently. These actions manage an optional controlled account, not an escrow.</p>
+    <label>Token ID <input id="tokenId" inputmode="numeric" value="1"></label>
+    <label>Historical instant (Unix seconds) <input id="instant" inputmode="numeric" value="0"></label>
+    <div class="actions"><button data-read="asset">Read asset</button><button data-read="temporal">Query historical instant</button>
+    <button data-read="history">Admitted history</button><button data-read="registration">Registration explanation</button>
+    <button data-read="acquisition">Acquisition disclosure</button><button data-read="risk">Authority and bounds</button>
+    <button data-read="posture">Finality / freshness</button><button data-read="settlements">Settlement log</button><button data-read="ownership">Ownership history</button></div>
+    <label>Withdrawal destination <input id="destination" spellcheck="false" autocomplete="off"></label>
+    <div class="actions"><button data-action="create-account">Create account</button><button data-action="account">Read account</button>
+    <button data-action="deposit">Deposit owned token</button><button data-action="standalone-withdraw">Withdraw unencumbered token</button></div>
+  </section>
+  <section id="linked" hidden><h2>Linked responsibilities</h2>
+    <p>Completion needs both owner and admitted holder at the buyer occurrence or later. A completed prefix never becomes recallable again. Payment is optional and cannot authorize completion.</p>
+    <div class="fields"><label>Sequence ID <input id="sequenceId" spellcheck="false"></label><label>Leg ID <input id="legId" spellcheck="false"></label>
+    <label>Expected revision <input id="revision" inputmode="numeric" value="0"></label><label>Evidence authority <input id="authority" spellcheck="false"></label>
+    <label>Occurrence / leg index <input id="index" inputmode="numeric" value="0"></label><label>Admitted version <input id="version" inputmode="numeric" value="1"></label>
+    <label>Accepted condition hash <input id="condition" spellcheck="false"></label><label>Trigger evidence commitment <input id="evidence" spellcheck="false"></label>
+    <label>Native amount (wei) <input id="amount" inputmode="numeric" value="0"></label><label>New recipient nonce <input id="nonce" inputmode="numeric" value="1"></label></div>
+    <div class="actions"><button data-action="open-sequence">Open sequence</button><button data-action="read">Read chain and payment states</button>
+    <button data-action="bind-admission">Associate admitted occurrence</button><button data-action="complete">Complete prefix</button>
+    <button data-action="begin-return">Invoke accepted return</button><button data-action="return-hop">Execute one return hop</button>
+    <button data-action="close-sequence">Close resolved sequence</button><button data-action="invalidate-consent">Invalidate older consent</button>
+    <button data-action="fund">Fund accepted leg</button><button data-action="allocate">Allocate terminal payment</button><button data-action="payout">Withdraw due payment</button></div>
+    <h3>Receive with informed acceptance</h3><p>Load only public consent and its exact terms documents. No signature is loaded from a file or shown in this page.</p>
+    <label>Consent + disclosures JSON <input id="consent-file" type="file" accept="application/json,.json"></label>
+    <button id="review">Prepare current review</button><pre id="terms">No review prepared</pre>
+    <label><input id="acknowledge" type="checkbox">I accept this leg and all displayed active upstream conditions, including the named authorities and return boundary.</label>
+    <button id="accept">Sign reviewed consent</button><button id="forward">Forward with in-memory acceptance</button>
+    <p>After acceptance, select the selling wallet in your provider and reconnect before forwarding. The signature stays in this page's memory only and is cleared on reload.</p>
+  </section>
+  <section><h2>Recovery and execution state</h2><p>A submitted hash is not completion. Unknown outcomes block a second send. A refresh never automatically repeats a transaction.</p>
+    <button id="recover">Reconcile existing submission (read only)</button><button id="ack-terminal">Acknowledge verified terminal receipt</button>
+    <label>Transaction hash from your wallet activity (only for an unknown submission) <input id="recovery-hash" spellcheck="false"></label>
+    <button id="recover-hash">Verify hash against saved transaction intent</button>
+    <pre id="result" role="status" aria-live="polite">No execution performed</pre>
+  </section>
+</main><footer>Record agreement is not verified legal identity. Registration delay, temporal finality, chain freshness, responsibility and payment are separate facts.</footer>
+<script type="module" src="app.mjs"></script></body></html>

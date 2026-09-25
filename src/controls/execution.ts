@@ -1,6 +1,6 @@
 import type { Eip1193Provider } from '../adapters/signing/eip1193Signer.ts';
 import { keccak256Utf8 } from '../codec/keccak.ts';
-import { controlHex, controlRpc, hashControlBytes, requireControlAdapter as check, verifyControlDeployment,
+import { controlHex, controlRpc, hashControlBytes, requireControlAdapter as check, validateControlPin, verifyControlDeployment,
   type ControlDeploymentPin } from './authorization.ts';
 
 /** Internal transport shared by fixed account/payment adapters; not a generic wallet API. */
@@ -46,7 +46,8 @@ export async function actorSelected(provider: Eip1193Provider, actor: string): P
 export async function callWords(provider: Eip1193Provider, to: string, data: string, block: unknown = 'latest'): Promise<unknown> {
   return controlRpc(provider, 'eth_call', [{ to, data }, block]);
 }
-export async function submitFixed(provider: Eip1193Provider, input: FixedCall): Promise<FixedSubmission> {
+export async function submitFixed(provider: Eip1193Provider, input: FixedCall,
+  beforeSend?: (template: FixedSubmission) => Promise<void>): Promise<FixedSubmission> {
   const c = structuredClone(input);
   check(c.guards.length <= 4 && controlHex(c.data) && c.data.length >= 10, 'CONTROL_FIXED_CALL_REFUSED');
   uint(c.value); address(c.actor); address(c.event.address);
@@ -64,15 +65,17 @@ export async function submitFixed(provider: Eip1193Provider, input: FixedCall): 
     data: c.data, value: `0x${c.value.toString(16)}` };
   check(controlHex(await controlRpc(provider, 'eth_call', [tx, 'latest'])), 'CONTROL_PREFLIGHT_RESPONSE_REFUSED');
   await verify();
+  const template: FixedSubmission = { schema: '8415-fixed-submission/1', pin: c.pin, guards: c.guards, actor: c.actor.toLowerCase(),
+    value: c.value, transactionHash: `0x${'0'.repeat(64)}`, calldataHash: hashControlBytes(c.data), event: c.event };
+  if (beforeSend) await beforeSend(template);
   const hash = await controlRpc(provider, 'eth_sendTransaction', [tx]);
   check(controlHex(hash, 32), 'CONTROL_TRANSACTION_HASH_REFUSED');
-  return { schema: '8415-fixed-submission/1', pin: c.pin, guards: c.guards, actor: c.actor.toLowerCase(),
-    value: c.value, transactionHash: hash.toLowerCase(), calldataHash: hashControlBytes(c.data), event: c.event };
+  return { ...template, transactionHash: hash.toLowerCase() };
 }
 
 /** Reconciles one submission, with no retry/send path. Callers retain only this public journal. */
 export async function receiptFixed(provider: Eip1193Provider, input: FixedSubmission, confirmations = 1n): Promise<FixedReceipt> {
-  const r = structuredClone(input);
+  const r = parseFixedSubmission(serializeFixedSubmission(input));
   check(r.schema === '8415-fixed-submission/1' && controlHex(r.transactionHash, 32) && controlHex(r.calldataHash, 32) &&
     r.guards.length <= 4 && confirmations >= 1n && confirmations <= 1024n, 'CONTROL_FIXED_RECEIPT_REFUSED');
   uint(r.value); address(r.actor);
@@ -123,4 +126,51 @@ export async function receiptFixed(provider: Eip1193Provider, input: FixedSubmis
     'CONTROL_EXECUTION_EVENT_REFUSED');
   if (!await canonical()) return { ...at, state: 'reorged', confirmations: 0n, executionEventObserved: false };
   return { ...at, state: depth >= confirmations ? 'confirmed' : 'confirming', confirmations: depth, executionEventObserved: true };
+}
+
+/** Public-only recovery format. Never serializes arbitrary caller properties. */
+export function serializeFixedSubmission(r: FixedSubmission): string {
+  const pin = (p: ControlDeploymentPin) => ({ chainId: p.chainId.toString(), controller: p.controller, runtimeCodeHash: p.runtimeCodeHash });
+  return JSON.stringify({ schema: r.schema, pin: pin(r.pin), guards: r.guards.map(pin), actor: r.actor,
+    value: r.value.toString(), transactionHash: r.transactionHash, calldataHash: r.calldataHash,
+    event: { address: r.event.address, signature: r.event.signature, indexed: [...r.event.indexed], dataHash: r.event.dataHash } });
+}
+
+/** Restored records are hints only: receiptFixed verifies transaction, event and code again. */
+export function parseFixedSubmission(json: string): FixedSubmission {
+  check(typeof json === 'string' && json.length <= 8192, 'CONTROL_JOURNAL_SIZE_REFUSED');
+  let value: unknown;
+  try { value = JSON.parse(json); } catch { throw new Error('CONTROL_JOURNAL_JSON_REFUSED'); }
+  const exact = (input: unknown, keys: readonly string[]) => {
+    const o = rpcObject(input);
+    check(Object.keys(o).length === keys.length && keys.every(k => Object.hasOwn(o, k)), 'CONTROL_JOURNAL_SCHEMA_REFUSED');
+    return o;
+  };
+  const hex = (v: unknown, bytes: number) => {
+    check(controlHex(v, bytes), 'CONTROL_JOURNAL_HEX_REFUSED'); return v.toLowerCase();
+  };
+  const decimal = (v: unknown) => {
+    check(typeof v === 'string' && /^(0|[1-9][0-9]{0,77})$/.test(v), 'CONTROL_JOURNAL_INTEGER_REFUSED');
+    const n = BigInt(v); uint(n); return n;
+  };
+  const pin = (v: unknown): ControlDeploymentPin => {
+    const p = exact(v, ['chainId', 'controller', 'runtimeCodeHash']);
+    const result = { chainId: decimal(p.chainId), controller: hex(p.controller, 20), runtimeCodeHash: hex(p.runtimeCodeHash, 32) };
+    validateControlPin(result); return Object.freeze(result);
+  };
+  const r = exact(value, ['schema', 'pin', 'guards', 'actor', 'value', 'transactionHash', 'calldataHash', 'event']);
+  check(r.schema === '8415-fixed-submission/1' && Array.isArray(r.guards) && r.guards.length <= 4, 'CONTROL_JOURNAL_SCHEMA_REFUSED');
+  const p = pin(r.pin); const guards = r.guards.map(pin);
+  check(guards.every(g => g.chainId === p.chainId), 'CONTROL_CHAIN_MISMATCH');
+  const e = exact(r.event, ['address', 'signature', 'indexed', 'dataHash']);
+  const signatures = ['Transfer(address,address,uint256)', 'Funded(bytes32,bytes32,address,address,uint256)',
+    'Allocated(bytes32,bytes32,address,uint256,uint8)', 'Withdrawn(bytes32,bytes32,address,uint256,uint8)'];
+  check(typeof e.signature === 'string' && signatures.includes(e.signature) && Array.isArray(e.indexed) &&
+    e.indexed.length === 3, 'CONTROL_EVENT_CONTRACT_REFUSED');
+  // Account/payment adapters always know all indexed values and the event data hash.
+  const event = Object.freeze({ address: hex(e.address, 20), signature: e.signature,
+    indexed: Object.freeze(e.indexed.map(t => hex(t, 32))), dataHash: hex(e.dataHash, 32) });
+  const actor = hex(r.actor, 20); address(actor); address(event.address);
+  return Object.freeze({ schema: '8415-fixed-submission/1', pin: p, guards: Object.freeze(guards), actor,
+    value: decimal(r.value), transactionHash: hex(r.transactionHash, 32), calldataHash: hex(r.calldataHash, 32), event });
 }
