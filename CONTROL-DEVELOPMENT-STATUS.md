@@ -6,10 +6,13 @@ PR #3 remains unmerged. This record is not an acceptance report.
 ## Latest actual validation
 
 After Stage 5C source freeze and PR #7 publication, the unified local campaign
-ran: Node 622/622, EVM 28/28, typecheck, browser build and standalone CLI PASS.
+ran: latest Node 628/628, EVM 30/30, typecheck and browser build PASS; earlier standalone CLI PASS.
 Two initial Python-backed cases failed because python3 was not on the Windows
 PATH; explicit interpreter selection fixed the environment contract, not the
-assertions. Two recovery edge cases were repaired with regressions. See
+assertions. Independent review then found nonce-race recovery and directory-fsync
+gaps; both are repaired with regressions and await fresh review. Unsupported file
+durability hosts fail closed before sending; browser CAS uses strict IndexedDB.
+See
 `docs/reports/V3-LOCAL-VALIDATION-20260925.md`. Real UI and V3 public chain remain
 NOT_RUN; independent review and CI are not inferred from these local results.
 

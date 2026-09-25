@@ -352,9 +352,14 @@ Source status is SOURCE_COMPLETE_PENDING_UNIFIED_VALIDATION, not release PASS.
 Keep PR #3's merge hold. No new V3 test or chain result exists at this checkpoint.
 
 Later validation checkpoint (same day): after PR #7 source freeze, unified
-typecheck/browser build/standalone CLI passed; Node 622/622 and EVM 28/28 passed.
+typecheck/browser build/standalone CLI passed; latest Node 628/628 and EVM 30/30 passed.
 See docs/reports/V3-LOCAL-VALIDATION-20260925.md. Continue CI/review and genuine
 UI/public-testnet gates; do not keep describing the new source as never tested.
+Independent review found nonce-race recovery and missing directory fsync defects.
+Both now have repairs and regressions; fresh review is still required. Node file
+journaling fails before sending where directory fsync is unavailable (including
+this Windows host). Browser journaling requires strict IndexedDB durability;
+its event-fixture tests do not constitute genuine browser crash-recovery evidence.
 No new V3 public-chain deployment or independent audit has passed yet.
 
 After development is complete, validation MUST include actual public-testnet

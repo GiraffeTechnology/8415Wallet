@@ -23,31 +23,35 @@ exact changes. No package version or lockfile was changed.
 | Node runtime | v24.19.0 |
 | TypeScript 5.9.3, noEmit | exit 0 |
 | Browser TypeScript emit | exit 0; Node-only runtime imports absent |
-| Node complete suite | 622 tests / 107 suites; 622 pass, 0 fail, 0 skipped |
+| Node complete suite | 628 tests / 107 suites; 628 pass, 0 fail, 0 skipped |
 | Hardhat 2.29.0 compiler | 6 new Solidity files compiled, solc 0.8.26, viaIR, optimizer 200 |
-| EVM complete suite | 28 pass: 14 legacy + 14 new control/adversarial/SDK cases |
+| EVM complete suite | 30 pass: 14 legacy + 16 new control/adversarial/SDK cases |
 | Standalone CLI | exit 0, retained original reference-client output |
 | Actual loopback HTTP/module closure | 49 resources loaded, 3 forbidden paths returned 404, POST returned 403 |
 | Genuine browser UI | NOT_RUN: browser tool kernel-asset write failed with OS error 3 before tab creation; one reset/retry identical |
 | New V3 public-testnet transactions | NOT_RUN |
-| Independent security review | NOT_COMPLETED |
+| Independent security review | Two recovery findings returned; repaired with local regressions, fresh review pending |
 | GitHub CI run 36113801906 | FAILURE before any step; both Node 22/24 jobs runner_id=0, steps=[]; log retrieval BlobNotFound |
 
 Lock SHA-256: `76f6bf9e45013bf4a22e3e174aa2c6ce08a16001f7c06bfbafd4b3a4c92c8f17`.
 Compiler config SHA-256: `97367501d7f80a22af1bf6f5f01d789ea41fdf1490205c50ab067ca4ddc2067f`.
 HTTP checks are transport checks, not a screenshot, wallet prompt or UI PASS.
 
-The two added SDK/EVM integration cases actually use the application SDK for
+The three SDK/EVM integration cases actually use the application SDK for
 EIP-712 review/signing, exact receipt recovery, protocol observations, completion,
 standalone withdrawal, optional payment allocation/refund, and refusal of omitted
 upstream conditions. Contract calls and signatures execute on the local EVM;
-only selected-account presentation is a test fixture. This is not genuine UI.
+only selected-account presentation is a test fixture. The added nonce-race test
+actually mines a replacement transaction, refuses shallow confirmation, then
+explicitly resolves the original uncertainty without another send. This is not genuine UI.
 
 GitHub CI head: `d02292969515d48a9a129961b8faa211a2a36833`. Its exact runner
 failure cause could not be retrieved: the available connector rejects the check
 annotation endpoint, and neither job produced a log. Do not infer a code failure,
-billing diagnosis or PASS. Codex independently reported review Running on that
-head after the explicit PR #7 request; no final review verdict is available yet.
+billing diagnosis or PASS. A subsequent run 36114324814 on da1c9d21204a369770e47a3de0182f862c0e7429
+also failed with both jobs runner_id=0 and steps=[]. Independent PR review returned
+P1 nonce-race recovery and P2 missing parent-directory fsync findings. These are
+now repaired locally, not yet approved by fresh independent review.
 
 A limited changed-source scan found one credential-shaped URL in an unchanged
 dummy refusal fixture in tests/kit/sdk.test.ts. The added diff contains no such
@@ -73,6 +77,22 @@ loopback UI process was stopped after the HTTP check.
    sending after the record was discarded.
 6. A first HTTP-check regex matched quoted prose in a comment. Replaced only
    the external probe with AST import/export inspection; 49 real resources passed.
+7. Added explicit canonical replacement-transaction recovery for an exact consumed
+   nonce; wrong identity/chain/nonce/hash/depth/reorg/original-intent/CAS refuse.
+8. Node journal now fsyncs directory after rename and lock removal. This Windows
+   host lacks that primitive, so the constructor refuses before any send. The
+   test proves that negative gate here; positive fsync persistence still requires
+   a supporting host. No unsupported-host success is reported.
+9. Browser CAS now uses strict IndexedDB transaction completion, not localStorage
+   readback. Three event-fixture cases prove commit ordering, abort/relaxed refusal
+   and legacy-record preservation; genuine browser durability remains unverified.
+10. The initial real nonce-race fixture used create-account for an already-created
+    account, so it stopped in simulation before the intended boundary. Changed
+    only the fixture to a valid close-sequence request and reran all 29 EVM cases.
+11. Remote branch advanced concurrently to 8dacaf472a830461ed8b0301fcae8307bf9c767a.
+    Preserved its independent Node 22 batch record and extended-journey wiring;
+    reran the full combined local EVM suite: 30/30. That earlier Node 22 report
+    does not validate the newer recovery/durability patch on Node 22.
 
 Only two Python bytecode cache files created by the initial test were removed;
 the interpreter now uses -B. No chain objects, assets or historical reports were

@@ -143,6 +143,9 @@ el('discard-unprepared').addEventListener('click', () => run(async () => {
 el('recover-hash').addEventListener('click', () => run(async () => {
   const s = selected(); await s.recoverTransactionHash(bytes(value('recovery-hash'), 32)); display(await s.reconcile());
 }));
+el('superseded-nonce').addEventListener('click', () => run(async () => {
+  display(await selected().acknowledgeSupersededNonce(bytes(value('recovery-hash'), 32)));
+}));
 el('ack-terminal').addEventListener('click', () => run(async () => {
   const s = selected(); const state = await s.status();
   if (!state.submission) fail('CONTROL_KNOWN_SUBMISSION_REQUIRED');

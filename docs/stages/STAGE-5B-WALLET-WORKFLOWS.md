@@ -1,7 +1,8 @@
 # Stage 5B — additive wallet workflows
 
-IMPLEMENTATION_IN_PROGRESS / UNTESTED. Draft stacked on Stage 5A; no merge or
-CI until all V3 development is complete. Nothing in this file is test evidence.
+Historical source freeze was UNTESTED. After all stages completed, unified local
+validation and review repairs ran; see the dated V3 validation report. This draft
+remains unmerged, and genuine UI/public-testnet acceptance is still required.
 
 ## Implemented source
 
@@ -12,7 +13,7 @@ CI until all V3 development is complete. Nothing in this file is test evidence.
   A public transaction template is committed before the wallet prompt. A lost
   hash can be reconciled from wallet activity against the exact chain, code,
   sender, destination, value, calldata hash and receipt event without re-sending.
-- Revision-CAS journal, browser cross-tab lock and optional Node public file
+- Revision-CAS journal, strict-durability IndexedDB and optional Node public file
   store. Neither stores consent signatures, calldata, endpoints or keys.
 - Genuine EIP-1193 browser integration; no synthetic provider injection. A
   standalone manifest may omit controller/payment entirely. Original wallet
@@ -22,10 +23,10 @@ CI until all V3 development is complete. Nothing in this file is test evidence.
 - Independent owner/holder, temporal finality, contest and freshness presentation
   even where entry-to-occurrence evidence is absent. Combined payment reads bind
   the responsibility snapshot's canonical block.
-- Eight workflow regression cases written, not executed. Existing tests also
-  remain required, including the codec's equivalent browser-safe byte conversion.
+- Eighteen workflow/receipt/recovery and three browser transaction-event fixture
+  cases passed. Fixtures do not establish genuine browser or power-loss recovery.
 
-## Build/use contract (not executed yet)
+## Build/use contract
 
 After all development: `npm run wallet:browser:build` emits the browser entry.
 Serve only `web/` and `dist/browser/` from a controlled local HTTPS/localhost
@@ -44,14 +45,19 @@ DOM output, console or the public journal. They are held in page memory only.
 
 ## Explicit remaining gates and limitations
 
-- All new source is uncompiled/unexecuted. No local, UI or testnet PASS claimed.
-- Finish unified adversarial/EVM/public-testnet tooling and deployment closure.
+- Local source compilation and unified regression passed; UI and testnet remain open.
 - UI styling currently uses a clearly identified neutral fallback. Supplied
   Giraffe VI/font assets must be located and integrated before visual acceptance;
   this is not a claim of approved branding or completed desktop/mobile evidence.
 - A wallet prompt can outlive a timeout. Unknown submissions remain blocked;
   the user supplies the public transaction hash from wallet activity, not a key.
   If no transaction exists, do not invent non-execution from a missing receipt.
+- A different confirmed transaction at the same actor/chain/nonce can explicitly
+  resolve uncertainty at a configured confirmation depth; it never means the
+  original operation succeeded. No automatic resend follows.
+- Node file journals require directory fsync. Unsupported Windows/filesystem
+  hosts refuse before sends. Browser journals require strict IndexedDB durability
+  and refuse legacy localStorage records instead of silently discarding them.
 - CAS protects cooperating app instances, not a compromised browser origin or
   malicious OS user. File-store parent permissions remain an operator boundary;
   public journals cannot authorize transfers. A stale lock fails closed.

@@ -1,7 +1,9 @@
 # V3 review and unified validation handoff
 
-Source closure is not release acceptance. All new source is UNTESTED at this
-checkpoint. Preserve historical Sepolia receipts; do not relabel them as V3.
+Source closure is not release acceptance. Source was UNTESTED at initial freeze;
+latest local validation passed 628 Node and 30 EVM cases after review repairs.
+Fresh independent review, genuine UI and public-testnet gates remain open.
+Preserve historical Sepolia receipts; do not relabel them as V3.
 
 ## Exact review surface
 
@@ -48,6 +50,12 @@ precisely while other authorized validation continues. Do not fabricate evidence
 ---
 
 ## First unified validation batch — 2026-09-25
+
+Historical independent Node 22 batch below is preserved from remote commit
+8dacaf472a830461ed8b0301fcae8307bf9c767a. It predates the nonce/durability repairs.
+The later Windows Node 24 batch has 628 Node / 30 EVM passes after incorporating
+its extended-journey wiring. These reports cover different exact trees, not one
+fresh dual-runtime matrix; the latest source still needs a Node 22 rerun.
 
 Run against the exact trees below, on this repository's own CI pipeline
 definitions, executed locally. **GitHub Actions did not run any of it**, for

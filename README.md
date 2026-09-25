@@ -30,7 +30,7 @@ additive development target; this documentation does not claim their delivery.
 PR #3 remains **unmerged**. The current local development increment adds
 independent responsibility contracts and a separately imported experimental
 SDK under `src/controls/index.ts`. The implementation pass is complete and its
-first unified local validation has run: **622/622 Node tests, 28/28 EVM tests,
+latest unified local validation has run: **628/628 Node tests, 30/30 EVM tests,
 typecheck and browser build PASS**. This is **not independently audited or
 deployed as V3**. Original Sepolia receipts remain historical, not V3 acceptance.
 CI, independent review, genuine desktop/mobile UI and actual public-testnet
