@@ -45,7 +45,9 @@ explicit trust boundary, not cryptographic proof of off-chain legal identity.
    never infer them from package integrity, source presence or script exit alone.
 7. Only then evaluate CI and merge the stage PRs in dependency order. PR #3's
    explicit hold remains until the user changes it; passing CI alone is not that
-   authorization.
+   authorization. *(The user lifted that hold on 2026-09-25 and the five PRs
+   merged in dependency order; steps 4-6 remain outstanding, and the batch
+   record below says which.)*
 
 No deployment wallet is generated or imported by this handoff. Missing genuine
 provider, signing capability, funding, review or brand inputs must be reported

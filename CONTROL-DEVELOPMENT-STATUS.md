@@ -1,8 +1,11 @@
 # Independent controls — development checkpoint, 2026-09-25
 
 Status: **IMPLEMENTED_LOCAL_VALIDATION_PASS / NOT_INDEPENDENTLY_AUDITED / NOT_RELEASE_READY**.
-PRs #3–#7 were externally merged during validation; this task did not execute
-those merges. Subsequent repairs require a separate PR. This is not acceptance.
+PR #3, and the four stages stacked on it, merged into `main` on 2026-09-25
+after the first unified validation batch. This record is not an acceptance
+report, and the merge did not make it one.
+The merges were performed from the session holding the user's instruction; a
+parallel execution saw them as external. Later repairs go in their own PR.
 
 ## Latest actual validation
 

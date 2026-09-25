@@ -83,7 +83,24 @@ export class ResponsibilityControlError extends Error {
   }
 }
 const MAX_UINT = (1n << 256n) - 1n;
-const MAX_LEGS = 4096;
+/**
+ * How many legs may be unresolved at once, mirroring the controller's
+ * MAX_ACTIVE_LEGS. Detached history does not count against it, so a token that
+ * keeps trading rolls forward indefinitely while completed prefixes fall out of
+ * the window behind it.
+ *
+ * This is the protocol rule and it must equal the contract's constant. A kernel
+ * that allowed more would hand the execution adapter a proposal the chain
+ * refuses.
+ */
+const MAX_ACTIVE_LEGS = 128;
+/**
+ * A guard on untrusted input, not a protocol rule. History is uncapped on
+ * chain, so this only stops a hostile or corrupt snapshot from making the
+ * validation walk unbounded. A real sequence that ever approaches it needs a
+ * paginated read, not a larger number here.
+ */
+const MAX_JOURNAL_LEGS = 1_048_576;
 function requireControl(ok: boolean, code: string): asserts ok {
   if (!ok) throw new ResponsibilityControlError(code);
 }
@@ -112,7 +129,11 @@ function validate(state: ResponsibilityState): void {
   requireControl(uint(d.chainId) && d.chainId > 0n && address(d.token) && uint(d.tokenId) &&
     hash(d.sequenceId) && hash(d.controlId), 'CONTROL_DOMAIN_INVALID');
   requireControl(uint(state.revision), 'CONTROL_REVISION_INVALID');
-  requireControl(Array.isArray(state.legs) && state.legs.length <= MAX_LEGS, 'CONTROL_LEG_LIMIT');
+  requireControl(Array.isArray(state.legs) && state.legs.length <= MAX_JOURNAL_LEGS, 'CONTROL_LEG_LIMIT');
+  requireControl(
+    state.legs.filter(leg => leg.outcome === 'active').length <= MAX_ACTIVE_LEGS,
+    'CONTROL_ACTIVE_LEG_LIMIT',
+  );
   const ids = new Set<string>();
   const acceptances = new Set<string>();
   const occurrences = new Set<string>();
