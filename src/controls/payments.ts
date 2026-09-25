@@ -1,16 +1,17 @@
-import { encodeCall, encodeWords } from '../codec/abi.ts';
+import { encodeCall, encodeWords, type StaticType } from '../codec/abi.ts';
 import type { Eip1193Provider } from '../adapters/signing/eip1193Signer.ts';
 import { ResponsibilityControlClient, decodeControlWords } from './client.ts';
 import { controlHex, controlRpc, hashControlBytes, requireControlAdapter as check, verifyControlDeployment,
-  type ControlDeploymentPin } from './authorization.ts';
+  FORWARD_FIELDS, FORWARD_TUPLE, forwardConsentValues, validateForwardConsent,
+  type ForwardConsent, type ControlDeploymentPin } from './authorization.ts';
 import { callWords, uint, wordAddress, submitFixed, receiptFixed, type FixedSubmission, type FixedReceipt } from './execution.ts';
 
-const PAYMENT_STATES = ['unfunded', 'funded', 'settlement-due', 'refund-due', 'settled', 'refunded'] as const;
+const PAYMENT_STATES = ['unfunded', 'funded', 'settlement-due', 'refund-due', 'settled', 'refunded', 'reserved'] as const;
 const OUTCOME_NAMES = ['active', 'completed', 'returning', 'returned'] as const;
 export type PaymentSnapshot = { readonly sequenceId: string; readonly legId: string;
   readonly payer: string; readonly payee: string; readonly amount: bigint; readonly state: typeof PAYMENT_STATES[number] };
 
-/** Separate optional adapter. Payment never authorizes forward, completion or callback. */
+/** Optional payment precondition for signed funded forwards, never authority for completion or return. */
 export class NativeResponsibilityPaymentClient {
   readonly #provider: Eip1193Provider;
   readonly #control: ResponsibilityControlClient;
@@ -29,6 +30,9 @@ export class NativeResponsibilityPaymentClient {
     const controller = decodeControlWords(['address'], await callWords(this.#provider, this.#pin.controller,
       encodeCall('controller()', [], [])))[0];
     check(controller === this.#control.deployment.controller.toLowerCase(), 'CONTROL_PAYMENT_CONTROLLER_REFUSED');
+    const canonical = decodeControlWords(['address'], await callWords(this.#provider, this.#control.deployment.controller,
+      encodeCall('nativePayments()', [], [])))[0];
+    check(canonical === this.#pin.controller.toLowerCase(), 'CONTROL_PAYMENT_ADAPTER_REFUSED');
   }
   async read(sequenceId: string, legId: string): Promise<PaymentSnapshot> {
     check(controlHex(sequenceId, 32) && controlHex(legId, 32), 'CONTROL_PAYMENT_ID_REFUSED');
@@ -72,27 +76,31 @@ export class NativeResponsibilityPaymentClient {
       encodeCall('termsHash(address,uint256,address,address,uint256)', ['address', 'uint256', 'address', 'address', 'uint256'],
         [token, tokenId, from, to, amount])))[0] as string;
   }
-  async fund(sequenceId: string, legIndex: bigint, payer: string, amount: bigint): Promise<FixedSubmission> {
-    uint(legIndex); uint(amount, true); await this.#verify();
-    const snapshot = await this.#control.snapshot(sequenceId);
-    // legIndex is an absolute occurrence, which is what the contract indexes by;
-    // the snapshot carries only the window. Reading it window-relative would
-    // check the terms and payer of one leg and fund a different one.
-    const within = legIndex - snapshot.firstOccurrence;
-    check(legIndex >= snapshot.firstOccurrence && within < BigInt(snapshot.legs.length),
-      'CONTROL_LEG_INDEX_REFUSED');
-    const leg = snapshot.legs[Number(within)]!;
-    check(leg.outcome === 'active' && !snapshot.sequence.closed, 'CONTROL_PAYMENT_OUTCOME_REFUSED');
+  async reserve(input: ForwardConsent, payer: string): Promise<FixedSubmission> {
+    const c = Object.freeze({ ...input }); validateForwardConsent(c); await this.#verify();
+    check(c.paymentAdapter.toLowerCase() === this.#pin.controller.toLowerCase() && c.paymentAmount > 0n, 'CONTROL_PAYMENT_PROFILE_REFUSED');
+    const snapshot = await this.#control.snapshot(c.sequenceId);
+    check(!snapshot.sequence.closed && snapshot.sequence.revision === c.expectedRevision &&
+      snapshot.sequence.currentAccount === c.fromAccount.toLowerCase() && snapshot.inheritedHash === c.inheritedHash.toLowerCase() &&
+      snapshot.timestamp <= c.deadline, 'CONTROL_PAYMENT_CONSENT_STALE');
     const owner = async (account: string) => decodeControlWords(['address'], await callWords(this.#provider, account,
       encodeCall('owner()', [], [])))[0] as string;
-    const [expectedPayer, payee] = await Promise.all([owner(leg.toAccount), owner(leg.fromAccount)]);
+    const [expectedPayer, payee] = await Promise.all([owner(c.toAccount), owner(c.fromAccount)]);
     check(expectedPayer === payer.toLowerCase(), 'CONTROL_PAYMENT_PAYER_REFUSED');
-    check(await this.termsHash(snapshot.sequence.token, snapshot.sequence.tokenId, leg.fromAccount, leg.toAccount, amount) === leg.termsHash,
+    check(await this.termsHash(c.token, c.tokenId, c.fromAccount, c.toAccount, c.paymentAmount) === c.termsHash.toLowerCase(),
       'CONTROL_PAYMENT_TERMS_REFUSED');
     return submitFixed(this.#provider, { pin: this.#pin, guards: [this.#control.deployment], actor: payer,
-      data: encodeCall('fund(bytes32,uint256)', ['bytes32', 'uint256'], [sequenceId, legIndex]), value: amount,
-      event: { address: this.#pin.controller, signature: 'Funded(bytes32,bytes32,address,address,uint256)',
-        indexed: [sequenceId, leg.id, wordAddress(payer)], dataHash: hashControlBytes(encodeWords(['address', 'uint256'], [payee, amount])) } }, this.#beforeSend);
+      data: encodeCall(`reserve(${FORWARD_TUPLE})`, FORWARD_FIELDS.map(f => f.type) as readonly StaticType[], forwardConsentValues(c)), value: c.paymentAmount,
+      event: { address: this.#pin.controller, signature: 'Reserved(bytes32,bytes32,address,address,uint256)',
+        indexed: [c.sequenceId, c.legId, wordAddress(payer)], dataHash: hashControlBytes(encodeWords(['address', 'uint256'], [payee, c.paymentAmount])) } }, this.#beforeSend);
+  }
+  async cancelReservation(sequenceId: string, legId: string, actor: string): Promise<FixedSubmission> {
+    const p = await this.read(sequenceId, legId);
+    check(p.state === 'reserved' && p.payer === actor.toLowerCase(), 'CONTROL_PAYMENT_RESERVATION_REFUSED');
+    return submitFixed(this.#provider, { pin: this.#pin, guards: [this.#control.deployment], actor,
+      data: encodeCall('cancelReservation(bytes32,bytes32)', ['bytes32', 'bytes32'], [sequenceId, legId]), value: 0n,
+      event: { address: this.#pin.controller, signature: 'ReservationCancelled(bytes32,bytes32,address,uint256)',
+        indexed: [sequenceId, legId, wordAddress(actor)], dataHash: hashControlBytes(encodeWords(['uint256'], [p.amount])) } }, this.#beforeSend);
   }
   /**
    * Allocate by leg id, not position. A completed leg detaches from the chain

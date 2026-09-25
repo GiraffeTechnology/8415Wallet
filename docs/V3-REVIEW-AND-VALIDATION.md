@@ -1,9 +1,17 @@
 # V3 review and unified validation handoff
 
 Source closure is not release acceptance. Source was UNTESTED at initial freeze;
-latest local validation passed 630 Node and 30 EVM cases after review repairs.
+latest integrated Stage 5E local validation passed 636 Node and 48 EVM cases after review repairs.
 Fresh independent review, genuine UI and public-testnet gates remain open.
 Preserve historical Sepolia receipts; do not relabel them as V3.
+
+Stage 5D exact head `2a982919162c6bbcd674c4524d180d03475859e8` also
+completed a separate clean Linux Node 22.23.3 run: install/typecheck/browser/CLI,
+630 Node and 30 EVM all passed, including positive POSIX directory fsync.
+Result SHA-256: `4AAA3CF0EDA3366102066512A99AD1CC473292786A54526CD2A65DD1DF56A5BB`.
+This does not validate the later Stage 5E changes or repair GitHub Actions.
+Stage 5E fixes the two P1 findings on that head; see its dedicated report and
+require fresh independent review before public control deployment.
 
 Remote PRs #3–#7 were externally merged during this task's validation. This task
 did not perform those merges. Repairs now need a separate PR; no release approval
@@ -43,11 +51,9 @@ explicit trust boundary, not cryptographic proof of off-chain legal identity.
    receipt/readback to that deployment and retain public evidence only.
 6. Produce W-01–W-21 results individually, with NOT_RUN/BLOCKED where appropriate;
    never infer them from package integrity, source presence or script exit alone.
-7. Only then evaluate CI and merge the stage PRs in dependency order. PR #3's
-   explicit hold remains until the user changes it; passing CI alone is not that
-   authorization. *(The user lifted that hold on 2026-09-25 and the five PRs
-   merged in dependency order; steps 4-6 remain outstanding, and the batch
-   record below says which.)*
+7. CI and PR merging are assigned to Claude Code by the latest user direction.
+   This task delivers implementation, regressions and stage PRs, not runner or
+   merge operations. PRs #3-#9 have merged; no merge satisfies steps 4-6.
 
 No deployment wallet is generated or imported by this handoff. Missing genuine
 provider, signing capability, funding, review or brand inputs must be reported

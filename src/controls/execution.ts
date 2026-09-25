@@ -167,6 +167,7 @@ export function parseFixedSubmission(json: string): FixedSubmission {
   check(guards.every(g => g.chainId === p.chainId), 'CONTROL_CHAIN_MISMATCH');
   const e = exact(r.event, ['address', 'signature', 'indexed', 'dataHash']);
   const signatures = ['Transfer(address,address,uint256)', 'Funded(bytes32,bytes32,address,address,uint256)',
+    'Reserved(bytes32,bytes32,address,address,uint256)', 'ReservationCancelled(bytes32,bytes32,address,uint256)',
     'Allocated(bytes32,bytes32,address,uint256,uint8)', 'Withdrawn(bytes32,bytes32,address,uint256,uint8)'];
   check(typeof e.signature === 'string' && signatures.includes(e.signature) && Array.isArray(e.indexed) &&
     e.indexed.length === 3, 'CONTROL_EVENT_CONTRACT_REFUSED');

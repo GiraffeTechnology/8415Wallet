@@ -6,6 +6,7 @@ import {IRegisterProjection} from "../IRegisterProjection.sol";
 import {IProjectionSettlement} from "../IProjectionSettlement.sol";
 import {ControlledWallet, IControlToken} from "./ControlledWallet.sol";
 import {ControlSignatures} from "./ControlSignatures.sol";
+import {NativeResponsibilityPayments} from "./NativeResponsibilityPayments.sol";
 
 /// @notice Independent application responsibility controls; never holds funds or tokens.
 /// @dev UNTESTED DEVELOPMENT CANDIDATE. No protocol-state write methods are called.
@@ -26,7 +27,7 @@ contract ResponsibilityController {
     /// token has ever traded.
     uint256 public constant MAX_ACTIVE_LEGS = 128;
     bytes32 public constant FORWARD_TYPEHASH = keccak256(
-        "ForwardConsent(bytes32 sequenceId,uint256 expectedRevision,bytes32 legId,address token,uint256 tokenId,address fromAccount,address toAccount,bytes32 termsHash,bytes32 inheritedHash,address returnAuthority,bytes32 returnConditionHash,address evidenceAuthority,uint64 deadline,uint256 recipientNonce)"
+        "ForwardConsent(bytes32 sequenceId,uint256 expectedRevision,bytes32 legId,address token,uint256 tokenId,address fromAccount,address toAccount,bytes32 termsHash,bytes32 inheritedHash,address returnAuthority,bytes32 returnConditionHash,address evidenceAuthority,uint64 deadline,uint256 recipientNonce,address paymentAdapter,uint256 paymentAmount)"
     );
     bytes32 private constant DOMAIN_TYPEHASH = keccak256(
         "EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)"
@@ -84,6 +85,8 @@ contract ResponsibilityController {
         address evidenceAuthority;
         uint64 deadline;
         uint256 recipientNonce;
+        address paymentAdapter;
+        uint256 paymentAmount;
     }
     struct AdmissionBinding {
         bool exists;
@@ -106,6 +109,7 @@ contract ResponsibilityController {
     mapping(bytes32 => mapping(uint64 => AdmissionBinding)) private _admissionBindings;
     uint256 private _sequenceNonce;
     bool private _entered;
+    address public nativePayments;
 
     error Unauthorized();
     error InvalidInput();
@@ -129,6 +133,7 @@ contract ResponsibilityController {
     error ReentrantCall();
 
     event AccountCreated(address indexed owner, address indexed account);
+    event NativePaymentsCreated(address indexed adapter);
     event SequenceOpened(bytes32 indexed sequenceId, address indexed token, uint256 indexed tokenId, address account, address evidenceAuthority);
     event Forwarded(bytes32 indexed sequenceId, bytes32 indexed legId, uint256 indexed occurrence, address fromAccount, address toAccount, bytes32 acceptanceHash, uint256 revision);
     event AdmissionBound(bytes32 indexed sequenceId, uint64 indexed version, uint256 indexed occurrence, bytes32 entryHash, uint256 revision);
@@ -151,6 +156,14 @@ contract ResponsibilityController {
         _entered = true;
         _;
         _entered = false;
+    }
+
+    /// @notice Optional fixed implementation, never an arbitrary callback chosen by a party.
+    function createNativePayments() external nonReentrant returns (address adapter) {
+        if (nativePayments != address(0)) revert InvalidInput();
+        adapter = address(new NativeResponsibilityPayments(address(this)));
+        nativePayments = adapter;
+        emit NativePaymentsCreated(adapter);
     }
 
     function createAccount() external nonReentrant returns (address account) {
@@ -291,10 +304,10 @@ contract ResponsibilityController {
         }
     }
 
-    /// @notice Seller's authenticated transaction + recipient's exact EIP-712/1271 consent.
-    /// State, nonce and token movement revert together if any transfer/check fails.
-    function forward(ForwardConsent calldata c, bytes calldata recipientSignature) external nonReentrant {
-        Sequence storage s = _live(c.sequenceId, c.expectedRevision);
+    /// @dev Shared by reservation/review and execution. This checks present
+    /// eligibility, not authorization or a guarantee against later state changes.
+    function _forwardState(ForwardConsent calldata c) private view returns (Sequence storage s) {
+        s = _live(c.sequenceId, c.expectedRevision);
         _requireIdentity(s);
         if (s.callbackRootPlusOne != 0) revert CallbackActive();
         if (s.cursor != s.appended) revert SequenceRestartRequired();
@@ -310,15 +323,36 @@ contract ResponsibilityController {
             c.termsHash == bytes32(0) || c.returnAuthority == address(0) || c.returnConditionHash == bytes32(0)) revert InvalidInput();
         if (c.token != s.token || c.tokenId != s.tokenId || c.fromAccount != s.currentAccount ||
             c.evidenceAuthority != s.evidenceAuthority) revert InvalidInput();
-        if (ControlledWallet(c.fromAccount).owner() != msg.sender) revert Unauthorized();
+        if (!IProjectionSettlement(s.token).isSettlementAuthority(s.tokenId, s.evidenceAuthority)) revert Unauthorized();
         if (!registeredAccount[c.toAccount] || c.toAccount == c.fromAccount) revert RecipientUnsupported();
         if (c.inheritedHash != inheritedHash(c.sequenceId)) revert InheritanceMismatch();
         if (block.timestamp > c.deadline) revert ConsentRefused();
         address recipientOwner = ControlledWallet(c.toAccount).owner();
-        bytes32 digest = consentDigest(c);
-        if (c.recipientNonce != recipientNonces[recipientOwner] ||
-            !ControlSignatures.valid(recipientOwner, digest, recipientSignature)) revert ConsentRefused();
+        if (c.recipientNonce != recipientNonces[recipientOwner]) revert ConsentRefused();
         if (IControlToken(s.token).ownerOf(s.tokenId) != c.fromAccount) revert TokenLocationMismatch();
+        if (c.paymentAdapter == address(0)) {
+            if (c.paymentAmount != 0) revert InvalidInput();
+        } else {
+            if (c.paymentAdapter != nativePayments || c.paymentAmount == 0) revert InvalidInput();
+        }
+    }
+
+    /// @notice Read-only eligibility, also enforced before a payment reservation.
+    /// No consent signature is accepted and no funds/token/state move here.
+    function checkForwardEligibility(ForwardConsent calldata c) external view returns (bool) {
+        _forwardState(c);
+        return true;
+    }
+
+    /// @notice Seller's authenticated transaction + recipient's exact EIP-712/1271 consent.
+    /// State, nonce and token movement revert together if any transfer/check fails.
+    function forward(ForwardConsent calldata c, bytes calldata recipientSignature) external nonReentrant {
+        Sequence storage s = _forwardState(c);
+        if (ControlledWallet(c.fromAccount).owner() != msg.sender) revert Unauthorized();
+        address recipientOwner = ControlledWallet(c.toAccount).owner();
+        bytes32 digest = consentDigest(c);
+        if (!ControlSignatures.valid(recipientOwner, digest, recipientSignature)) revert ConsentRefused();
+        if (c.paymentAdapter != address(0)) NativeResponsibilityPayments(nativePayments).consumeReservation(c);
         recipientNonces[recipientOwner]++;
         _legs[c.sequenceId][s.appended] = Leg({ id: c.legId, fromAccount: c.fromAccount,
             toAccount: c.toAccount, termsHash: c.termsHash, acceptanceHash: digest,

@@ -63,6 +63,9 @@ DOM output, console or the public journal. They are held in page memory only.
   public journals cannot authorize transfers. A stale lock fails closed.
 - Page reload discards consent signatures. Recipient approval must be repeated
   against a new review if the seller did not receive the in-memory acceptance.
-- Native funding is a separate transaction after forwarding, not atomic DvP.
+- Stage 5E replaces post-forward funding with an exact signed reservation before
+  forwarding. Consumption and token movement are atomic; the reservation itself
+  is a separate transaction. Unused funds require consent invalidation/expiry
+  before cancellation. Terminal payment withdrawal remains separate.
 - Audit the real enforcement contracts and proxy/profile trust assumptions
   independently before any release. Partial documentation is not acceptance.

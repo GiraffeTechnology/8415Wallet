@@ -397,6 +397,20 @@ Do not describe the new source as never tested, and do not describe it as
 released. Do not invent results, and do not infer that development is complete
 from the presence of source files.
 
+### Latest execution ownership and Stage 5E
+
+Claude Code owns CI and PR merging. This task continues V3 development,
+defect repairs, development regressions and stage PR delivery; do not provision
+runners, change CI scheduling or merge PRs from this task. Preserve merged
+rolling-window/pruning and recovery work. No report is completion.
+
+Stage 5E adds signed pre-forward payment reservations and atomic current
+settlement-authority revalidation. ForwardConsent has 16 fields, including
+paymentAdapter and paymentAmount. Do not silently reuse the 14-field ABI or
+an old deployment. Optional payment never authorizes completion or return.
+Fresh integrated regression, independent security review and genuine public
+testnet/UI acceptance remain distinct gates.
+
 Every stage requires:
 
 - implementation;

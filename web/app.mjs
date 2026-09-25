@@ -95,8 +95,12 @@ document.querySelectorAll('[data-action]').forEach(button => button.addEventList
   }
   let operation;
   if (kind === 'deposit' || kind === 'standalone-withdraw') operation = { kind, token: deployment.token, tokenId: number('tokenId'), ...(kind === 'standalone-withdraw' ? { destination: bytes(value('destination'), 20) } : {}) };
-  else if (kind === 'fund' || kind === 'allocate') operation = { kind, sequenceId: bytes(value('sequenceId'), 32), legIndex: number('index'), ...(kind === 'fund' ? { amount: number('amount') } : {}) };
-  else if (kind === 'payout') operation = { kind, sequenceId: bytes(value('sequenceId'), 32), legId: bytes(value('legId'), 32) };
+  else if (kind === 'reserve-payment') {
+    if (!signed) fail('CONTROL_IN_MEMORY_CONSENT_REQUIRED');
+    operation = { kind, consent: signed.consent };
+  }
+  else if (kind === 'allocate') operation = { kind, sequenceId: bytes(value('sequenceId'), 32), legId: bytes(value('legId'), 32) };
+  else if (kind === 'payout' || kind === 'cancel-reservation') operation = { kind, sequenceId: bytes(value('sequenceId'), 32), legId: bytes(value('legId'), 32) };
   else {
     let action;
     if (kind === 'create-account') action = { kind };
@@ -118,7 +122,7 @@ el('review').addEventListener('click', () => run(async () => {
   const s = selected(); review = null; signed = null; el('acknowledge').checked = false;
   const input = await jsonFile('consent-file', 2300000);
   if (!input || Object.keys(input).sort().join(',') !== 'consent,documents') fail('CONTROL_PUBLIC_DOCUMENT_REFUSED');
-  for (const k of ['expectedRevision', 'tokenId', 'deadline', 'recipientNonce']) input.consent[k] = integer(input.consent[k]);
+  for (const k of ['expectedRevision', 'tokenId', 'deadline', 'recipientNonce', 'paymentAmount']) input.consent[k] = integer(input.consent[k]);
   for (const d of [input.documents.incoming, ...input.documents.inherited]) if (d.terms.scheme === 'native-payment-v1') d.terms.amount = integer(d.terms.amount);
   review = await s.consent.prepare(input.consent, actor, input.documents);
   el('terms').textContent = JSON.stringify(review, (_k, v) => typeof v === 'bigint' ? v.toString() : v, 2);

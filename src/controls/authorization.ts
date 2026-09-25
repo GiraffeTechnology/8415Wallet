@@ -24,6 +24,8 @@ export type ForwardConsent = {
   readonly evidenceAuthority: Address;
   readonly deadline: bigint;
   readonly recipientNonce: bigint;
+  readonly paymentAdapter: Address;
+  readonly paymentAmount: bigint;
 };
 export const FORWARD_FIELDS = [
   { name: 'sequenceId', type: 'bytes32' }, { name: 'expectedRevision', type: 'uint256' },
@@ -33,6 +35,7 @@ export const FORWARD_FIELDS = [
   { name: 'inheritedHash', type: 'bytes32' }, { name: 'returnAuthority', type: 'address' },
   { name: 'returnConditionHash', type: 'bytes32' }, { name: 'evidenceAuthority', type: 'address' },
   { name: 'deadline', type: 'uint64' }, { name: 'recipientNonce', type: 'uint256' },
+  { name: 'paymentAdapter', type: 'address' }, { name: 'paymentAmount', type: 'uint256' },
 ] as const;
 for (const field of FORWARD_FIELDS) Object.freeze(field);
 Object.freeze(FORWARD_FIELDS);
@@ -74,12 +77,13 @@ export function validateForwardConsent(consent: ForwardConsent): void {
     Object.keys(consent).every(k => FORWARD_FIELDS.some(f => f.name === k)), 'CONTROL_CONSENT_SCHEMA_REFUSED');
   for (const field of FORWARD_FIELDS) {
     const value = consent[field.name];
-    if (field.type === 'address') requireControlAdapter(address(value), 'CONTROL_CONSENT_ADDRESS_REFUSED');
+    if (field.type === 'address') requireControlAdapter(field.name === 'paymentAdapter' ? controlHex(value, 20) : address(value), 'CONTROL_CONSENT_ADDRESS_REFUSED');
     else if (field.type === 'bytes32') requireControlAdapter(controlHex(value, 32) && !/^0x0+$/i.test(value), 'CONTROL_CONSENT_HASH_REFUSED');
     else requireControlAdapter(typeof value === 'bigint' && value >= 0n &&
       value < 1n << (field.type === 'uint64' ? 64n : 256n), 'CONTROL_CONSENT_INTEGER_REFUSED');
   }
   requireControlAdapter(consent.fromAccount.toLowerCase() !== consent.toAccount.toLowerCase(), 'CONTROL_SELF_FORWARD_REFUSED');
+  requireControlAdapter(/^0x0+$/i.test(consent.paymentAdapter) === (consent.paymentAmount === 0n), 'CONTROL_PAYMENT_PROFILE_REFUSED');
 }
 export function forwardConsentValues(consent: ForwardConsent): readonly AbiValue[] {
   validateForwardConsent(consent);

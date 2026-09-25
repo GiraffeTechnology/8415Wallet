@@ -247,17 +247,10 @@ describe('W-23: what detachment must not break',function(){
     assert.equal(view.detachedCommitment,(await k.controller.detached(s.id)).commitment);
   });
 
-  it('funding reads the leg it actually funds, after a prefix detaches',async()=>{
-    // fund takes an absolute occurrence, which is what the contract indexes by,
-    // while the snapshot carries only the window. Read window-relative, it checks
-    // one leg's terms and payer and funds a different leg.
+  it('reserves the exact next leg after a prefix detaches, without reading its deleted predecessor',async()=>{
     const s=await k.open();
     await k.forward(s,0,1); await k.admit(s,1); await k.complete(s,1);
-    await k.forward(s,1,2,{funded:true});          // absolute occurrence 1
-    const funded=await k.payments.payment(s.id,s.legs[1]);
-    assert.equal(funded.state,1n);
-    assert.equal(funded.payer,k.owners[2]);
-    assert.equal(funded.payee,k.owners[1],'payee is leg 1 seller, not leg 0 seller');
+    const next=await k.consent(s,1,2,{funded:true}); // absolute occurrence 1
 
     // And the SDK agrees about which leg occurrence 1 is.
     const provider={request:async({method,params=[]})=>method==='eth_accounts'
@@ -265,9 +258,21 @@ describe('W-23: what detachment must not break',function(){
     const payment={chainId:k.domain.chainId,controller:(await k.payments.getAddress()).toLowerCase(),
       runtimeCodeHash:hre.ethers.keccak256(await k.provider.getCode(await k.payments.getAddress()))};
     const client=new sdk.NativeResponsibilityPaymentClient(provider,pin,payment);
+    await assert.rejects(()=>client.reserve({...next.c,fromAccount:k.accounts[0]},k.owners[2]),
+      /CONTROL_PAYMENT_CONSENT_STALE/);
+    const reservation=await client.reserve(next.c,k.owners[2]);
+    assert.equal((await client.receipt(reservation)).state,'confirmed');
+    assert.equal((await client.read(s.id,next.c.legId)).state,'reserved');
+    await k.transaction('forward-after-detach',k.controller.connect(k.signers[1]).forward(next.c,next.signature));
+    s.legs.push(next.c.legId);
+    const funded=await k.payments.payment(s.id,s.legs[1]);
+    assert.equal(funded.state,1n);
+    assert.equal(funded.payer,k.owners[2]);
+    assert.equal(funded.payee,k.owners[1],'payee is leg 1 seller, not leg 0 seller');
     assert.equal((await client.read(s.id,s.legs[1])).payee,k.owners[1].toLowerCase());
-    // Occurrence 0 has detached, so it is out of range rather than silently the
-    // window's first entry.
-    await assert.rejects(()=>client.fund(s.id,0n,k.owners[2],1000n),/CONTROL_LEG_INDEX_REFUSED/);
+    await k.admit(s,2);await k.complete(s,2);
+    const allocation=await client.allocate(s.id,s.legs[1],k.owners[2]);
+    assert.equal((await client.receipt(allocation)).state,'confirmed');
+    assert.equal((await client.read(s.id,s.legs[1])).state,'settlement-due');
   });
 });

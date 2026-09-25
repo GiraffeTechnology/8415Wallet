@@ -17,13 +17,14 @@ describe('Separate control payment and contract-owner boundaries',function(){
     const c={sequenceId:s.id,expectedRevision:seq.revision,legId:k.uid('1271-leg'),token:k.projectionAddress,tokenId:s.tokenId,
       fromAccount:k.accounts[0],toAccount:controlled,termsHash:await k.payments.termsHash(k.projectionAddress,s.tokenId,k.accounts[0],controlled,amount),
       inheritedHash:await k.controller.inheritedHash(s.id),returnAuthority:k.owners[4],returnConditionHash:k.conditionHash,
-      evidenceAuthority:k.owners[4],deadline:BigInt((await k.provider.getBlock('latest')).timestamp)+3600n,recipientNonce:0n};
+      evidenceAuthority:k.owners[4],deadline:BigInt((await k.provider.getBlock('latest')).timestamp)+3600n,recipientNonce:0n,
+      paymentAdapter:k.payments.target,paymentAmount:amount};
     assert.equal(await k.controller.validateRecipientSignature(c,'0xaabb'),false);
     const digest=hre.ethers.TypedDataEncoder.hash(k.domain,{ForwardConsent:FORWARD_FIELDS},c);
     await k.transaction('1271-exact-approval',owner.approveDigest(digest,true));
     assert.equal(await k.controller.validateRecipientSignature(c,'0xaabb'),true);
+    await k.transaction('1271-reserve',owner.execute(await k.payments.getAddress(),k.payments.interface.encodeFunctionData('reserve',[c]),{value:amount}));
     await k.transaction('1271-forward',k.controller.forward(c,'0xaabb'));s.legs.push(c.legId);
-    await k.transaction('1271-fund',owner.execute(await k.payments.getAddress(),k.payments.interface.encodeFunctionData('fund',[s.id,0]),{value:amount}));
     await k.beginReturn(s,1);await k.hop(s);
     await k.transaction('allocate-refund',k.payments.allocate(s.id,s.legs[0]));
     const payout=k.payments.interface.encodeFunctionData('withdraw',[s.id,c.legId]);
@@ -60,7 +61,8 @@ describe('Separate control payment and contract-owner boundaries',function(){
     const id=await k.controller.currentSequence(token,1);
     const c={sequenceId:id,expectedRevision:0,legId:k.uid('fault-leg'),token,tokenId:1,fromAccount:k.accounts[0],toAccount:k.accounts[1],
       termsHash:k.hash('test-terms'),inheritedHash:await k.controller.inheritedHash(id),returnAuthority:k.owners[4],
-      returnConditionHash:k.conditionHash,evidenceAuthority:k.owners[4],deadline:BigInt((await k.provider.getBlock('latest')).timestamp)+3600n,recipientNonce:0};
+      returnConditionHash:k.conditionHash,evidenceAuthority:k.owners[4],deadline:BigInt((await k.provider.getBlock('latest')).timestamp)+3600n,recipientNonce:0,
+      paymentAdapter:hre.ethers.ZeroAddress,paymentAmount:0};
     const signature=await k.signers[1].signTypedData(k.domain,{ForwardConsent:FORWARD_FIELDS},c);
     await k.transaction('forward-fault-negative',k.controller.forward(c,signature));
     await k.transaction('begin-fault-negative',k.controller.connect(k.signers[4]).beginReturn(id,c.legId,k.conditionHash,k.uid('evidence'),1));
