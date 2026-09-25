@@ -1,5 +1,12 @@
 # Responsibility controls — threat model and audit gate
 
+Current Stage 5F repair baseline (2026-09-26): **656/656 Node, 49/49 local EVM**,
+typecheck and browser emit pass, at code head `bf9ff8451b2d5d5f37c0109ab821467df5782e5a`.
+The 651-case figures below are the pre-repair batch, not the latest result.
+These are local development results, not CI, independent audit, public-testnet
+or genuine desktop/mobile acceptance. CI and merging remain with Claude Code.
+
+
 Status: **IMPLEMENTED_LOCAL_TESTS_PASS / NOT_INDEPENDENTLY_AUDITED**.
 
 Local development now includes account/controller/payment contracts
@@ -7,7 +14,7 @@ and consent/receipt/view adapters. This changes the review surface, not the
 approval status. See [development checkpoint](../CONTROL-DEVELOPMENT-STATUS.md)
 for the authority-backed occurrence/return profile, token proxy limitations,
 separate funding and remaining release gates. The first unified local campaign
-completed after source closure: latest 651 Node and 49 EVM cases passed. This does not
+completed after source closure: pre-repair Stage 5F had 651 Node and 49 EVM cases passed. This does not
 replace independent review or deployed UI/testnet evidence.
 Execution adapters now exist as development source; none is production
 approved. Do not interpret a proposal as permission. Earlier escrow audit/tests are not an

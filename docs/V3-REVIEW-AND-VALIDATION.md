@@ -1,7 +1,14 @@
 # V3 review and unified validation handoff
 
+Current Stage 5F repair baseline (2026-09-26): **656/656 Node, 49/49 local EVM**,
+typecheck and browser emit pass, at code head `bf9ff8451b2d5d5f37c0109ab821467df5782e5a`.
+The 651-case figures below are the pre-repair batch, not the latest result.
+These are local development results, not CI, independent audit, public-testnet
+or genuine desktop/mobile acceptance. CI and merging remain with Claude Code.
+
+
 Source closure is not release acceptance. Source was UNTESTED at initial freeze;
-latest Stage 5F local validation passed 651 Node and 49 EVM cases after review repairs
+pre-repair Stage 5F local validation passed 651 Node and 49 EVM cases after review repairs
 and read-only detached/reserved payment observation. No new authority is added.
 Fresh independent review, genuine UI and public-testnet gates remain open.
 Preserve historical Sepolia receipts; do not relabel them as V3.
