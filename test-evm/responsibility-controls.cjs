@@ -1,6 +1,6 @@
 const assert=require('node:assert/strict');
 const hre=require('hardhat');
-const {createScenario,runCoreJourney,FORWARD_FIELDS}=require('../scripts/controls/scenario-kit.cjs');
+const {createScenario,runCoreJourney,runExtendedJourneys,FORWARD_FIELDS}=require('../scripts/controls/scenario-kit.cjs');
 
 // Written now, execution intentionally deferred until all V3 implementation is complete.
 describe('Independent responsibility controls — real reference projection',function(){
@@ -10,6 +10,14 @@ describe('Independent responsibility controls — real reference projection',fun
     signers:await hre.ethers.getSigners(),artifact:name=>hre.artifacts.readArtifact(name)}); });
   it('W-04/08/10/12/14/18/19/21: escrow-free prefix detach and actual bounded tail return',async()=>{await runCoreJourney(k,{funded:false});});
   it('W-01/02/04/08/09/10/12/18: independently funded legs release and refund original routes',async()=>{await runCoreJourney(k,{funded:true});});
+  // These journeys were reachable only from the public-testnet runner, which
+  // has not been run. Locally they were dead coverage, so the W-03 observation
+  // that ordinary register lag never locks a forward — and the tail-extension,
+  // repeated-occurrence and callback-race journeys beside it — went unexercised
+  // on every run this repository has actually made.
+  it('W-03/05/06/12/15/17: open-gap lag, tail extension, repeated occurrences and callback races',async()=>{
+    await runExtendedJourneys(k);
+  });
   it('W-07: unresolved root propagates through every descendant and actually returns to A',async()=>{
     const s=await k.open(); for(let i=0;i<3;i++)await k.forward(s,i,i+1,{funded:true});
     await k.beginReturn(s,1);
