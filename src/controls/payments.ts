@@ -60,6 +60,10 @@ export class NativeResponsibilityPaymentClient {
     const current = rpcObject(await controlRpc(this.#provider, 'eth_getBlockByNumber', [`0x${blockNumber.toString(16)}`, false]));
     check(typeof current.hash === 'string' && current.hash.toLowerCase() === blockHash, 'CONTROL_SNAPSHOT_REORGED');
     await this.#verify();
+    // Deployment verification performs latest-state RPCs. A reorg during those
+    // reads must invalidate the observation too; canonicality is the final RPC.
+    const finalHeader = rpcObject(await controlRpc(this.#provider, 'eth_getBlockByNumber', [`0x${blockNumber.toString(16)}`, false]));
+    check(typeof finalHeader.hash === 'string' && finalHeader.hash.toLowerCase() === blockHash, 'CONTROL_SNAPSHOT_REORGED');
     return { blockNumber, blockHash, timestamp, payment, readOnly: true, protocolFinality: 'not-evaluated' };
   }
   /**

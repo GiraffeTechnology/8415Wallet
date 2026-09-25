@@ -43,3 +43,16 @@ No former count was reinterpreted as coverage of that later repair.
 CI and merging remain assigned to Claude Code. Independent exact-version review,
 genuine desktop/mobile wallet interactions and public V3 testnet receipts remain
 separate outstanding gates. Historical Sepolia activity is preserved, not reused.
+
+## 2026-09-26 independent-review repair
+
+PR #11 review 4106073328 identified a reorg window during the final deployment
+verification RPCs. The canonical block-number/hash validation now runs again
+after those calls, as the final RPC before returning payment data. It remains a
+snapshot, not a promise that the chain cannot reorganize after the method returns.
+
+Five regressions first failed on the previous code (15/20 passed), then all
+20/20 passed after repair: late reorg, missing block, malformed block hash,
+transport failure and final-RPC ordering. Complete local Node regression is now
+656/656, typecheck and browser emit exit 0. No new public-chain/UI acceptance or
+independent approval is claimed by this repair.
