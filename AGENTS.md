@@ -331,38 +331,45 @@ Conformance is discovered, not assumed:
 
 ## Development Rules
 
-### Current user-directed order (2026-09-25)
+### Current user-directed order (2026-09-25, merge phase)
 
-PR #3 must remain unmerged. Complete all remaining independent-control development
-and integration before running the unified validation batch. During this development
-phase do not run unit/EVM/chain tests, deployment or typecheck/build verification.
-The subsequent user instruction requires a new draft PR for each stage: publish
-stage branches with `[skip ci]` in each development HEAD commit, after checking
-that CI only uses push/pull_request events. Do not disable or weaken workflows.
-After all development is complete, publish fresh commits without skip directives
-and run unified CI/testing before merging the stacked PRs in dependency order.
-Writing test cases and acceptance tooling is preparation, not execution.
-An inserted collaboration request or progress report never completes this task.
+The development phase and its merge hold are over. On user instruction the
+first unified validation batch was run and the five stacked PRs were merged
+into `main` in dependency order: #3, #4, #5, #6, #7. The `[skip ci]` and
+draft-PR arrangement, and the instruction to keep PR #3 unmerged, applied to
+that phase and no longer describe this repository.
 
-Source-closure checkpoint: Stage 5C has now supplied contracts, authenticated
-adapters, consent/recovery UI and executable regression/deployment tooling. Once
-this stage's exact tree is published as its draft PR, begin the first unified
-validation batch; fix genuine findings without adding unrelated product scope.
-Source status is SOURCE_COMPLETE_PENDING_UNIFIED_VALIDATION, not release PASS.
-Keep PR #3's merge hold. No new V3 test or chain result exists at this checkpoint.
+What the batch established, and what it did not, is in
+`docs/V3-REVIEW-AND-VALIDATION.md` and
+`docs/reports/V3-LOCAL-VALIDATION-20260925.md`. In short: the full local
+pipeline passes on `main` — typecheck, 622 Node cases, 29 EVM cases, the
+browser entry and the reference client, across both matrix legs between the
+two reports — and W-01 through W-19 and W-21 have local EVM evidence.
 
-Later validation checkpoint (same day): after PR #7 source freeze, unified
-typecheck/browser build/standalone CLI passed; Node 622/622 and EVM 28/28 passed.
-See docs/reports/V3-LOCAL-VALIDATION-20260925.md. Continue CI/review and genuine
-UI/public-testnet gates; do not keep describing the new source as never tested.
-No new V3 public-chain deployment or independent audit has passed yet.
+Nothing above is release acceptance, and the source status is unchanged:
+`SOURCE_COMPLETE_PENDING_UNIFIED_VALIDATION`. Still required, none of it
+satisfied by a merge:
 
-After development is complete, validation MUST include actual public-testnet
-deployment and real transactions, in addition to local tests and independent
-security review. Historical Sepolia activity and earlier 607/607 Node + 14/14
-legacy EVM results do not validate new control code. Label the current source
-`IMPLEMENTATION_IN_PROGRESS / UNTESTED`; do not invent results or declare all
-development complete from the presence of source files.
+- **actual public-testnet deployment and real transactions.** Historical
+  Sepolia activity and the earlier 607/607 Node and 14/14 legacy EVM results
+  do not validate the control code;
+- **independent security review** of the exact kernel, adapters, verifiers,
+  deployed contracts, recovery and optional payment integration. Local
+  suites are preparation, never an audit;
+- **genuine desktop and mobile journeys.** CLI and HTTP checks are transport
+  checks, not UI evidence;
+- **W-20**, which asks for one deployed same-token multi-wallet journey and
+  cannot be satisfied locally by construction.
+
+GitHub Actions has not run on any of this. Every run in this repository since
+2026-09-19 fails in seconds with no step started and no runner assigned,
+including pushes to `main`, so it is not a property of any branch. Until that
+is resolved, "CI is green" is not a claim this repository can make, and the
+local pipeline tables stand in its place — clearly labelled as local.
+
+Do not describe the new source as never tested, and do not describe it as
+released. Do not invent results, and do not infer that development is complete
+from the presence of source files.
 
 Every stage requires:
 

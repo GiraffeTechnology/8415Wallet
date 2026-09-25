@@ -5,6 +5,10 @@ Date: 2026-09-25. Verdict: **IMPLEMENTED_LOCAL_VALIDATION_PASS**.
 
 ## Source and stage delivery
 
+*(Later the same day, after the unified validation batch, the user lifted the
+merge hold and PRs #3-#7 merged in dependency order. The paragraph below
+records the state when this report was written and is left as it stood.)*
+
 PR #3 remains unmerged. Independent controls are in draft PR #4; SDK/account/
 payment adapters in #5; browser/consent/recovery integration in #6; validation
 and deployment tooling in #7. No stage was merged during this work.
