@@ -116,5 +116,5 @@ export function keccak256(message: Uint8Array): Uint8Array {
 
 /** Keccak-256 of a UTF-8 string, as a `0x`-prefixed lowercase hex digest. */
 export function keccak256Utf8(message: string): string {
-  return `0x${Buffer.from(keccak256(new TextEncoder().encode(message))).toString('hex')}`;
+  return `0x${Array.from(keccak256(new TextEncoder().encode(message)), b => b.toString(16).padStart(2, '0')).join('')}`;
 }

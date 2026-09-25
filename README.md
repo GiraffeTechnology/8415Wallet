@@ -261,6 +261,15 @@ The ERC specification remains the source of truth.
 
 ## Development
 
+V3 development order is currently **all implementation first, unified tests/CI
+and actual public-testnet deployment afterwards**. Do not run the validation
+commands below early or treat a draft stage PR as accepted delivery. PR #3
+remains unmerged. Stage 5B now contains an additive browser workflow in `web/`
+and an experimental `src/browser.ts` entry, including standalone reads without
+a responsibility deployment. See
+[Stage 5B](docs/stages/STAGE-5B-WALLET-WORKFLOWS.md) for exact remaining gates.
+The UI, controls, public recovery stores and new regression cases are UNTESTED.
+
 Node 22.18 or newer.
 
 ```sh

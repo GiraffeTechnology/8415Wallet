@@ -59,7 +59,8 @@ export function controlHex(value: unknown, bytes?: number): value is string {
 }
 export function hashControlBytes(value: string): Bytes32 {
   requireControlAdapter(controlHex(value), 'CONTROL_HEX_REFUSED');
-  return `0x${Buffer.from(keccak256(Buffer.from(value.slice(2), 'hex'))).toString('hex')}`;
+  const bytes = Uint8Array.from(value.slice(2).match(/../g) ?? [], pair => Number.parseInt(pair, 16));
+  return `0x${Array.from(keccak256(bytes), b => b.toString(16).padStart(2, '0')).join('')}`;
 }
 function address(value: unknown): value is Address {
   return controlHex(value, 20) && !/^0x0+$/i.test(value);

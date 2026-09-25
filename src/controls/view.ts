@@ -13,6 +13,13 @@ export const CONTROL_AUTHORITY_DISCLOSURE =
   'Entry-to-occurrence association is attested by the explicitly accepted registrar authority. ' +
   'This is not proof of legal identity, not inferred from equal addresses, and not ERC temporal finality.';
 
+export type ControlProjectionObservation = {
+  readonly instant: bigint; readonly owner: string; readonly holder: string;
+  readonly protocolFinality: boolean; readonly openGapId: string; readonly contested: boolean;
+  readonly freshness: 'not-evaluated'; readonly admittedVersion: bigint;
+  readonly registerId: string; readonly verificationProfile: string;
+};
+
 /** Experimental pinned adapter; requires EIP-1898, never substitutes an indexer or older block. */
 export class RpcResponsibilityControlReader implements LinkedControlReader {
   readonly #provider: Eip1193Provider;
@@ -21,7 +28,8 @@ export class RpcResponsibilityControlReader implements LinkedControlReader {
     this.#provider = provider;
     this.#client = new ResponsibilityControlClient(provider, deployment);
   }
-  async observe(sequenceId: Bytes32): Promise<{ snapshot: LinkedChainSnapshot; evidence: LinkedCompletionEvidence }> {
+  async observe(sequenceId: Bytes32): Promise<{ snapshot: LinkedChainSnapshot; evidence: LinkedCompletionEvidence;
+    projection: ControlProjectionObservation }> {
     const observed = await this.#client.snapshot(sequenceId);
     const s = observed.sequence;
     const pin = this.#client.deployment;
@@ -48,6 +56,14 @@ export class RpcResponsibilityControlReader implements LinkedControlReader {
     const entry = await read(s.token, 'entryAsOf(uint256,uint64)', [s.tokenId, observed.timestamp], ['uint256', 'uint64'], REGISTER_ENTRY_TYPES);
     const holder = (await read(s.token, 'holderAsOf(uint256,uint64)', [s.tokenId, observed.timestamp], ['uint256', 'uint64'], ['address']))[0] as string;
     const finality = (await read(s.token, 'isFinalAsOf(uint256,uint64)', [s.tokenId, observed.timestamp], ['uint256', 'uint64'], ['bool']))[0] as boolean;
+    const openGapId = (await read(s.token, 'openGapOf(uint256)', [s.tokenId], ['uint256'], ['bytes32']))[0] as string;
+    let contested = false;
+    if (!/^0x0+$/.test(openGapId)) {
+      const gap = await read(s.token, 'settlement(bytes32)', [openGapId], ['bytes32'],
+        ['uint256', 'address', 'address', 'bytes32', 'uint64', 'uint64', 'uint8']);
+      requireValue(gap[0] === s.tokenId && gap[6] === 1n, 'CONTROL_GAP_BINDING_REFUSED');
+      contested = (gap[4] as bigint) <= observed.timestamp;
+    }
     const binding = await read(pin.controller, 'admissionBinding(bytes32,uint64)', [sequenceId, entry[4]!], ['bytes32', 'uint64'], ['bool', 'uint256', 'bytes32']);
     let evidence: LinkedCompletionEvidence = { kind: 'unavailable' };
     if (binding[0] === true) {
@@ -66,11 +82,16 @@ export class RpcResponsibilityControlReader implements LinkedControlReader {
     const end = await controlRpc(this.#provider, 'eth_getBlockByNumber', [`0x${observed.blockNumber.toString(16)}`, false]);
     requireValue(end !== null && typeof end === 'object' &&
       (end as Record<string, unknown>).hash === observed.blockHash, 'CONTROL_SNAPSHOT_REORGED');
-    return { snapshot, evidence };
+    return { snapshot, evidence, projection: { instant: observed.timestamp, owner, holder, protocolFinality: finality,
+      openGapId, contested, freshness: 'not-evaluated', admittedVersion: entry[4] as bigint,
+      registerId: s.registerId, verificationProfile: s.verificationProfile } };
   }
   async render(sequenceId: Bytes32): Promise<string> {
-    const { snapshot, evidence } = await this.observe(sequenceId);
-    return `${renderLinkedChain(buildLinkedChainView(snapshot, evidence))}\n${CONTROL_AUTHORITY_DISCLOSURE}\n` +
+    const { snapshot, evidence, projection } = await this.observe(sequenceId);
+    const view = buildLinkedChainView(snapshot, evidence);
+    return `${renderLinkedChain({ ...view, protocolFinality: projection.protocolFinality })}\n` +
+      `Tradeable position: ${projection.owner}; confirmed holder: ${projection.holder}\n` +
+      `Instant ${projection.instant}; contested: ${projection.contested}; freshness: not evaluated\n${CONTROL_AUTHORITY_DISCLOSURE}\n` +
       'Development implementation: unified tests, deployed UI evidence and independent audit are still required.';
   }
 }

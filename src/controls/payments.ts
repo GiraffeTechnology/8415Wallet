@@ -1,7 +1,7 @@
 import { encodeCall, encodeWords } from '../codec/abi.ts';
 import type { Eip1193Provider } from '../adapters/signing/eip1193Signer.ts';
 import { ResponsibilityControlClient, decodeControlWords } from './client.ts';
-import { controlHex, hashControlBytes, requireControlAdapter as check, verifyControlDeployment,
+import { controlHex, controlRpc, hashControlBytes, requireControlAdapter as check, verifyControlDeployment,
   type ControlDeploymentPin } from './authorization.ts';
 import { callWords, uint, wordAddress, submitFixed, receiptFixed, type FixedSubmission, type FixedReceipt } from './execution.ts';
 
@@ -14,9 +14,12 @@ export class NativeResponsibilityPaymentClient {
   readonly #provider: Eip1193Provider;
   readonly #control: ResponsibilityControlClient;
   readonly #pin: ControlDeploymentPin;
-  constructor(provider: Eip1193Provider, controller: ControlDeploymentPin, payment: ControlDeploymentPin) {
+  readonly #beforeSend: ((template: FixedSubmission) => Promise<void>) | undefined;
+  constructor(provider: Eip1193Provider, controller: ControlDeploymentPin, payment: ControlDeploymentPin,
+    beforeSend?: (template: FixedSubmission) => Promise<void>) {
     this.#provider = provider; this.#control = new ResponsibilityControlClient(provider, controller);
     this.#pin = Object.freeze({ ...payment });
+    this.#beforeSend = beforeSend;
     check(controller.chainId === payment.chainId, 'CONTROL_CHAIN_MISMATCH');
   }
   async #verify(): Promise<void> {
@@ -31,6 +34,19 @@ export class NativeResponsibilityPaymentClient {
     await this.#verify();
     const r = decodeControlWords(['address', 'address', 'uint256', 'uint8'], await callWords(this.#provider, this.#pin.controller,
       encodeCall('payment(bytes32,bytes32)', ['bytes32', 'bytes32'], [sequenceId, legId])));
+    const state = PAYMENT_STATES[Number(r[3])]; check(state !== undefined, 'CONTROL_PAYMENT_STATE_REFUSED');
+    return { sequenceId, legId, payer: r[0] as string, payee: r[1] as string, amount: r[2] as bigint, state };
+  }
+  /** A combined UI must use the same canonical block as the responsibility view. */
+  async readAt(sequenceId: string, legId: string, blockHash: string): Promise<PaymentSnapshot> {
+    check(controlHex(sequenceId, 32) && controlHex(legId, 32) && controlHex(blockHash, 32), 'CONTROL_PAYMENT_ID_REFUSED');
+    await this.#verify(); const block = { blockHash, requireCanonical: true };
+    for (const pin of [this.#pin, this.#control.deployment]) {
+      const code = await controlRpc(this.#provider, 'eth_getCode', [pin.controller, block]);
+      check(controlHex(code) && hashControlBytes(code) === pin.runtimeCodeHash.toLowerCase(), 'CONTROL_RUNTIME_PIN_MISMATCH');
+    }
+    const r = decodeControlWords(['address', 'address', 'uint256', 'uint8'], await callWords(this.#provider, this.#pin.controller,
+      encodeCall('payment(bytes32,bytes32)', ['bytes32', 'bytes32'], [sequenceId, legId]), block));
     const state = PAYMENT_STATES[Number(r[3])]; check(state !== undefined, 'CONTROL_PAYMENT_STATE_REFUSED');
     return { sequenceId, legId, payer: r[0] as string, payee: r[1] as string, amount: r[2] as bigint, state };
   }
@@ -55,7 +71,7 @@ export class NativeResponsibilityPaymentClient {
     return submitFixed(this.#provider, { pin: this.#pin, guards: [this.#control.deployment], actor: payer,
       data: encodeCall('fund(bytes32,uint256)', ['bytes32', 'uint256'], [sequenceId, legIndex]), value: amount,
       event: { address: this.#pin.controller, signature: 'Funded(bytes32,bytes32,address,address,uint256)',
-        indexed: [sequenceId, leg.id, wordAddress(payer)], dataHash: hashControlBytes(encodeWords(['address', 'uint256'], [payee, amount])) } });
+        indexed: [sequenceId, leg.id, wordAddress(payer)], dataHash: hashControlBytes(encodeWords(['address', 'uint256'], [payee, amount])) } }, this.#beforeSend);
   }
   async allocate(sequenceId: string, legIndex: bigint, actor: string): Promise<FixedSubmission> {
     uint(legIndex); await this.#verify();
@@ -69,7 +85,7 @@ export class NativeResponsibilityPaymentClient {
       data: encodeCall('allocate(bytes32,uint256)', ['bytes32', 'uint256'], [sequenceId, legIndex]), value: 0n,
       event: { address: this.#pin.controller, signature: 'Allocated(bytes32,bytes32,address,uint256,uint8)',
         indexed: [sequenceId, leg.id, wordAddress(settled ? p.payee : p.payer)],
-        dataHash: hashControlBytes(encodeWords(['uint256', 'uint8'], [p.amount, settled ? 2n : 3n])) } });
+        dataHash: hashControlBytes(encodeWords(['uint256', 'uint8'], [p.amount, settled ? 2n : 3n])) } }, this.#beforeSend);
   }
   async withdraw(sequenceId: string, legId: string, actor: string): Promise<FixedSubmission> {
     const p = await this.read(sequenceId, legId);
@@ -80,7 +96,7 @@ export class NativeResponsibilityPaymentClient {
       data: encodeCall('withdraw(bytes32,bytes32)', ['bytes32', 'bytes32'], [sequenceId, legId]), value: 0n,
       event: { address: this.#pin.controller, signature: 'Withdrawn(bytes32,bytes32,address,uint256,uint8)',
         indexed: [sequenceId, legId, wordAddress(actor)],
-        dataHash: hashControlBytes(encodeWords(['uint256', 'uint8'], [p.amount, settled ? 4n : 5n])) } });
+        dataHash: hashControlBytes(encodeWords(['uint256', 'uint8'], [p.amount, settled ? 4n : 5n])) } }, this.#beforeSend);
   }
   receipt(record: FixedSubmission, minimumConfirmations = 1n): Promise<FixedReceipt> {
     check(record.pin.chainId === this.#pin.chainId && record.pin.controller.toLowerCase() === this.#pin.controller.toLowerCase() &&
