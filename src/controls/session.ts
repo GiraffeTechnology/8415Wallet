@@ -5,7 +5,7 @@ import { ControlledAccountClient } from './accounts.ts';
 import { NativeResponsibilityPaymentClient } from './payments.ts';
 import { ForwardConsentReview } from './consentReview.ts';
 import { RpcResponsibilityControlReader } from './view.ts';
-import { address, type FixedReceipt } from './execution.ts';
+import { address, proveSupersededNonce, type FixedReceipt, type SupersededNonceProof } from './execution.ts';
 import { ControlAdapterError, controlHex, requireControlAdapter as check, type ControlDeploymentPin } from './authorization.ts';
 import { parseOperation, serializeOperation, sameDeployment, type OperationState, type PublicOperationStore,
   type WalletSubmission } from './operationJournal.ts';
@@ -26,12 +26,13 @@ export class ResponsibilityWalletSession {
   readonly reader: RpcResponsibilityControlReader;
   readonly payments: NativeResponsibilityPaymentClient | null;
   readonly #store: PublicOperationStore;
+  readonly #provider: Eip1193Provider;
   readonly #actor: string;
   #busy = false;
   #beforeSend: ((record: WalletSubmission) => Promise<void>) | null = null;
   constructor(provider: Eip1193Provider, pin: ControlDeploymentPin, actor: string, store: PublicOperationStore,
     payment: ControlDeploymentPin | null = null) {
-    address(actor); this.#actor = actor.toLowerCase(); this.#store = store;
+    address(actor); this.#actor = actor.toLowerCase(); this.#store = store; this.#provider = provider;
     const beforeSend = async (record: WalletSubmission) => {
       check(this.#beforeSend !== null, 'CONTROL_SESSION_EXECUTE_REQUIRED'); await this.#beforeSend(record);
     };
@@ -119,6 +120,22 @@ export class ResponsibilityWalletSession {
       check(['confirmed', 'confirming', 'reverted'].includes(receipt.state), 'CONTROL_RECOVERY_BINDING_NOT_OBSERVED');
       check(await this.#store.compareAndSwap(s.revision, { ...s, revision: s.revision + 1n, status: 'submitted', submission: record }),
         'CONTROL_OPERATION_CONCURRENT');
+    });
+  }
+  /** Explicitly resolve a different confirmed transaction consuming this exact
+   * nonce. Never labels the original operation successful and never sends again.
+   */
+  async acknowledgeSupersededNonce(replacementHash: string, minimumConfirmations = 1n): Promise<SupersededNonceProof> {
+    return this.#exclusive(async () => {
+      const s = await this.#state();
+      check(s.status !== 'idle' && s.submission !== null, 'CONTROL_PREPARED_TRANSACTION_REQUIRED');
+      const r = s.submission;
+      const proof = await proveSupersededNonce(this.#provider, { pin: r.schema === '8415-control-submission/1' ? r.deployment : r.pin,
+        actor: r.actor, nonce: r.nonce, value: r.schema === '8415-control-submission/1' ? 0n : r.value,
+        calldataHash: r.calldataHash, transactionHash: r.transactionHash }, replacementHash, minimumConfirmations);
+      check(await this.#store.compareAndSwap(s.revision, { ...s, revision: s.revision + 1n,
+        status: 'idle', requestDigest: null, submission: null }), 'CONTROL_OPERATION_CONCURRENT');
+      return proof;
     });
   }
   async #receipt(record: WalletSubmission, confirmations: bigint): Promise<ControlReceipt | FixedReceipt> {

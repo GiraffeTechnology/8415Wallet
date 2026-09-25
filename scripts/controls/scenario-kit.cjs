@@ -20,7 +20,11 @@ async function createScenario({ ethers, provider, signers, artifact, record = as
   let serial = 0;
   const uid = label => hash(`${label}:${++serial}`);
   async function transaction(label, promise) {
-    const tx = await promise; const receipt = await tx.wait(confirmations, timeout);
+    const tx = await promise;
+    // Keep the known public hash even if receipt/depth waiting times out. Never
+    // persist a raw signature/transaction or infer that a timeout means no send.
+    await record({ kind: 'submitted', label, chainId: chainId.toString(), hash: tx.hash, nonce: tx.nonce });
+    const receipt = await tx.wait(confirmations, timeout);
     assert.ok(receipt && receipt.status === 1, 'SCENARIO_TRANSACTION_NOT_SUCCESSFUL');
     const block = await provider.getBlock(receipt.blockNumber);
     assert.equal(block?.hash, receipt.blockHash, 'SCENARIO_RECEIPT_REORGED');

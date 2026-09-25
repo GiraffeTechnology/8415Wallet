@@ -1,10 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, openSync, closeSync, fsyncSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { hashControlBytes } from '../src/controls/authorization.ts';
-import { parseFixedSubmission, serializeFixedSubmission, receiptFixed, type FixedSubmission } from '../src/controls/execution.ts';
+import { parseFixedSubmission, serializeFixedSubmission, receiptFixed, proveSupersededNonce, type FixedSubmission } from '../src/controls/execution.ts';
 import { keccak256Utf8 } from '../src/codec/keccak.ts';
 import { parseOperation, serializeOperation, type OperationState, type PublicOperationStore } from '../src/controls/operationJournal.ts';
 import { FilePublicOperationStore } from '../src/controls/fileOperationStore.ts';
@@ -61,6 +61,15 @@ test('journal refuses wrong actor or deployment even with a valid-looking transa
 test('public file store uses revision CAS and survives constructing a new instance', async () => {
   const root = mkdtempSync(join(tmpdir(), '8415-public-journal-'));
   try {
+    // Unsupported hosts must refuse BEFORE returning a usable sending store.
+    // This is a tested negative gate, not a skipped durability assertion.
+    let fd: number | undefined, supported = true;
+    try { fd = openSync(root, 'r'); fsyncSync(fd); } catch { supported = false; }
+    finally { if (fd !== undefined) closeSync(fd); }
+    if (!supported) {
+      assert.throws(() => new FilePublicOperationStore(root), /CONTROL_JOURNAL_DURABILITY_UNAVAILABLE/);
+      return;
+    }
     const first = new FilePublicOperationStore(root);
     assert.equal(await first.compareAndSwap(null, idle), true);
     const second = new FilePublicOperationStore(root);
@@ -165,4 +174,54 @@ test('restart may discard only a pre-send crash, never a prepared or submitted i
   store.state = { ...store.state, status: 'outcome-unknown', requestDigest: h('9'), submission: { ...fixed, transactionHash: h('0') } };
   await assert.rejects(session.discardUnpreparedIntent(), /CONTROL_PREPARED_INTENT_CANNOT_DISCARD/);
   assert.equal(sent.length, 0);
+});
+
+function replacementFixture(mutate: (method: string, r: any) => any = (_m, r) => r) {
+  const hash = h('e'), blockHash = h('b');
+  const p: Eip1193Provider = { async request({ method }) {
+    const table: Record<string, unknown> = {
+      eth_chainId: '0x88bb0', eth_getCode: '0x6000', eth_blockNumber: '0xb',
+      eth_getBlockByNumber: { hash: blockHash }, eth_getTransactionCount: '0x1',
+      eth_getTransactionByHash: { hash, from: fixed.actor, to: a('9'), blockHash,
+        blockNumber: '0xa', chainId: '0x88bb0', value: '0x0', nonce: '0x0', input: '0x' },
+      eth_getTransactionReceipt: { transactionHash: hash, from: fixed.actor, to: a('9'), blockHash,
+        blockNumber: '0xa', status: '0x1' },
+    };
+    assert.ok(Object.hasOwn(table, method)); return mutate(method, structuredClone(table[method]));
+  } };
+  return { p, hash };
+}
+test('explicit confirmed nonce replacement unlocks unknown/submitted state without resending or claiming success', async () => {
+  for (const status of ['outcome-unknown', 'submitted'] as const) {
+    const store = new MemoryStore(), { p, hash } = replacementFixture();
+    store.state = { ...idle, revision: 1n, status, requestDigest: h('9'),
+      submission: { ...fixed, transactionHash: status === 'submitted' ? fixed.transactionHash : h('0') } };
+    const proof = await new ResponsibilityWalletSession(p, pin, a('2'), store).acknowledgeSupersededNonce(hash, 2n);
+    assert.equal(proof.originalExecutionConfirmed, false); assert.equal(proof.confirmations, 2n);
+    assert.equal(store.state.status, 'idle'); assert.equal(store.state.submission, null);
+  }
+});
+test('nonce replacement requires exact chain/actor/nonce/hash/canonical block and consumed account nonce', async () => {
+  for (const change of [
+    (m: string, r: any) => m === 'eth_getTransactionByHash' ? { ...r, from: a('8') } : r,
+    (m: string, r: any) => m === 'eth_getTransactionByHash' ? { ...r, nonce: '0x1' } : r,
+    (m: string, r: any) => m === 'eth_getTransactionByHash' ? { ...r, chainId: '0x1' } : r,
+    (m: string, r: any) => m === 'eth_getTransactionReceipt' ? { ...r, transactionHash: h('f') } : r,
+    (m: string, r: any) => m === 'eth_getBlockByNumber' ? { hash: h('f') } : r,
+    (m: string, r: any) => m === 'eth_getTransactionCount' ? '0x0' : r,
+    (m: string, r: any) => m === 'eth_getTransactionReceipt' ? null : r,
+  ]) {
+    const { p, hash } = replacementFixture(change);
+    await assert.rejects(proveSupersededNonce(p, fixed, hash, 2n));
+  }
+});
+test('replacement depth, original intent and concurrent journal changes cannot silently unlock', async () => {
+  const { p, hash } = replacementFixture();
+  await assert.rejects(proveSupersededNonce(p, fixed, hash, 3n), /CONTROL_REPLACEMENT_CONFIRMATIONS_REQUIRED/);
+  const same = replacementFixture((m, r) => m === 'eth_getTransactionByHash' || m === 'eth_getTransactionReceipt' ? { ...r, to: pin.controller } : r);
+  await assert.rejects(proveSupersededNonce(same.p, { ...fixed, calldataHash: hashControlBytes('0x') }, hash), /CONTROL_REPLACEMENT_IS_ORIGINAL_INTENT/);
+  const store = new MemoryStore(); store.state = { ...idle, status: 'submitted', requestDigest: h('9'), submission: fixed };
+  store.compareAndSwap = async () => false;
+  await assert.rejects(new ResponsibilityWalletSession(p, pin, fixed.actor, store).acknowledgeSupersededNonce(hash), /CONTROL_OPERATION_CONCURRENT/);
+  assert.equal(store.state.status, 'submitted');
 });

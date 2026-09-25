@@ -359,6 +359,12 @@ into `main` in dependency order: #3, #4, #5, #6, #7. The `[skip ci]` and
 draft-PR arrangement, and the instruction to keep PR #3 unmerged, applied to
 that phase and no longer describe this repository.
 
+The merges were performed from this session on the user's instruction, between
+08:46:46Z and 08:49:21Z. A parallel execution observed them as external and
+recorded that it had not authorized them, which was accurate from where it stood.
+Either way the practice it drew is the right one and is now the rule: further
+repairs go in their own pull request. Do not force-revert or rewrite `main`.
+
 What the batch established, and what it did not, is in
 `docs/V3-REVIEW-AND-VALIDATION.md` and
 `docs/reports/V3-LOCAL-VALIDATION-20260925.md`. In short: the full local

@@ -1,7 +1,13 @@
 # V3 review and unified validation handoff
 
-Source closure is not release acceptance. All new source is UNTESTED at this
-checkpoint. Preserve historical Sepolia receipts; do not relabel them as V3.
+Source closure is not release acceptance. Source was UNTESTED at initial freeze;
+latest local validation passed 630 Node and 30 EVM cases after review repairs.
+Fresh independent review, genuine UI and public-testnet gates remain open.
+Preserve historical Sepolia receipts; do not relabel them as V3.
+
+Remote PRs #3–#7 were externally merged during this task's validation. This task
+did not perform those merges. Repairs now need a separate PR; no release approval
+or authorization to merge further work follows from that remote state.
 
 ## Exact review surface
 
@@ -51,6 +57,12 @@ precisely while other authorized validation continues. Do not fabricate evidence
 
 ## First unified validation batch — 2026-09-25
 
+Historical independent Node 22 batch below is preserved from remote commit
+8dacaf472a830461ed8b0301fcae8307bf9c767a. It predates the nonce/durability repairs.
+The later Windows Node 24 batch has 628 Node / 30 EVM passes after incorporating
+its extended-journey wiring. These reports cover different exact trees, not one
+fresh dual-runtime matrix; the latest source still needs a Node 22 rerun.
+
 Run against the exact trees below, on this repository's own CI pipeline
 definitions, executed locally. **GitHub Actions did not run any of it**, for
 the reason recorded under "CI could not be evaluated".
@@ -66,7 +78,8 @@ the reason recorded under "CI could not be evaluated".
 | `feat/stage5c-validation-tooling` | #7 | `da1c9d2` + this batch | 622 | 29 |
 
 Runtime: Node v22.22.2, npm lockfile v3, `npm ci` clean on every tree.
-Compiler: TypeScript 5.9 via `tsc --noEmit`; solc 0.8.37 through Hardhat.
+Compiler: TypeScript 5.9 via `tsc --noEmit`; Hardhat selects solc 0.8.26.
+The separately installed npm solc package is 0.8.37, not the configured compiler.
 
 ### 2. Every step of each branch's own `ci.yml`, run locally
 

@@ -7,7 +7,7 @@ and consent/receipt/view adapters. This changes the review surface, not the
 approval status. See [development checkpoint](../CONTROL-DEVELOPMENT-STATUS.md)
 for the authority-backed occurrence/return profile, token proxy limitations,
 separate funding and remaining release gates. The first unified local campaign
-completed after source closure: 622 Node and 28 EVM cases passed. This does not
+completed after source closure: latest 630 Node and 30 EVM cases passed. This does not
 replace independent review or deployed UI/testnet evidence.
 Execution adapters now exist as development source; none is production
 approved. Do not interpret a proposal as permission. Earlier escrow audit/tests are not an
@@ -40,7 +40,7 @@ and entitlement are outside its claims, even when owner and holder agree.
 The pure kernel cannot defend against fabricated trusted state/facts or an executor
 that persists `next` before a transfer succeeds. The new controller, strict RPC
 adapters, consent reviews and receipt-bound recovery now implement those boundaries
-as untested source; they are not validated by earlier kernel tests. Review their
+with new local regression coverage; earlier kernel tests alone cannot validate them. Review their
 actual implementations and trust assumptions, not this preparation table alone.
 
 ## Application and deployment additions to review
@@ -49,9 +49,17 @@ actual implementations and trust assumptions, not this preparation table alone.
   still be uncertain. Lost-hash reconciliation must match exact transaction and
   event fields, not merely a successful receipt belonging to the same account.
 - Browser origin/extension and authenticated provider remain trusted boundaries.
-  Web Locks serialize cooperating tabs; localStorage is not a custody store or
-  cryptographic authorization. File-store parent ACL and stale-lock recovery are
+  Strict-durability IndexedDB transactions serialize cooperating tabs and only
+  transaction completion releases the send gate. No relaxed/localStorage fallback
+  is allowed; legacy localStorage records require explicit reconciliation.
+  The Node store fsyncs the parent after rename and lock removal, refusing hosts
+  without directory fsync before a sending session can be created. This Windows
+  host exercises that negative gate, not positive POSIX power-loss recovery.
+  File-store parent ACL and stale-lock recovery are
   operational controls, not protection against an already compromised host.
+- Explicit nonce replacement recovery requires a different canonical transaction
+  at the exact chain/actor/nonce, sufficient depth and consumed nonce at that
+  block. It clears uncertainty, never claims original execution or retries it.
 - UTF-8 committed terms and native-payment commitment schemas must display all
   live inherited conditions; single-use review handles cannot be caller-forged.
 - Code hashes bind immutable code, not proxy implementation storage. Explicitly

@@ -71,4 +71,27 @@ describe('V3 production SDK against actual local EVM contracts',function(){
     assert.equal((await b.payments.read(s.id,p.c.legId)).state,'refunded');
     assert.equal((await b.reader.observe(s.id)).snapshot.legs[0].outcome,'returned');
   });
+  it('recovers a real nonce race only after a different canonical transaction, without retrying the intended send',async()=>{
+    const sequence=await k.open();
+    let stored=null,replacement=null,sends=0;
+    const provider={request:async({method,params=[]})=>{
+      if(method==='eth_accounts')return [k.owners[0]];
+      if(method==='eth_sendTransaction'){
+        sends++;
+        replacement=await hre.network.provider.request({method,params:[{from:k.owners[0],to:k.owners[1],value:'0x0',nonce:params[0].nonce}]});
+        throw new Error('simulated wallet rejected original after another transaction consumed nonce');
+      }
+      return hre.network.provider.request({method,params});
+    }};
+    const store={read:async()=>structuredClone(stored),compareAndSwap:async(expected,next)=>{
+      if((stored?.revision??null)!==expected)return false;stored=sdk.parseOperation(sdk.serializeOperation(next));return true;
+    }};
+    const wallet=new sdk.ResponsibilityWalletSession(provider,pin,k.owners[0],store);
+    await assert.rejects(wallet.execute({kind:'control',action:{kind:'close-sequence',sequenceId:sequence.id,expectedRevision:(await k.state(sequence)).revision}}));
+    assert.equal(stored.status,'outcome-unknown');assert.equal(sends,1);
+    await assert.rejects(wallet.acknowledgeSupersededNonce(replacement,2n),/CONTROL_REPLACEMENT_CONFIRMATIONS_REQUIRED/);
+    await hre.network.provider.request({method:'evm_mine',params:[]});
+    const proof=await wallet.acknowledgeSupersededNonce(replacement,2n);
+    assert.equal(proof.originalExecutionConfirmed,false);assert.equal(stored.status,'idle');assert.equal(sends,1);
+  });
 });

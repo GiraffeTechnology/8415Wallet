@@ -1,7 +1,8 @@
 # Stage 5C — unified validation and deployment tooling
 
-SOURCE_COMPLETE_PENDING_UNIFIED_VALIDATION / UNTESTED. This is prepared executable tooling,
-not a claim that tests, deployments, audit or UI journeys have run.
+Source was UNTESTED at initial freeze. Unified local regression has since run;
+see the dated local validation report. Public testnet, genuine UI and independent
+security acceptance remain separate open gates, not inferred from tooling.
 
 ## Execution order after implementation closure
 
@@ -22,14 +23,14 @@ not a claim that tests, deployments, audit or UI journeys have run.
 
 ## Prepared programs
 
-- `test-evm/responsibility-controls.cjs`: nine explicit EVM cases against the
+- `test-evm/responsibility-controls.cjs`: ten explicit EVM cases against the
   real reference projection, with signed proof-verified admission.
 - `test-evm/control-payments-adversarial.cjs`: three cases for ERC-1271 owner,
   rejected/reentrant native payout, alternate paths and a clearly marked
   negative-only faulting asset. The faulting asset is not conformance evidence.
-- `test-evm/control-sdk.cjs`: two actual SDK-to-EVM journeys covering review,
+- `test-evm/control-sdk.cjs`: three actual SDK-to-EVM journeys covering review,
   upstream disclosure, typed signing, receipt reconciliation, protocol views,
-  completion/exit and separate original-route payment refund.
+  completion/exit, separate original-route payment refund and a mined nonce race.
 - `scripts/controls/scenario-kit.cjs`: shared, receipt-bound real-reference
   multi-wallet journeys; no mock holder substitutions or clock manipulation.
 - `scripts/controls/public-testnet.cjs`: exact frozen source/build-info/artifact
@@ -45,6 +46,10 @@ through the controlled process environment; five public actor addresses are a
 separate allowlist. The output directory must be absolute and absent, with a
 pre-existing approved parent. Missing funding/custody/build closure fails closed.
 No defaults silently authorize cost or reuse a production account.
+The 1–64 confirmation policy derives a bounded receipt wait: 180 seconds plus
+24 seconds per additional confirmation (maximum 1,692 seconds). This is a policy
+budget, not a guarantee of block production. Known submitted transaction hashes
+are recorded before waiting. A timeout retains INCOMPLETE/no-auto-retry semantics.
 
 Temporary registrar validator keys are created in memory only for the disposable
 test trust profile. They are not retained and are not an actual remote register.
