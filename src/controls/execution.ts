@@ -114,7 +114,8 @@ export async function receiptFixed(provider: Eip1193Provider, input: FixedSubmis
   const depth = head - blockNumber + 1n;
   const status = rpcQuantity(receipt.status);
   check(status === 0n || status === 1n, 'CONTROL_RECEIPT_STATUS_REFUSED');
-  if (status === 0n) return { ...at, state: await canonical() ? 'reverted' : 'reorged', confirmations: depth, executionEventObserved: false };
+  if (status === 0n) return { ...at, state: await canonical() ?
+    (depth >= confirmations ? 'reverted' : 'confirming') : 'reorged', confirmations: depth, executionEventObserved: false };
   check(Array.isArray(receipt.logs), 'CONTROL_RECEIPT_LOGS_REFUSED');
   const topic0 = keccak256Utf8(r.event.signature);
   const logs = receipt.logs.map(rpcObject).filter(log => matches(log.address, r.event.address) &&

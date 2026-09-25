@@ -35,6 +35,9 @@ jobs:
       - name: Test
         run: npm test
 
+      - name: Browser entry
+        run: npm run wallet:browser:build
+
       # The escrow holds value, so it is executed rather than only compiled:
       # hardhat runs it against the ERC-8415 reference implementation on a real
       # EVM, admitting entries through the real settlement path.

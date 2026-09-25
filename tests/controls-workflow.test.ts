@@ -152,3 +152,17 @@ test('malformed receipt and runtime drift are errors, never completion evidence'
     (m: string, r: any) => m === 'eth_getCode' ? '0x6001' : r,
   ]) { const { p, submission } = receiptFixture(change); await assert.rejects(receiptFixed(p, submission)); }
 });
+test('reverted receipts still require the requested confirmation depth', async () => {
+  const { p, submission } = receiptFixture((m, r) => m === 'eth_getTransactionReceipt' ? { ...r, status: '0x0', logs: [] } : r);
+  assert.equal((await receiptFixed(p, submission, 2n)).state, 'confirming');
+  assert.equal((await receiptFixed(p, submission, 1n)).state, 'reverted');
+});
+test('restart may discard only a pre-send crash, never a prepared or submitted intent', async () => {
+  const store = new MemoryStore(), sent: string[] = [];
+  store.state = { ...idle, revision: 1n, status: 'outcome-unknown', requestDigest: h('9') };
+  const session = new ResponsibilityWalletSession(provider({}, sent), pin, a('2'), store);
+  await session.discardUnpreparedIntent(); assert.equal(store.state.status, 'idle');
+  store.state = { ...store.state, status: 'outcome-unknown', requestDigest: h('9'), submission: { ...fixed, transactionHash: h('0') } };
+  await assert.rejects(session.discardUnpreparedIntent(), /CONTROL_PREPARED_INTENT_CANNOT_DISCARD/);
+  assert.equal(sent.length, 0);
+});

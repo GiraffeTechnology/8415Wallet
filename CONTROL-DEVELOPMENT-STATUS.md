@@ -1,9 +1,19 @@
 # Independent controls — development checkpoint, 2026-09-25
 
-Status: **SOURCE_COMPLETE_PENDING_UNIFIED_VALIDATION / UNTESTED / NOT_RELEASE_READY**.
+Status: **IMPLEMENTED_LOCAL_VALIDATION_PASS / NOT_INDEPENDENTLY_AUDITED / NOT_RELEASE_READY**.
 PR #3 remains unmerged. This record is not an acceptance report.
 
-## Execution order
+## Latest actual validation
+
+After Stage 5C source freeze and PR #7 publication, the unified local campaign
+ran: Node 622/622, EVM 26/26, typecheck, browser build and standalone CLI PASS.
+Two initial Python-backed cases failed because python3 was not on the Windows
+PATH; explicit interpreter selection fixed the environment contract, not the
+assertions. Two recovery edge cases were repaired with regressions. See
+`docs/reports/V3-LOCAL-VALIDATION-20260925.md`. Real UI and V3 public chain remain
+NOT_RUN; independent review and CI are not inferred from these local results.
+
+## Historical execution order at source freeze
 
 The user requires all development to finish before the unified test campaign.
 During this increment no compilation, typecheck, unit/EVM test, CI trigger,
@@ -23,7 +33,7 @@ Keep compiler/runtime/lock hashes, deployment addresses, chain IDs, transaction
 hashes, canonical receipts, state readbacks and W-01–W-21 verdicts. Never retain
 keys, credentials or raw consent signatures in reports.
 
-## Source now written, not validated
+## Implemented source (local validation is not independent approval)
 
 - `contracts/controls/ControlledWallet.sol`: immutable owner/controller token
   account, controller-only protected transfer and standalone withdrawal only
@@ -101,10 +111,9 @@ keys, credentials or raw consent signatures in reports.
 
 Stage 5B source now adds consent review, durable public intent/recovery state,
 standalone/linked browser actions and canonical-block payment presentation.
-Thirteen workflow/receipt cases and twelve independent-control EVM cases are
-written but unexecuted. Stage 5C also supplies the source-bound public-testnet
-runner and loopback UI server. Implementation source is now ready for its first
-unified validation batch; no new chain/UI result is asserted.
+Fifteen workflow/receipt cases and twelve independent-control EVM cases now
+passed locally. Stage 5C also supplies the source-bound public-testnet runner
+and loopback UI server. No new chain/UI result is asserted.
 
 - Run the complete local batch, repair failures, and retain exact results rather
   than declaring source presence a PASS.

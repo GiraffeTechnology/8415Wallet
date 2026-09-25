@@ -137,6 +137,9 @@ el('forward').addEventListener('click', () => run(async () => {
   display(await s.execute({ kind: 'control', action: { kind: 'forward', ...acceptance } }));
 }));
 el('recover').addEventListener('click', () => run(async () => { display(await selected().reconcile()); }));
+el('discard-unprepared').addEventListener('click', () => run(async () => {
+  const s = selected(); await s.discardUnpreparedIntent(); display(await s.status());
+}));
 el('recover-hash').addEventListener('click', () => run(async () => {
   const s = selected(); await s.recoverTransactionHash(bytes(value('recovery-hash'), 32)); display(await s.reconcile());
 }));

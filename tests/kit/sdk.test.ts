@@ -16,6 +16,9 @@ import { ALICE, BOB, admit, commitment, entry, harness } from './support/fixture
 
 const TOKEN = 1n;
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', 'src', 'kit');
+// Explicit interpreter override for Windows/tool-managed hosts; never skip the
+// Python assertions when python3 is absent. No shell evaluation of this value.
+const python = process.env.PYTHON ?? (process.platform === 'win32' ? 'python' : 'python3');
 
 /** Run the SDK against the real API over a real socket. */
 const withServer = async (run: (client: ProjectionClient, h: ReturnType<typeof harness>, connection: { baseUrl: string; apiKey: string }) => Promise<void>) => {
@@ -139,7 +142,7 @@ test('the entry walk reads the whole history', async () => {
 test('the python SDK suite passes', () => {
   // Same guarantees, same wire format, a second language. Runs the Python
   // suite in-process with the repository's own interpreter.
-  const output = execFileSync('python3', ['sdk/python/test_client.py'], { cwd: root, encoding: 'utf8' });
+  const output = execFileSync(python, ['-B', 'sdk/python/test_client.py'], { cwd: root, encoding: 'utf8' });
   assert.match(output, /all python sdk checks passed/);
   assert.ok(!output.includes('failed:'), output);
 });
@@ -206,7 +209,7 @@ assert [row.version for row in client.entries(1)] == list(range(1, 206))
 assert client.entries(999) == []
 assert client.holder_as_of(1 << 200, 100) == '${ALICE}'
 print('authenticated')`;
-    const { stdout } = await promisify(execFile)('python3', ['-B', '-c', code], {
+    const { stdout } = await promisify(execFile)(python, ['-B', '-c', code], {
       cwd: root, env: { ...process.env, KIT_TEST_URL: connection.baseUrl, KIT_TEST_KEY: connection.apiKey },
     });
     assert.match(stdout, /authenticated/);

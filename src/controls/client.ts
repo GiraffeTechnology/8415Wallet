@@ -237,7 +237,8 @@ export class ResponsibilityControlClient {
       requireValue(chain === this.deployment.chainId, 'CONTROL_CHAIN_MISMATCH');
       return typeof finalHeader.hash === 'string' && finalHeader.hash.toLowerCase() === blockHash;
     };
-    if (status === 0n) return { ...at, state: await canonical() ? 'reverted' : 'reorged', confirmations, executionEventObserved: false };
+    if (status === 0n) return { ...at, state: await canonical() ?
+      (confirmations >= minimumConfirmations ? 'reverted' : 'confirming') : 'reorged', confirmations, executionEventObserved: false };
     requireValue(Array.isArray(receipt.logs), 'CONTROL_RECEIPT_LOGS_REFUSED');
     const topic = keccak256Utf8(EVENTS[record.kind]);
     const events = receipt.logs.map(object).filter(log => typeof log.address === 'string' &&
