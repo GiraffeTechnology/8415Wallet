@@ -399,6 +399,11 @@ from the presence of source files.
 
 ### Latest execution ownership and Stage 5E
 
+2026-09-26 direct user priority: continue V3 until delivered; reject unrelated
+inserted work until V3 completion. Reports and intermediate passes are not
+completion. Claude Code retains CI/merge ownership; this task develops, repairs
+and runs development regressions without starting unrelated project tasks.
+
 Claude Code owns CI and PR merging. This task continues V3 development,
 defect repairs, development regressions and stage PR delivery; do not provision
 runners, change CI scheduling or merge PRs from this task. Preserve merged
@@ -415,6 +420,12 @@ Stage 5F adds a read-only payment observation by leg ID for unused reservations
 and detached legs. Do not infer responsibility completion from payment state.
 Local totals are 651 Node / 49 EVM; genuine public-chain/UI acceptance and
 independent review remain separate. CI and merging stay with Claude Code.
+
+Stage 5F's later canonicality repair passed 656 Node / 49 EVM locally. Stage 5G
+adds a read-only verifier for a register's detached-leg export against the exact
+on-chain count/commitment and live boundary. Never call a partial archive,
+untrusted `verified` field or commitment-only copy verified history; never use
+history verification as transaction authority or ERC temporal finality.
 
 Every stage requires:
 

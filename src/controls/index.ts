@@ -12,6 +12,8 @@ export { ControlledAccountClient } from './accounts.ts';
 export type { ControlledAccount } from './accounts.ts';
 export { NativeResponsibilityPaymentClient } from './payments.ts';
 export type { PaymentSnapshot, PaymentObservation } from './payments.ts';
+export { DetachedResponsibilityHistoryClient } from './detachedHistory.ts';
+export type { DetachedHistoryObservation, DetachedHistoryRecord } from './detachedHistory.ts';
 export type { FixedSubmission, FixedReceipt } from './execution.ts';
 export type { SupersededNonceProof } from './execution.ts';
 export { serializeFixedSubmission, parseFixedSubmission } from './execution.ts';

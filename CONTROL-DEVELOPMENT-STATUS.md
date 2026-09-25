@@ -13,6 +13,12 @@ CI scheduling as a substitute for development or change runner configuration.
 
 ## Latest actual validation
 
+2026-09-26: V3 is the exclusive active development priority; unrelated inserts
+are not accepted before delivery. Stage 5F review 4106073328 was reproduced by
+five failing tests and repaired; local 656 Node / 49 EVM plus typecheck/browser
+emit pass. Stage 5G implements the previously missing public detached-history
+verification path; see its stage report. Neither increment is release approval.
+
 After Stage 5C source freeze and PR #7 publication, the unified local campaign
 ran: Stage 5F Node 651/651, EVM 49/49, typecheck and browser build PASS; earlier standalone CLI PASS.
 Two initial Python-backed cases failed because python3 was not on the Windows

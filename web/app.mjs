@@ -1,4 +1,4 @@
-import { ResponsibilityWalletSession, ControlAdapterError, WalletSession, RpcErc8415Reader, Eip1193ReadTransport,
+import { ResponsibilityWalletSession, DetachedResponsibilityHistoryClient, ControlAdapterError, WalletSession, RpcErc8415Reader, Eip1193ReadTransport,
   renderAssetView, renderTemporalQuery, renderHistory, renderRegistration, renderAcquisitionDisclosure,
   renderRiskSurfaces, renderPosture, renderSettlementLog, renderOwnershipHistory, verifyControlDeployment, controlRpc } from '../dist/browser/browser.js';
 import { BrowserPublicOperationStore } from './public-store.mjs';
@@ -84,6 +84,14 @@ el('linked-tab').addEventListener('click', () => { el('standalone').hidden = tru
 document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => run(async () => {
   const s = selected(), kind = button.dataset.action;
   if (kind === 'account') { display(await s.accounts.account(actor)); return; }
+  if (kind === 'read-detached-history') {
+    const archive = new DetachedResponsibilityHistoryClient(provider, deployment.controller);
+    const sequenceId = bytes(value('sequenceId'), 32);
+    const document = await jsonFile('detached-history-file', 4 * 1024 * 1024);
+    const observation = await archive.observe(sequenceId, document);
+    if (s !== session) fail('CONTROL_CONNECTION_CHANGED');
+    display({ ...observation, disclosure: 'Public control history checked against a canonical chain commitment. Not legal identity, not ERC temporal finality, and not authority to send a transaction.' }); return;
+  }
   if (kind === 'read-payment') {
     if (!s.payments) fail('CONTROL_PAYMENT_NOT_CONFIGURED');
     const observation = await s.payments.observe(bytes(value('sequenceId'), 32), bytes(value('legId'), 32));
