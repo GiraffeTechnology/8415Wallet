@@ -52,6 +52,17 @@ export class ResponsibilityWalletSession {
     return s;
   }
   async status(): Promise<OperationState> { return structuredClone(await this.#state()); }
+  /** Recover a crash BEFORE the durable send template existed, never a prompted send.
+   * CAS also invalidates a still-running predecessor: its beforeSend cannot commit.
+   */
+  async discardUnpreparedIntent(): Promise<void> {
+    return this.#exclusive(async () => {
+      const s = await this.#state();
+      check(s.status === 'outcome-unknown' && s.submission === null, 'CONTROL_PREPARED_INTENT_CANNOT_DISCARD');
+      check(await this.#store.compareAndSwap(s.revision, { ...s, revision: s.revision + 1n,
+        status: 'idle', requestDigest: null, submission: null }), 'CONTROL_OPERATION_CONCURRENT');
+    });
+  }
   async #exclusive<T>(fn: () => Promise<T>): Promise<T> {
     check(!this.#busy, 'CONTROL_OPERATION_BUSY'); this.#busy = true;
     try { return await fn(); } finally { this.#busy = false; }

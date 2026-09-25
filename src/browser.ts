@@ -7,4 +7,4 @@ export { renderAssetView } from './wallet/renderAssetView.ts';
 export { renderTemporalQuery, renderHistory } from './wallet/renderTemporalQuery.ts';
 export { renderRiskSurfaces, renderSettlementLog } from './wallet/renderGapView.ts';
 export { renderRegistration, renderAcquisitionDisclosure, renderOwnershipHistory, renderPosture } from './wallet/renderHolderViews.ts';
-export { verifyControlDeployment } from './controls/authorization.ts';
+export { verifyControlDeployment, controlRpc } from './controls/authorization.ts';

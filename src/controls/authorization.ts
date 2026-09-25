@@ -115,7 +115,7 @@ export function encodeForward(consent: ForwardConsent, signature: string): strin
 export async function controlRpc(provider: Eip1193Provider, method: string, params: readonly unknown[]): Promise<unknown> {
   // Timeout does not cancel a wallet prompt or prove a transaction was not sent.
   // Callers must reconcile uncertain submissions, never automatically resubmit.
-  const interactive = method === 'eth_sendTransaction' || method === 'eth_signTypedData_v4';
+  const interactive = method === 'eth_sendTransaction' || method === 'eth_signTypedData_v4' || method === 'eth_requestAccounts';
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([

@@ -13,6 +13,7 @@ export type FixedCall = {
 export type FixedSubmission = {
   readonly schema: '8415-fixed-submission/1'; readonly pin: ControlDeploymentPin;
   readonly guards: readonly ControlDeploymentPin[]; readonly actor: string; readonly value: bigint;
+  readonly nonce: bigint;
   readonly transactionHash: string; readonly calldataHash: string; readonly event: FixedCall['event'];
 };
 export type FixedReceipt = { readonly state: 'pending' | 'reorged' | 'reverted' | 'confirming' | 'confirmed';
@@ -65,10 +66,11 @@ export async function submitFixed(provider: Eip1193Provider, input: FixedCall,
     data: c.data, value: `0x${c.value.toString(16)}` };
   check(controlHex(await controlRpc(provider, 'eth_call', [tx, 'latest'])), 'CONTROL_PREFLIGHT_RESPONSE_REFUSED');
   await verify();
+  const nonce = rpcQuantity(await controlRpc(provider, 'eth_getTransactionCount', [c.actor, 'pending']));
   const template: FixedSubmission = { schema: '8415-fixed-submission/1', pin: c.pin, guards: c.guards, actor: c.actor.toLowerCase(),
-    value: c.value, transactionHash: `0x${'0'.repeat(64)}`, calldataHash: hashControlBytes(c.data), event: c.event };
-  if (beforeSend) await beforeSend(template);
-  const hash = await controlRpc(provider, 'eth_sendTransaction', [tx]);
+    value: c.value, nonce, transactionHash: `0x${'0'.repeat(64)}`, calldataHash: hashControlBytes(c.data), event: c.event };
+  if (beforeSend) await beforeSend(structuredClone(template));
+  const hash = await controlRpc(provider, 'eth_sendTransaction', [{ ...tx, nonce: `0x${nonce.toString(16)}` }]);
   check(controlHex(hash, 32), 'CONTROL_TRANSACTION_HASH_REFUSED');
   return { ...template, transactionHash: hash.toLowerCase() };
 }
@@ -99,7 +101,7 @@ export async function receiptFixed(provider: Eip1193Provider, input: FixedSubmis
   const tx = rpcObject(await controlRpc(provider, 'eth_getTransactionByHash', [r.transactionHash]));
   check(matches(tx.hash, r.transactionHash) && matches(tx.from, r.actor) && matches(tx.to, r.pin.controller) &&
     matches(tx.blockHash, blockHash) && rpcQuantity(tx.blockNumber) === blockNumber &&
-    rpcQuantity(tx.chainId) === r.pin.chainId && rpcQuantity(tx.value) === r.value &&
+    rpcQuantity(tx.chainId) === r.pin.chainId && rpcQuantity(tx.value) === r.value && rpcQuantity(tx.nonce) === r.nonce &&
     controlHex(tx.input) && hashControlBytes(tx.input) === r.calldataHash.toLowerCase(), 'CONTROL_TRANSACTION_BINDING_REFUSED');
   const block = { blockHash, requireCanonical: true };
   for (const pin of [r.pin, ...r.guards]) {
@@ -112,7 +114,8 @@ export async function receiptFixed(provider: Eip1193Provider, input: FixedSubmis
   const depth = head - blockNumber + 1n;
   const status = rpcQuantity(receipt.status);
   check(status === 0n || status === 1n, 'CONTROL_RECEIPT_STATUS_REFUSED');
-  if (status === 0n) return { ...at, state: await canonical() ? 'reverted' : 'reorged', confirmations: depth, executionEventObserved: false };
+  if (status === 0n) return { ...at, state: await canonical() ?
+    (depth >= confirmations ? 'reverted' : 'confirming') : 'reorged', confirmations: depth, executionEventObserved: false };
   check(Array.isArray(receipt.logs), 'CONTROL_RECEIPT_LOGS_REFUSED');
   const topic0 = keccak256Utf8(r.event.signature);
   const logs = receipt.logs.map(rpcObject).filter(log => matches(log.address, r.event.address) &&
@@ -132,7 +135,7 @@ export async function receiptFixed(provider: Eip1193Provider, input: FixedSubmis
 export function serializeFixedSubmission(r: FixedSubmission): string {
   const pin = (p: ControlDeploymentPin) => ({ chainId: p.chainId.toString(), controller: p.controller, runtimeCodeHash: p.runtimeCodeHash });
   return JSON.stringify({ schema: r.schema, pin: pin(r.pin), guards: r.guards.map(pin), actor: r.actor,
-    value: r.value.toString(), transactionHash: r.transactionHash, calldataHash: r.calldataHash,
+    value: r.value.toString(), nonce: r.nonce.toString(), transactionHash: r.transactionHash, calldataHash: r.calldataHash,
     event: { address: r.event.address, signature: r.event.signature, indexed: [...r.event.indexed], dataHash: r.event.dataHash } });
 }
 
@@ -158,7 +161,7 @@ export function parseFixedSubmission(json: string): FixedSubmission {
     const result = { chainId: decimal(p.chainId), controller: hex(p.controller, 20), runtimeCodeHash: hex(p.runtimeCodeHash, 32) };
     validateControlPin(result); return Object.freeze(result);
   };
-  const r = exact(value, ['schema', 'pin', 'guards', 'actor', 'value', 'transactionHash', 'calldataHash', 'event']);
+  const r = exact(value, ['schema', 'pin', 'guards', 'actor', 'value', 'nonce', 'transactionHash', 'calldataHash', 'event']);
   check(r.schema === '8415-fixed-submission/1' && Array.isArray(r.guards) && r.guards.length <= 4, 'CONTROL_JOURNAL_SCHEMA_REFUSED');
   const p = pin(r.pin); const guards = r.guards.map(pin);
   check(guards.every(g => g.chainId === p.chainId), 'CONTROL_CHAIN_MISMATCH');
@@ -172,5 +175,5 @@ export function parseFixedSubmission(json: string): FixedSubmission {
     indexed: Object.freeze(e.indexed.map(t => hex(t, 32))), dataHash: hex(e.dataHash, 32) });
   const actor = hex(r.actor, 20); address(actor); address(event.address);
   return Object.freeze({ schema: '8415-fixed-submission/1', pin: p, guards: Object.freeze(guards), actor,
-    value: decimal(r.value), transactionHash: hex(r.transactionHash, 32), calldataHash: hex(r.calldataHash, 32), event });
+    value: decimal(r.value), nonce: decimal(r.nonce), transactionHash: hex(r.transactionHash, 32), calldataHash: hex(r.calldataHash, 32), event });
 }

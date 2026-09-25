@@ -29,10 +29,14 @@ additive development target; this documentation does not claim their delivery.
 
 PR #3 remains **unmerged**. The current local development increment adds
 independent responsibility contracts and a separately imported experimental
-SDK under `src/controls/index.ts`; it is **uncompiled, untested and undeployed**.
-Per the user's latest order, finish development/integration first, then run one
-unified validation campaign including actual public-testnet deployments and
-transactions. No new CI, local-test or public-chain PASS is claimed.
+SDK under `src/controls/index.ts`. The implementation pass is complete and its
+first unified local validation has run: **622/622 Node tests, 28/28 EVM tests,
+typecheck and browser build PASS**. This is **not independently audited or
+deployed as V3**. Original Sepolia receipts remain historical, not V3 acceptance.
+CI, independent review, genuine desktop/mobile UI and actual public-testnet
+deployment/transactions remain separately required gates. Browser automation
+currently fails before opening a tab; HTTP delivery is not UI verification.
+See [the exact local validation report](docs/reports/V3-LOCAL-VALIDATION-20260925.md).
 See [development order and remaining work](CONTROL-DEVELOPMENT-STATUS.md).
 
 ## Implemented
@@ -268,12 +272,16 @@ remains unmerged. Stage 5B now contains an additive browser workflow in `web/`
 and an experimental `src/browser.ts` entry, including standalone reads without
 a responsibility deployment. See
 [Stage 5B](docs/stages/STAGE-5B-WALLET-WORKFLOWS.md) for exact remaining gates.
-The UI, controls, public recovery stores and new regression cases are UNTESTED.
+The Stage 5C implementation pass is source-complete and the first local batch
+has passed after recorded repairs. Release validation remains incomplete. See
+[Stage 5C](docs/stages/STAGE-5C-VALIDATION-TOOLING.md) and the
+[review/validation handoff](docs/V3-REVIEW-AND-VALIDATION.md).
 
 Node 22.18 or newer.
 
 ```sh
 npm ci
 npm run verify
+npm run wallet:browser:build
 npm run wallet
 ```

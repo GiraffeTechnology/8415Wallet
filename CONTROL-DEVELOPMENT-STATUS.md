@@ -1,9 +1,19 @@
 # Independent controls — development checkpoint, 2026-09-25
 
-Status: **IMPLEMENTATION_IN_PROGRESS / UNTESTED / NOT_RELEASE_READY**.
+Status: **IMPLEMENTED_LOCAL_VALIDATION_PASS / NOT_INDEPENDENTLY_AUDITED / NOT_RELEASE_READY**.
 PR #3 remains unmerged. This record is not an acceptance report.
 
-## Execution order
+## Latest actual validation
+
+After Stage 5C source freeze and PR #7 publication, the unified local campaign
+ran: Node 622/622, EVM 28/28, typecheck, browser build and standalone CLI PASS.
+Two initial Python-backed cases failed because python3 was not on the Windows
+PATH; explicit interpreter selection fixed the environment contract, not the
+assertions. Two recovery edge cases were repaired with regressions. See
+`docs/reports/V3-LOCAL-VALIDATION-20260925.md`. Real UI and V3 public chain remain
+NOT_RUN; independent review and CI are not inferred from these local results.
+
+## Historical execution order at source freeze
 
 The user requires all development to finish before the unified test campaign.
 During this increment no compilation, typecheck, unit/EVM test, CI trigger,
@@ -23,7 +33,7 @@ Keep compiler/runtime/lock hashes, deployment addresses, chain IDs, transaction
 hashes, canonical receipts, state readbacks and W-01–W-21 verdicts. Never retain
 keys, credentials or raw consent signatures in reports.
 
-## Source now written, not validated
+## Implemented source (local validation is not independent approval)
 
 - `contracts/controls/ControlledWallet.sol`: immutable owner/controller token
   account, controller-only protected transfer and standalone withdrawal only
@@ -55,6 +65,21 @@ keys, credentials or raw consent signatures in reports.
   distinct from responsibility outcomes. These sources are also untested.
 
 ## Stage PR tracking
+
+- Stage 5C draft: PR #7. Validation head `d02292969515d48a9a129961b8faa211a2a36833`
+  / tree `60274f38b38b9498d30b9987b15a8cea38639abf` equals local `e38787b`.
+  CI run 36113801906 failed before any step: both jobs have runner_id=0 and no
+  steps; log retrieval returned BlobNotFound. Exact scheduler/billing cause is
+  NOT_PROVEN. Do not weaken workflows or synthesize a green status. Independent
+  review was actually requested and the bot reported Running on that head.
+  Two subsequent real-EVM SDK integration tests passed and are being retained
+  in this stage; they do not constitute UI or public-chain acceptance.
+
+- Stage 5B draft: PR #6, remote `10fbfaddf2a7e437bfa001a099818eb988e423cf`,
+  tree `c3237534fbb5debcb425e5003a61b9b60fcb0928`, base Stage 5A branch.
+  Local `5655121` has the identical tree. Workflow query returned no runs;
+  source publication is not verification. Stage 5C validation/deployment tooling
+  is now under development on its own branch, not executed.
 
 - PR #3 remains the unchanged foundation at `bc99ff0` and is not merged.
 - Stage 4B draft: PR #4, remote `a7cd45a5cc0203db8ba4fb92ef931f3679fd224e`,
@@ -91,25 +116,21 @@ keys, credentials or raw consent signatures in reports.
 6. Contract-owner signing needs a provider that can supply a valid ERC-1271
    signature; the SDK does not synthesize one or hold a private key.
 
-## Remaining development (not acceptance claims)
+## Implementation closure (not acceptance)
 
 Stage 5B source now adds consent review, durable public intent/recovery state,
 standalone/linked browser actions and canonical-block payment presentation.
-Eight new workflow cases are written but unexecuted. See
-`docs/stages/STAGE-5B-WALLET-WORKFLOWS.md`; implementation and validation are not
-complete, no new chain/UI result is asserted.
+Fifteen workflow/receipt cases and fourteen independent-control/SDK EVM cases now
+passed locally. Stage 5C also supplies the source-bound public-testnet runner
+and loopback UI server. No new chain/UI result is asserted.
 
-- Complete application-facing setup/payment/recovery presentation around the
-  newly written account/payment clients. Do not label them validated yet.
-- Finish acceptance display/recovery integration and exact action workflows;
-  never surface speculative state as executed state.
-- Write unified regression, adversarial/EVM and public-testnet run tooling for
-  each W-01–W-21 scenario, signature replay, alternate paths, returned history,
-  failures, canonical receipt recovery and payment reentrancy/failure.
-- Complete deployment manifest and independent audit package for the actual
-  contracts/accounts/evidence profile. None has been security approved.
-- Execute no tests until development is complete. Subsequently perform genuine
-  standalone and linked desktop/mobile flows against deployed testnet contracts.
+- Run the complete local batch, repair failures, and retain exact results rather
+  than declaring source presence a PASS.
+- Obtain independent review against `docs/V3-REVIEW-AND-VALIDATION.md`.
+- Execute the source-bound public-testnet runner and genuine standalone/linked
+  desktop/mobile flows; W-01–W-21 are not accepted until their evidence exists.
+- Neutral CSS does not stand in for unavailable brand assets. Production Kit and
+  institutional registrar integrations are not asserted by this test profile.
 
 The real Sepolia deployment/test from 2026-09-19 remains historical fact. The
 bc99ff0 increment's 607 Node/14 legacy EVM tests also remain historical; neither
