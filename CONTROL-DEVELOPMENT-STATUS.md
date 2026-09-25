@@ -13,6 +13,10 @@ CI scheduling as a substitute for development or change runner configuration.
 
 ## Latest actual validation
 
+Latest integrated Stage 5H local batch: 686/686 Node, 51/51 EVM, typecheck and
+browser emit pass. See Stage 5G/5H reports for the new archive verifier and the
+reproduced pruned-origin SDK crash. Older counts below are historical batches.
+
 2026-09-26: V3 is the exclusive active development priority; unrelated inserts
 are not accepted before delivery. Stage 5F review 4106073328 was reproduced by
 five failing tests and repaired; local 656 Node / 49 EVM plus typecheck/browser
@@ -20,7 +24,7 @@ emit pass. Stage 5G implements the previously missing public detached-history
 verification path; see its stage report. Neither increment is release approval.
 
 After Stage 5C source freeze and PR #7 publication, the unified local campaign
-ran: Stage 5F Node 651/651, EVM 49/49, typecheck and browser build PASS; earlier standalone CLI PASS.
+ran: pre-repair Stage 5F Node 651/651, EVM 49/49, typecheck and browser build PASS; earlier standalone CLI PASS.
 Two initial Python-backed cases failed because python3 was not on the Windows
 PATH; explicit interpreter selection fixed the environment contract, not the
 assertions. Independent review then found nonce-race recovery and directory-fsync
@@ -141,7 +145,7 @@ keys, credentials or raw consent signatures in reports.
 
 Stage 5F closes the live-window payment presentation gap: fixed leg-ID lookup
 also reads unused reservations and detached payments at one canonical block.
-No write/signing capability is added. See its stage report for actual 651/49
+No write/signing capability is added. See its stage report for historical pre-repair 651/49
 regressions and remaining independent review/UI/public-chain gates.
 
 Stage 5B source now adds consent review, durable public intent/recovery state,

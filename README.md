@@ -32,7 +32,7 @@ did not perform those merges or waive its earlier PR #3 hold. Review repairs are
 being delivered separately and are not automatically merged. The increment adds
 independent responsibility contracts and a separately imported experimental
 SDK under `src/controls/index.ts`. The implementation pass is complete and its
-latest unified local validation has run: **651/651 Node tests, 49/49 EVM tests,
+pre-repair Stage 5F local validation ran: **651/651 Node tests, 49/49 EVM tests,
 typecheck and browser build PASS**. This is **not independently audited or
 deployed as V3**. Original Sepolia receipts remain historical, not V3 acceptance.
 CI, independent review, genuine desktop/mobile UI and actual public-testnet
@@ -278,6 +278,11 @@ at their stated execution levels.
 The ERC specification remains the source of truth.
 
 ## Development
+
+Latest integrated Stage 5H local batch: **686/686 Node and 51/51 EVM**, plus
+typecheck/browser emit. Stage 5G adds verified detached history; Stage 5H repairs
+the pruned-origin read crash. Earlier 651/49 and 656/49 totals are separate
+historical runs, not the current count. These are not release acceptance.
 
 V3 is the exclusive active development priority until delivery. Development
 regressions continue after demonstrated repairs; **Claude Code owns CI and PR

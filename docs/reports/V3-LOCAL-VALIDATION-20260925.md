@@ -3,10 +3,10 @@
 Date: 2026-09-25. Verdict: **IMPLEMENTED_LOCAL_VALIDATION_PASS**.
 **Not full PRD acceptance, not production ready, not independent security approval.**
 
-## Latest integrated development regression
+## Historical pre-canonicality-repair integrated development regression
 
 Stage 5F's later additive payment visibility and Stage 5E P2 integration now
-pass the complete 651 Node / 49 EVM local batch, with typecheck/browser emit.
+passed the pre-repair complete 651 Node / 49 EVM local batch, with typecheck/browser emit.
 See `docs/stages/STAGE-5F-PAYMENT-OBSERVATION.md`. The Stage 5E-only results
 immediately below remain its separate 636/48 baseline.
 

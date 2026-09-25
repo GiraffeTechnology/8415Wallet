@@ -418,7 +418,7 @@ testnet/UI acceptance remain distinct gates.
 
 Stage 5F adds a read-only payment observation by leg ID for unused reservations
 and detached legs. Do not infer responsibility completion from payment state.
-Local totals are 651 Node / 49 EVM; genuine public-chain/UI acceptance and
+Historical pre-repair Stage 5F totals were 651 Node / 49 EVM; genuine public-chain/UI acceptance and
 independent review remain separate. CI and merging stay with Claude Code.
 
 Stage 5F's later canonicality repair passed 656 Node / 49 EVM locally. Stage 5G
@@ -426,6 +426,11 @@ adds a read-only verifier for a register's detached-leg export against the exact
 on-chain count/commitment and live boundary. Never call a partial archive,
 untrusted `verified` field or commitment-only copy verified history; never use
 history verification as transaction authority or ERC temporal finality.
+
+Stage 5H preserves raw origin-holder projection observations after prefix
+detachment without manufacturing a completion proof outside the live window.
+Latest integrated local results: 686 Node / 51 EVM, typecheck/browser emit pass.
+The prior 651/49, 656/49 and 686/50 batches are historical and not current counts.
 
 Every stage requires:
 

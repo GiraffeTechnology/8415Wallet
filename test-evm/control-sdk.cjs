@@ -28,6 +28,24 @@ describe('V3 production SDK against actual local EVM contracts',function(){
   }
   const condition='TEST_ONLY accepted registrar attestation of this leg failure';
   const docs=()=>({incoming:{terms:{scheme:'utf8-keccak256',text:'TEST_ONLY unfunded responsibility'},returnConditionText:condition},inherited:[]});
+  it('renders a newly admitted origin occurrence behind a detached boundary without reviving the prefix',async()=>{
+    const s=await k.open();await k.forward(s,0,1);await k.forward(s,1,2);
+    await k.admit(s,1);await k.complete(s,1);
+    // The protocol may later admit the original account. Occurrence zero still
+    // resolves in the contract but is no longer in the live snapshot window.
+    await k.admit(s,0);
+    const wallet=session(0),observed=await wallet.reader.observe(s.id);
+    assert.equal(observed.projection.holder,k.accounts[0].toLowerCase());
+    assert.equal(observed.projection.owner,k.accounts[2].toLowerCase());
+    assert.equal(observed.projection.protocolFinality,false);
+    assert.equal(observed.snapshot.offChainDetached,1n);
+    assert.equal(observed.snapshot.legs.length,1);
+    assert.equal(observed.evidence.kind,'unavailable');
+    const rendered=await wallet.reader.render(s.id);
+    assert.ok(rendered.includes(k.accounts[0].toLowerCase()));
+    assert.equal((await k.state(s)).completedCount,1n);
+    await assert.rejects(k.controller.completeThrough.staticCall(s.id,s.legs[1],(await k.state(s)).revision));
+  });
   it('reviews exact terms, signs, forwards, reads independent facts, completes and exits via SDK',async()=>{
     const s=await k.open(),a=session(0),b=session(1),p=await k.consent(s,0,1);
     assert.equal(sdk.forwardConsentDigest(pin,p.c),await k.controller.consentDigest(p.c));
