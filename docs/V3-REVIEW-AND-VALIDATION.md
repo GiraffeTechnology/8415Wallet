@@ -61,7 +61,7 @@ the reason recorded under "CI could not be evaluated".
 | `feat/stage4b-independent-controls` | #4 | `a7cd45a` | 607 | 14 |
 | `feat/stage5a-control-sdk` | #5 | `d3d428b` | 607 | 14 |
 | `feat/stage5b-wallet-workflows` | #6 | `10fbfad` | 615 | 14 |
-| `feat/stage5c-validation-tooling` | #7 | `d022929` + this batch | 622 | 27 |
+| `feat/stage5c-validation-tooling` | #7 | `da1c9d2` + this batch | 622 | 29 |
 
 Runtime: Node v22.22.2, npm lockfile v3, `npm ci` clean on every tree.
 Compiler: TypeScript 5.9 via `tsc --noEmit`; solc 0.8.37 through Hardhat.
@@ -84,8 +84,11 @@ The emitted browser bundle contains no `node:` import, so step 3's
 "no Node-only runtime dependency" check holds. Its **real desktop and mobile
 interaction half is NOT_RUN** — no browser is driven here.
 
-Only the Node 22 leg of the `[22, 24]` matrix was executed. **Node 24 is
-NOT_RUN**: this environment has one runtime.
+Only the Node 22 leg of the `[22, 24]` matrix was executed here: this
+environment has one runtime. The Node 24 leg was executed separately and is
+recorded in `docs/reports/V3-LOCAL-VALIDATION-20260925.md` (v24.19.0, 622
+Node cases). Between the two reports the matrix is covered; neither report
+covers both legs on its own.
 
 ### 3. Finding, fixed in this batch
 
@@ -97,7 +100,8 @@ real open gap is ordinary lag and never blocks an accepted forward — together
 with the tail-extension, repeated-occurrence and callback-race journeys.
 
 They pass as written; only the wiring was missing. The local EVM suite now
-calls them: 26 cases to 27.
+calls them, and with the SDK-to-EVM cases added alongside it the suite stands
+at **29 cases**.
 
 ### 4. W-01 – W-21, individually
 
@@ -146,9 +150,13 @@ elapsed  3-4 seconds
 
 This is not the branches. A push to `main` — the already-merged, previously
 green tree — fails identically (`438dd8ec`, 3s, `runner_id=0`), while runs on
-2026-09-18 and earlier succeeded on that same pipeline. No runner is being
-assigned to this repository's jobs, which is an account/billing setting rather
-than anything a commit can change.
+2026-09-18 and earlier succeeded on that same pipeline.
+
+What is established is the negative: no runner is assigned, no step runs, and
+the same outcome reaches a tree that was green a week ago, so **a code failure
+is ruled out**. The cause is not established. Job logs return `BlobNotFound`
+for every affected run, so the runner-side reason could not be read, and this
+report does not name one.
 
 So handoff step 7's "evaluate CI" is **BLOCKED**, and the table in section 2 is
 what stands in its place: the same pipeline, the same commands, run here.
@@ -162,7 +170,7 @@ what stands in its place: the same pipeline, the same commands, run here.
   no signing capability here;
 - real desktop and mobile journeys (step 3) — **NOT_RUN**;
 - W-20 — **BLOCKED**, as above;
-- Node 24 matrix leg — **NOT_RUN**.
+- a GitHub Actions run on any of it — **BLOCKED**, as above.
 
 Status remains `SOURCE_COMPLETE_PENDING_UNIFIED_VALIDATION` for everything
 above. This batch raises local execution evidence from "untested" to "the full
