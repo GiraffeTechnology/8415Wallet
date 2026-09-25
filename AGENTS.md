@@ -413,6 +413,12 @@ first entry.
 
 ## Completion Requirement
 
+The standalone reading foundation (V2) was closed on 2026-09-25 against PRD §8,
+condition by condition, in `docs/V2-CLOSEOUT.md` — including the one gap that
+closeout names rather than hides: no public chain has yet shown an independent
+registrar lagging a live market, which is issue 001 and is still open. Do not
+read V2's closure, or its Sepolia run, as evidence for anything in v3.0.
+
 The standalone reading foundation is complete only when a user can see, for any token and any
 instant, and without conflating them:
 
