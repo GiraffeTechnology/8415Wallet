@@ -6,6 +6,7 @@ import { controlHex, controlRpc, hashControlBytes, requireControlAdapter as chec
 import { callWords, uint, wordAddress, submitFixed, receiptFixed, type FixedSubmission, type FixedReceipt } from './execution.ts';
 
 const PAYMENT_STATES = ['unfunded', 'funded', 'settlement-due', 'refund-due', 'settled', 'refunded'] as const;
+const OUTCOME_NAMES = ['active', 'completed', 'returning', 'returned'] as const;
 export type PaymentSnapshot = { readonly sequenceId: string; readonly legId: string;
   readonly payer: string; readonly payee: string; readonly amount: bigint; readonly state: typeof PAYMENT_STATES[number] };
 
@@ -37,6 +38,21 @@ export class NativeResponsibilityPaymentClient {
     const state = PAYMENT_STATES[Number(r[3])]; check(state !== undefined, 'CONTROL_PAYMENT_STATE_REFUSED');
     return { sequenceId, legId, payer: r[0] as string, payee: r[1] as string, amount: r[2] as bigint, state };
   }
+  /**
+   * How the leg ended, asked of the controller by id.
+   *
+   * Not read from the leg: a completed leg has detached from the chain by the
+   * time its payment settles, so there is no leg left to read. The controller
+   * keeps the terminal fact for exactly this reason.
+   */
+  async #outcomeOf(sequenceId: string, legId: string): Promise<typeof OUTCOME_NAMES[number]> {
+    const r = decodeControlWords(['uint8'], await callWords(this.#provider, this.#control.deployment.controller,
+      encodeCall('legTerminalOutcome(bytes32,bytes32)', ['bytes32', 'bytes32'], [sequenceId, legId])));
+    const name = OUTCOME_NAMES[Number(r[0])];
+    check(name !== undefined, 'CONTROL_PAYMENT_OUTCOME_REFUSED');
+    return name!;
+  }
+
   /** A combined UI must use the same canonical block as the responsibility view. */
   async readAt(sequenceId: string, legId: string, blockHash: string): Promise<PaymentSnapshot> {
     check(controlHex(sequenceId, 32) && controlHex(legId, 32) && controlHex(blockHash, 32), 'CONTROL_PAYMENT_ID_REFUSED');
@@ -59,8 +75,13 @@ export class NativeResponsibilityPaymentClient {
   async fund(sequenceId: string, legIndex: bigint, payer: string, amount: bigint): Promise<FixedSubmission> {
     uint(legIndex); uint(amount, true); await this.#verify();
     const snapshot = await this.#control.snapshot(sequenceId);
-    check(legIndex < BigInt(snapshot.legs.length), 'CONTROL_LEG_INDEX_REFUSED');
-    const leg = snapshot.legs[Number(legIndex)]!;
+    // legIndex is an absolute occurrence, which is what the contract indexes by;
+    // the snapshot carries only the window. Reading it window-relative would
+    // check the terms and payer of one leg and fund a different one.
+    const within = legIndex - snapshot.firstOccurrence;
+    check(legIndex >= snapshot.firstOccurrence && within < BigInt(snapshot.legs.length),
+      'CONTROL_LEG_INDEX_REFUSED');
+    const leg = snapshot.legs[Number(within)]!;
     check(leg.outcome === 'active' && !snapshot.sequence.closed, 'CONTROL_PAYMENT_OUTCOME_REFUSED');
     const owner = async (account: string) => decodeControlWords(['address'], await callWords(this.#provider, account,
       encodeCall('owner()', [], [])))[0] as string;
@@ -73,16 +94,21 @@ export class NativeResponsibilityPaymentClient {
       event: { address: this.#pin.controller, signature: 'Funded(bytes32,bytes32,address,address,uint256)',
         indexed: [sequenceId, leg.id, wordAddress(payer)], dataHash: hashControlBytes(encodeWords(['address', 'uint256'], [payee, amount])) } }, this.#beforeSend);
   }
-  async allocate(sequenceId: string, legIndex: bigint, actor: string): Promise<FixedSubmission> {
-    uint(legIndex); await this.#verify();
-    const snapshot = await this.#control.snapshot(sequenceId);
-    check(legIndex < BigInt(snapshot.legs.length), 'CONTROL_LEG_INDEX_REFUSED');
-    const leg = snapshot.legs[Number(legIndex)]!;
-    const p = await this.read(sequenceId, leg.id);
-    check(p.state === 'funded' && (leg.outcome === 'completed' || leg.outcome === 'returned'), 'CONTROL_PAYMENT_OUTCOME_REFUSED');
-    const settled = leg.outcome === 'completed';
+  /**
+   * Allocate by leg id, not position. A completed leg detaches from the chain
+   * before its payment settles, so the position may no longer resolve; the
+   * controller still answers how the leg ended.
+   */
+  async allocate(sequenceId: string, legId: string, actor: string): Promise<FixedSubmission> {
+    check(controlHex(sequenceId, 32) && controlHex(legId, 32), 'CONTROL_PAYMENT_ID_REFUSED');
+    await this.#verify();
+    const p = await this.read(sequenceId, legId);
+    const outcome = await this.#outcomeOf(sequenceId, legId);
+    check(p.state === 'funded' && (outcome === 'completed' || outcome === 'returned'), 'CONTROL_PAYMENT_OUTCOME_REFUSED');
+    const settled = outcome === 'completed';
+    const leg = { id: legId.toLowerCase() };
     return submitFixed(this.#provider, { pin: this.#pin, guards: [this.#control.deployment], actor,
-      data: encodeCall('allocate(bytes32,uint256)', ['bytes32', 'uint256'], [sequenceId, legIndex]), value: 0n,
+      data: encodeCall('allocate(bytes32,bytes32)', ['bytes32', 'bytes32'], [sequenceId, legId]), value: 0n,
       event: { address: this.#pin.controller, signature: 'Allocated(bytes32,bytes32,address,uint256,uint8)',
         indexed: [sequenceId, leg.id, wordAddress(settled ? p.payee : p.payer)],
         dataHash: hashControlBytes(encodeWords(['uint256', 'uint8'], [p.amount, settled ? 2n : 3n])) } }, this.#beforeSend);

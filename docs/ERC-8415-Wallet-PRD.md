@@ -672,6 +672,71 @@ before accepting funds on a recall promise.
 
 Forwarding may append a tail as completed heads detach. Removing a terminated
 dependency does not require acceptance of the same unchanged trade again.
+
+**The chain is a rolling window, and a completed trade leaves it.** A→B→C→D…
+keeps extending while completed prefixes detach behind it, so the active chain
+becomes BCDEF…, then CDEF…, and a token that keeps trading is never stopped by
+how much it has already traded. The bound is on what is **unresolved at once —
+128 legs** — and detached history does not count against it.
+
+A detached leg is **not carried on chain at all**. Its state is deleted when it
+detaches. What the chain keeps is a constant-size commitment folding every leg
+that has left, in order, plus the fact that the leg terminated and how — the
+minimum an optional payment adapter needs to settle a leg that has already gone.
+The record itself — parties, terms, acceptance digest, return authority — is
+published in that leg's detachment log and **held by the off-chain register**,
+which is where a consumer asks for it. Anything the register returns checks
+against the on-chain commitment.
+
+This is the division the projection already uses: the chain carries a
+`recordCommitment` and a `registryReference`, never the record. Chain state
+therefore stays proportional to what is still in play, never to how much the
+token has ever traded. A reader that asks for a detached occurrence is told it
+has detached, and is not handed a zeroed record in its place.
+
+Two occurrences still resolve on chain after a prefix detaches: the sequence's
+own opening account, and the **boundary** — whoever the last detached leg handed
+the token to — because that is where the window now starts and where a return
+stops. A register still lagging at the boundary can therefore bind its admission
+there.
+
+Three things MUST keep holding across that boundary, because detachment removes
+the state each of them used to rely on:
+
+- **leg ids stay unique for the life of the sequence.** A detached leg's index
+  lookup goes with it, so uniqueness MUST be enforced against the detachment
+  record as well. Otherwise a finished leg's id can be reused, the new and still
+  active leg reports as terminated, and an attached payment pays out on it.
+- **a snapshot is anchored where the chain it describes starts** — the boundary,
+  not the sequence's original opening account, once a prefix has detached. A
+  snapshot anchored at an account whose leg is gone names a predecessor that is
+  not there, and a consumer rejects the whole thing: a chain with a detached
+  prefix and a live tail is the ordinary steady state, and it MUST render.
+- **an occurrence number means the same thing everywhere.** Occurrences are
+  absolute; a window is a slice of them. Any caller holding an absolute
+  occurrence MUST translate before indexing a window, or it validates one leg and
+  acts on another.
+
+The view MUST report how many legs are held off chain, separately from any the
+snapshot carries itself. Reporting only the latter says nothing detached about a
+chain that has detached hundreds, and leaves a holder with no reason to ask the
+register anything.
+
+The 129th *unresolved* leg is refused, which is a real operating limit: it means
+128 legs are awaiting registration at the same instant. At the illustrative
+cadence in §9.7 (a trade every 30 seconds against a 180-second serial registrar)
+the tail grows by roughly five legs a minute while nothing is being detached, so
+a register that stops confirming for around 25 minutes will reach it. The
+condition is that the register has stalled, not that the chain is too long; the
+wallet reports how far behind registration is, and does not advise on it.
+
+Inherited-condition digests MUST cover the active window only — which is also
+all there is to cover, since detached legs are gone. A digest over retained
+history would leave each forward costing gas in proportion to every forward
+before it, capping the chain by fee exhaustion rather than by rule.
+
+A completed leg MUST NOT be nameable again: its id lookup goes with it, so it
+cannot be re-presented as a completion target or a return boundary.
 Conflicting revisions/forks must be detected; no concurrent update may lose a
 new tail or revive a detached condition.
 
@@ -797,6 +862,9 @@ testnet and desktop/mobile journey. Preserve completed foundation work.
 | W-19 | Both owner/holder progress are required; owner-only/holder-only/ambiguous progress is refused; protocol provisional status remains accurately displayed after commercial completion. |
 | W-20 | One deployed same-token multi-wallet journey demonstrates views, independent control acceptance, detachment and callback; a funded variant also demonstrates segregated payments/refunds. |
 | W-21 | The same responsibility control works with no escrow/payment adapter: accepted forwarding, CP-01 completion, detachment and scoped return remain valid; attaching payment does not become the authority for responsibility. |
+| W-22 | A chain trading past the active window keeps forwarding as completed prefixes detach: occurrence numbering exceeds the window, the 129th *unresolved* leg is refused, detaching one head frees exactly one slot, inherited conditions still bind after detachment, and per-forward gas does not grow with how much the token has already traded. |
+| W-23 | A completed leg is not carried on chain: reading it reports that it detached rather than returning an empty record, its detachment log carries the whole record for the register, the on-chain commitment covers it in order, it cannot be named again as a completion target or return boundary, and an attached payment still settles from the terminal fact after the leg has gone. |
+| W-24 | Detachment does not break what reads across it: a detached leg's id cannot be reused by a new leg; a chain with a detached prefix AND a live tail still reads and renders, anchored at the boundary; funding by absolute occurrence reads the leg it funds rather than a window-relative one; and the view states how many legs are held off chain rather than reporting none detached. |
 
 Reuse the illustrative 30-second transfer / 180-second independent registrar
 cadence where useful, recording actual times. No local time jump is real

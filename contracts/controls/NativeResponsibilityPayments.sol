@@ -70,19 +70,23 @@ contract NativeResponsibilityPayments {
     }
 
     /// @notice Anyone may allocate a terminal leg once. A failed payout never revives it.
-    function allocate(bytes32 sequenceId, uint256 legIndex) external nonReentrant {
-        ResponsibilityController.Leg memory leg = controller.legAt(sequenceId, legIndex);
-        Payment storage p = _payments[keccak256(abi.encode(sequenceId, leg.id))];
+    /// @dev Keyed by leg id, not position: a completed leg detaches from the chain
+    /// before its payment settles, so its record is no longer there to read. The
+    /// controller still answers how it ended, and payer, payee and amount come
+    /// from this contract's own funding record rather than from the trade.
+    function allocate(bytes32 sequenceId, bytes32 legId) external nonReentrant {
+        Payment storage p = _payments[keccak256(abi.encode(sequenceId, legId))];
         if (p.state != PaymentState.Funded) revert InvalidPayment();
+        ResponsibilityController.Outcome outcome = controller.legTerminalOutcome(sequenceId, legId);
         address recipient;
-        if (leg.outcome == ResponsibilityController.Outcome.Completed) {
+        if (outcome == ResponsibilityController.Outcome.Completed) {
             p.state = PaymentState.SettlementDue;
             recipient = p.payee;
-        } else if (leg.outcome == ResponsibilityController.Outcome.Returned) {
+        } else if (outcome == ResponsibilityController.Outcome.Returned) {
             p.state = PaymentState.RefundDue;
             recipient = p.payer;
         } else revert OutcomeUnavailable();
-        emit Allocated(sequenceId, leg.id, recipient, p.amount, p.state);
+        emit Allocated(sequenceId, legId, recipient, p.amount, p.state);
     }
 
     /// @notice Only the exact allocated recipient can withdraw, to itself.

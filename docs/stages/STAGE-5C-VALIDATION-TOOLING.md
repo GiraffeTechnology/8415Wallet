@@ -83,6 +83,7 @@ The implementation pass now supplies independent contracts, typed SDKs, genuine
 provider UI, public recovery stores and executable validation/deployment tooling.
 No new V3 test has run at this source-closure checkpoint. The next work is the
 unified validation campaign and repairs it identifies, not feature expansion.
-PR #3 remains unmerged; no security certificate or real-chain V3 PASS is implied.
+The stack merged on 2026-09-25 after the unified validation batch; no security
+certificate or real-chain V3 PASS is implied by that, and none exists.
 The neutral browser styling is not a claim to implement unavailable brand assets.
 Actual desktop/mobile observations and external review are still acceptance gates.

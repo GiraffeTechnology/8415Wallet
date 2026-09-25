@@ -56,7 +56,8 @@ export class ForwardConsentReview {
   async #current(consent: ForwardConsent, recipientOwner: string): Promise<ControlSnapshot> {
     validateForwardConsent(consent); address(recipientOwner);
     const s = await this.#control.snapshot(consent.sequenceId);
-    check(!s.sequence.closed && s.sequence.callbackRootPlusOne === 0n && s.sequence.cursor === BigInt(s.legs.length) &&
+    check(!s.sequence.closed && s.sequence.callbackRootPlusOne === 0n &&
+      s.sequence.cursor === s.firstOccurrence + BigInt(s.legs.length) &&
       s.sequence.revision === consent.expectedRevision && s.sequence.token === consent.token.toLowerCase() &&
       s.sequence.tokenId === consent.tokenId && s.sequence.currentAccount === consent.fromAccount.toLowerCase() &&
       s.sequence.evidenceAuthority === consent.evidenceAuthority.toLowerCase() && s.inheritedHash === consent.inheritedHash.toLowerCase() &&

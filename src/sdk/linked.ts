@@ -35,8 +35,22 @@ export type LinkedChainSnapshot = {
   readonly blockHash: Bytes32;
   readonly initialOccurrenceId: Bytes32;
   readonly initialHolder: Address;
-  /** Complete accepted sequence, including detached history. Never a filtered tail. */
+  /**
+   * The legs this snapshot carries, oldest first, never a filtered tail of them.
+   *
+   * A chain read supplies the legs the contract still carries; legs that
+   * completed have detached and are not among them. A register can supply the
+   * detached ones as well, and then they appear here as completed legs ahead of
+   * the window. Either way `offChainDetached` says how many are missing.
+   */
   readonly legs: readonly LinkedLeg[];
+  /**
+   * Legs that detached and are NOT in `legs` - their records live at the
+   * register. Absent or 0 means this snapshot accounts for every leg itself.
+   */
+  readonly offChainDetached?: bigint;
+  /** Commitment folding the off-chain detached legs, to check a register's answer. */
+  readonly detachedCommitment?: Bytes32;
 };
 
 export type LinkedPosition = {
