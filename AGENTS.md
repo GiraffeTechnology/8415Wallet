@@ -1,5 +1,12 @@
 # ERC-8415 Wallet AGENTS.md
 
+Current Stage 5F repair baseline (2026-09-26): **656/656 Node, 49/49 local EVM**,
+typecheck and browser emit pass, at code head `bf9ff8451b2d5d5f37c0109ab821467df5782e5a`.
+The 651-case figures below are the pre-repair batch, not the latest result.
+These are local development results, not CI, independent audit, public-testnet
+or genuine desktop/mobile acceptance. CI and merging remain with Claude Code.
+
+
 ## Product Boundary
 
 8415Wallet is an application-layer wallet and reference client for ERC-8415
@@ -410,6 +417,11 @@ paymentAdapter and paymentAmount. Do not silently reuse the 14-field ABI or
 an old deployment. Optional payment never authorizes completion or return.
 Fresh integrated regression, independent security review and genuine public
 testnet/UI acceptance remain distinct gates.
+
+Stage 5F adds a read-only payment observation by leg ID for unused reservations
+and detached legs. Do not infer responsibility completion from payment state.
+Pre-repair Stage 5F totals were 651 Node / 49 EVM; genuine public-chain/UI acceptance and
+independent review remain separate. CI and merging stay with Claude Code.
 
 Every stage requires:
 

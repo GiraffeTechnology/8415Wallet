@@ -1,5 +1,12 @@
 # Independent controls — development checkpoint, 2026-09-25
 
+Current Stage 5F repair baseline (2026-09-26): **656/656 Node, 49/49 local EVM**,
+typecheck and browser emit pass, at code head `bf9ff8451b2d5d5f37c0109ab821467df5782e5a`.
+The 651-case figures below are the pre-repair batch, not the latest result.
+These are local development results, not CI, independent audit, public-testnet
+or genuine desktop/mobile acceptance. CI and merging remain with Claude Code.
+
+
 Status: **IMPLEMENTED_LOCAL_VALIDATION_PASS / NOT_INDEPENDENTLY_AUDITED / NOT_RELEASE_READY**.
 PR #3, and the four stages stacked on it, merged into `main` on 2026-09-25
 after the first unified validation batch. This record is not an acceptance
@@ -11,10 +18,10 @@ Latest user assignment: **Claude Code owns CI and merging**. This task keeps
 developing V3, resolving findings and delivering stage PRs. It must not wait for
 CI scheduling as a substitute for development or change runner configuration.
 
-## Latest actual validation
+## Validation batches (historical and repaired)
 
 After Stage 5C source freeze and PR #7 publication, the unified local campaign
-ran: integrated Stage 5E Node 636/636, EVM 48/48, typecheck and browser build PASS; earlier standalone CLI PASS.
+ran: pre-repair Stage 5F Node 651/651, EVM 49/49, typecheck and browser build PASS; earlier standalone CLI PASS.
 Two initial Python-backed cases failed because python3 was not on the Windows
 PATH; explicit interpreter selection fixed the environment contract, not the
 assertions. Independent review then found nonce-race recovery and directory-fsync
@@ -132,6 +139,11 @@ keys, credentials or raw consent signatures in reports.
    signature; the SDK does not synthesize one or hold a private key.
 
 ## Implementation closure (not acceptance)
+
+Stage 5F closes the live-window payment presentation gap: fixed leg-ID lookup
+also reads unused reservations and detached payments at one canonical block.
+No write/signing capability is added. See its stage report for historical pre-repair 651/49
+regressions and remaining independent review/UI/public-chain gates.
 
 Stage 5B source now adds consent review, durable public intent/recovery state,
 standalone/linked browser actions and canonical-block payment presentation.

@@ -11,7 +11,7 @@ export { RpcResponsibilityControlReader, CONTROL_AUTHORITY_DISCLOSURE } from './
 export { ControlledAccountClient } from './accounts.ts';
 export type { ControlledAccount } from './accounts.ts';
 export { NativeResponsibilityPaymentClient } from './payments.ts';
-export type { PaymentSnapshot } from './payments.ts';
+export type { PaymentSnapshot, PaymentObservation } from './payments.ts';
 export type { FixedSubmission, FixedReceipt } from './execution.ts';
 export type { SupersededNonceProof } from './execution.ts';
 export { serializeFixedSubmission, parseFixedSubmission } from './execution.ts';

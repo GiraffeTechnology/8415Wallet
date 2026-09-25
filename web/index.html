@@ -30,12 +30,14 @@
     <label>Expected revision <input id="revision" inputmode="numeric" value="0"></label><label>Evidence authority <input id="authority" spellcheck="false"></label>
     <label>Occurrence / leg index <input id="index" inputmode="numeric" value="0"></label><label>Admitted version <input id="version" inputmode="numeric" value="1"></label>
     <label>Accepted condition hash <input id="condition" spellcheck="false"></label><label>Trigger evidence commitment <input id="evidence" spellcheck="false"></label>
-    <label>Native amount (wei) <input id="amount" inputmode="numeric" value="0"></label><label>New recipient nonce <input id="nonce" inputmode="numeric" value="1"></label></div>
+    <label>New recipient nonce <input id="nonce" inputmode="numeric" value="1"></label></div>
     <div class="actions"><button data-action="open-sequence">Open sequence</button><button data-action="read">Read chain and payment states</button>
     <button data-action="bind-admission">Associate admitted occurrence</button><button data-action="complete">Complete prefix</button>
     <button data-action="begin-return">Invoke accepted return</button><button data-action="return-hop">Execute one return hop</button>
     <button data-action="close-sequence">Close resolved sequence</button><button data-action="invalidate-consent">Invalidate older consent</button>
+    <button data-action="read-payment">Read payment by leg ID (including detached or unused)</button>
     <button data-action="reserve-payment">Reserve accepted payment before forward</button><button data-action="cancel-reservation">Cancel unused reservation after nonce invalidation</button><button data-action="allocate">Allocate terminal payment</button><button data-action="payout">Withdraw due payment</button></div>
+    <p>Amount and adapter come only from the reviewed consent. Reserve before switching to the seller for forwarding. After detachment, payment remains readable and withdrawable by leg ID; a missing payment record is not a completed responsibility.</p>
     <h3>Receive with informed acceptance</h3><p>Load only public consent and its exact terms documents. No signature is loaded from a file or shown in this page.</p>
     <label>Consent + disclosures JSON <input id="consent-file" type="file" accept="application/json,.json"></label>
     <button id="review">Prepare current review</button><pre id="terms">No review prepared</pre>

@@ -1,9 +1,21 @@
 # 8415Wallet V3 — implementation and first local validation
 
+Current Stage 5F repair baseline (2026-09-26): **656/656 Node, 49/49 local EVM**,
+typecheck and browser emit pass, at code head `bf9ff8451b2d5d5f37c0109ab821467df5782e5a`.
+The 651-case figures below are the pre-repair batch, not the latest result.
+These are local development results, not CI, independent audit, public-testnet
+or genuine desktop/mobile acceptance. CI and merging remain with Claude Code.
+
+
 Date: 2026-09-25. Verdict: **IMPLEMENTED_LOCAL_VALIDATION_PASS**.
 **Not full PRD acceptance, not production ready, not independent security approval.**
 
-## Latest integrated development regression
+## Historical pre-canonicality-repair integrated regression
+
+Stage 5F's later additive payment visibility and Stage 5E P2 integration now
+passed the pre-repair complete 651 Node / 49 EVM local batch, with typecheck/browser emit.
+See `docs/stages/STAGE-5F-PAYMENT-OBSERVATION.md`. The Stage 5E-only results
+immediately below remain its separate 636/48 baseline.
 
 Stage 5E is integrated with main `4775490cd5b20f06133eb414dc08cc736d4bd21f`
 (PR #9 rolling/pruning and PR #8 recovery retained). Actual local Node 24.19.0
