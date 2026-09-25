@@ -53,6 +53,15 @@ introduced.
 
 ## Validation and remaining gates
 
+Review 4106621481 identified caller-controlled `records.map` dispatch. Six new
+regressions failed against that version: own mapper, mapper validation bypass,
+map getter, Array species, sparse holes and inherited indices. The repair uses
+an indexed copy into newly constructed frozen plain records before any RPC;
+it never calls an input map/iterator or constructor/species hook. Targeted Node
+is now 36/36; typecheck passes. The integrated Stage 5H tree with this repair
+passed 692/692 Node (108 suites), 51/51 local EVM, browser emit and JS syntax.
+The counts below describe the original Stage 5G batch, not the repaired head.
+
 Targeted Node: 30/30, with an independent ethers ABI/Keccak fixture, 130 detached
 records, repeated accounts, changed fields, swapped/missing/extra/duplicate
 records, domain/anchor/boundary drift, RPC faults and mid-read input mutation.
