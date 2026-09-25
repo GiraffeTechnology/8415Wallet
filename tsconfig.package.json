@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": false,
+    "sourceMap": false,
+    "outDir": "./dist/package",
+    "rootDir": "./src"
+  },
+  "include": ["src/v2.ts", "src/cli/main.ts"],
+  "exclude": ["tests", "src/controls", "src/browser.ts", "src/wallet/linkedChainView.ts", "src/wallet/renderLinkedChain.ts"]
+}
