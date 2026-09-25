@@ -52,16 +52,22 @@ export class DetachedResponsibilityHistoryClient {
     check(controlHex(sequenceId, 32) && d.schema === '8415-detached-history/1' &&
       decimal(d.chainId) === pin.chainId && hex(d.controller, 20) === pin.controller.toLowerCase() &&
       hex(d.sequenceId, 32) === sequenceId.toLowerCase(), 'CONTROL_ARCHIVE_BINDING_REFUSED');
-    check(Array.isArray(d.records), 'CONTROL_ARCHIVE_SCHEMA_REFUSED');
+    const input = d.records;
+    check(Array.isArray(input), 'CONTROL_ARCHIVE_SCHEMA_REFUSED');
     // Copy and validate before yielding: a caller cannot change the document while
     // chain reads are in flight. No untrusted extra property reaches the result.
-    const records = Object.freeze(d.records.map(value => {
-      const r = exact(value, RECORD_KEYS);
-      return Object.freeze({ occurrence: decimal(r.occurrence), legId: hex(r.legId, 32),
+    // Never dispatch caller-owned map/iterator/species hooks. Require actual
+    // indexed records, not sparse holes or inherited array entries.
+    const copied: DetachedHistoryRecord[] = [], count = input.length;
+    for (let i = 0; i < count; i++) {
+      check(Object.prototype.hasOwnProperty.call(input, i), 'CONTROL_ARCHIVE_SCHEMA_REFUSED');
+      const r = exact(input[i], RECORD_KEYS);
+      copied.push(Object.freeze({ occurrence: decimal(r.occurrence), legId: hex(r.legId, 32),
         fromAccount: hex(r.fromAccount, 20), toAccount: hex(r.toAccount, 20), termsHash: hex(r.termsHash, 32),
         acceptanceHash: hex(r.acceptanceHash, 32), returnAuthority: hex(r.returnAuthority, 20),
-        returnConditionHash: hex(r.returnConditionHash, 32), detachedCommitment: hex(r.detachedCommitment, 32) });
-    }));
+        returnConditionHash: hex(r.returnConditionHash, 32), detachedCommitment: hex(r.detachedCommitment, 32) }));
+    }
+    const records = Object.freeze(copied);
     const snapshot = await this.#client.snapshot(sequenceId);
     const s = snapshot.sequence;
     check(BigInt(records.length) === s.completedCount, 'CONTROL_ARCHIVE_COUNT_REFUSED');

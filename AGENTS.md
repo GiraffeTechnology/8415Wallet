@@ -429,8 +429,10 @@ history verification as transaction authority or ERC temporal finality.
 
 Stage 5H preserves raw origin-holder projection observations after prefix
 detachment without manufacturing a completion proof outside the live window.
-Latest integrated local results: 686 Node / 51 EVM, typecheck/browser emit pass.
-The prior 651/49, 656/49 and 686/50 batches are historical and not current counts.
+Latest integrated local results after archive-review repair: 692 Node / 51 EVM,
+typecheck/browser emit pass. Import records by validated indexed copy, never
+input-controlled map/iterator/species. The prior 651/49, 656/49, 686/50 and 686/51
+batches are historical and not current counts.
 
 Every stage requires:
 

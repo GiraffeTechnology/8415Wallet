@@ -2,6 +2,12 @@
 
 Status: **IMPLEMENTED_LOCAL_TESTS_PASS / NOT_INDEPENDENTLY_AUDITED**.
 
+Latest integrated Stage 5H plus archive-review repair passed 692 Node / 51 EVM
+locally. An input-owned mapper could bypass strict archive validation; indexed
+copying and six adversarial regressions repair review 4106621481. Public archive
+objects are not trusted merely because they are arrays. Fresh exact-head review
+remains required; this development check is not security approval.
+
 Local development now includes account/controller/payment contracts
 and consent/receipt/view adapters. This changes the review surface, not the
 approval status. See [development checkpoint](../CONTROL-DEVELOPMENT-STATUS.md)

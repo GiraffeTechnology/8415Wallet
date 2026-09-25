@@ -94,3 +94,53 @@ test('copies public input before the first asynchronous RPC',async()=>{
   const f=fixture(3,'',()=>{f.document.records[0]!.termsHash=h('f');f.document.records.reverse();});
   const r=await f.client.observe(sequenceId,f.document);assert.equal(r.records[0]!.termsHash,h('2'));assert.equal(r.records[0]!.occurrence,0n);
 });
+
+test('does not dispatch an input-owned array mapper',async()=>{
+  const f=fixture();let called=false;
+  Object.defineProperty(f.document.records,'map',{value:()=>{called=true;throw Error('UNTRUSTED_MAP');}});
+  const result=await f.client.observe(sequenceId,f.document);
+  assert.equal(called,false);assert.equal(result.records.length,3);
+  assert.ok(result.records.every(Object.isFrozen));
+  assert.notEqual(result.records[0],f.document.records[0]);
+});
+
+test('cannot bypass exact record validation through an input mapper',async()=>{
+  const f=fixture();
+  const forged=f.document.records.map(r=>({...r,occurrence:BigInt(r.occurrence),verified:true}));
+  Object.assign(f.document.records[0]!,{verified:true});
+  Object.defineProperty(f.document.records,'map',{value:()=>forged});
+  await assert.rejects(f.client.observe(sequenceId,f.document),/CONTROL_ARCHIVE_SCHEMA_REFUSED/);
+  assert.equal(f.calls.length,0);
+});
+
+test('never reads an input array map getter',async()=>{
+  const f=fixture();
+  Object.defineProperty(f.document.records,'map',{get(){throw Error('UNTRUSTED_MAP_GETTER');}});
+  const result=await f.client.observe(sequenceId,f.document);
+  assert.equal(result.records.length,3);
+});
+
+test('does not construct copies through input Array species',async()=>{
+  const f=fixture();
+  class PublicRecords extends Array<typeof f.document.records[number]> {
+    static override get [Symbol.species](): ArrayConstructor { throw Error('UNTRUSTED_SPECIES'); }
+  }
+  const records=new PublicRecords();records.push(...f.document.records);
+  const result=await f.client.observe(sequenceId,{...f.document,records});
+  assert.equal(Object.getPrototypeOf(result.records),Array.prototype);
+  assert.ok(result.records.every(Object.isFrozen));
+});
+
+test('refuses sparse records with a stable schema error before RPC',async()=>{
+  const f=fixture();delete f.document.records[1];
+  await assert.rejects(f.client.observe(sequenceId,f.document),/CONTROL_ARCHIVE_SCHEMA_REFUSED/);
+  assert.equal(f.calls.length,0);
+});
+
+test('refuses records supplied only by an array prototype',async()=>{
+  const f=fixture(),record=f.document.records[1];delete f.document.records[1];
+  const inherited=Object.create(Array.prototype);inherited[1]=record;
+  Object.setPrototypeOf(f.document.records,inherited);
+  await assert.rejects(f.client.observe(sequenceId,f.document),/CONTROL_ARCHIVE_SCHEMA_REFUSED/);
+  assert.equal(f.calls.length,0);
+});

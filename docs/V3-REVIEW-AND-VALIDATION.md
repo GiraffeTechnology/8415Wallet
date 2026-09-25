@@ -20,10 +20,12 @@ or authorization to merge further work follows from that remote state.
 
 ## Exact review surface
 
-Latest Stage 5H integration: 686/686 Node, 51/51 local EVM, typecheck/browser
-emit pass. Stage 5F canonicality repair had 656/49; Stage 5G had 686/50. Preserve
+Latest Stage 5H plus archive-review repair: 692/692 Node, 51/51 local EVM,
+typecheck/browser emit pass. Stage 5H before this repair had 686/51;
+Stage 5F canonicality repair had 656/49; Stage 5G had 686/50. Preserve
 these as distinct batches. Add `detachedHistory.ts`'s strict public import and
-chain-anchored fold, browser import, and pruned-origin read handling to review.
+chain-anchored fold, caller-method-free indexed copying, browser import, and
+pruned-origin read handling to review.
 
 - Four independent contracts in `contracts/controls/`; the controller has no
   funds and never writes projection history. Token accounts enforce protected

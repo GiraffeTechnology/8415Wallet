@@ -3,6 +3,14 @@
 Date: 2026-09-25. Verdict: **IMPLEMENTED_LOCAL_VALIDATION_PASS**.
 **Not full PRD acceptance, not production ready, not independent security approval.**
 
+## Latest integrated repair batch (2026-09-26)
+
+Stage 5H plus the Stage 5G caller-owned mapper repair: Node 692/692 (108 suites),
+local EVM 51/51, TypeScript noEmit/browser emit and browser JS syntax pass.
+Six new archive regressions failed before the indexed-copy repair, then all
+36 archive cases passed. Stage 5H's previous 686/51 and Stage 5G's 686/50 remain
+separate historical results. No public-chain or genuine UI result is added.
+
 ## Historical pre-canonicality-repair integrated development regression
 
 Stage 5F's later additive payment visibility and Stage 5E P2 integration now
