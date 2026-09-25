@@ -5,13 +5,20 @@ Date: 2026-09-25. Verdict: **IMPLEMENTED_LOCAL_VALIDATION_PASS**.
 
 ## Latest integrated development regression
 
+Stage 5F's later additive payment visibility and Stage 5E P2 integration now
+pass the complete 651 Node / 49 EVM local batch, with typecheck/browser emit.
+See `docs/stages/STAGE-5F-PAYMENT-OBSERVATION.md`. The Stage 5E-only results
+immediately below remain its separate 636/48 baseline.
+
 Stage 5E is integrated with main `4775490cd5b20f06133eb414dc08cc736d4bd21f`
 (PR #9 rolling/pruning and PR #8 recovery retained). Actual local Node 24.19.0
 results: typecheck and browser emit exit 0; 636/636 Node cases, 108 suites,
-0 skipped; 46/46 EVM cases, 0 failures. Controller runtime 22,470 bytes and
-native payment runtime 5,519 bytes, configured solc 0.8.26/viaIR/optimizer 200.
+0 skipped; latest 48/48 EVM cases, 0 failures. Controller runtime 23,887 bytes and
+native payment runtime 5,631 bytes, configured solc 0.8.26/viaIR/optimizer 200.
 Initial new SDK test asserted the wrong receipt property; the 45/46 failure
-was repaired and the complete suite rerun. See Stage 5E for exact scope.
+was repaired and the complete suite rerun. Subsequent independent review found
+P2 impossible reservations; shared execution eligibility plus two additional
+regressions repair that finding. See Stage 5E for exact scope.
 All older tables below remain historical, not the current integrated counts.
 CI and merging are Claude Code's responsibility; no CI outcome is asserted here.
 

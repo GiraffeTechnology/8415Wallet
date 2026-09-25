@@ -413,7 +413,7 @@ testnet/UI acceptance remain distinct gates.
 
 Stage 5F adds a read-only payment observation by leg ID for unused reservations
 and detached legs. Do not infer responsibility completion from payment state.
-Local totals are 651 Node / 47 EVM; genuine public-chain/UI acceptance and
+Local totals are 651 Node / 49 EVM; genuine public-chain/UI acceptance and
 independent review remain separate. CI and merging stay with Claude Code.
 
 Every stage requires:

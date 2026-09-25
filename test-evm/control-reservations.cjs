@@ -74,7 +74,11 @@ describe('Exact pre-forward payment reservations and current evidence authority'
       inheritedHash:await k.controller.inheritedHash(id),returnAuthority:k.owners[4],returnConditionHash:k.conditionHash,
       evidenceAuthority:k.owners[4],deadline:BigInt((await k.provider.getBlock('latest')).timestamp)+3600n,recipientNonce:0,
       paymentAdapter:k.payments.target,paymentAmount:amount};
-    const signature=await sign(c);await reserve({c,amount});
+    const signature=await sign(c);
+    await fault.configureRegistrar(k.owners[3]);
+    await k.refused('reserve-stale-authority',()=>k.payments.connect(k.signers[1]).reserve.staticCall(c,{value:amount}),k.controller,'Unauthorized');
+    assert.equal((await k.payments.payment(id,c.legId)).state,0n);
+    await fault.configureRegistrar(k.owners[4]);await reserve({c,amount});
     await fault.configureRegistrar(k.owners[3]);
     await k.refused('authority-changed',()=>k.controller.forward.staticCall(c,signature),k.controller,'Unauthorized');
     assert.equal(await fault.ownerOf(1),k.accounts[0]);assert.equal(await k.controller.recipientNonces(k.owners[1]),0n);
@@ -84,5 +88,46 @@ describe('Exact pre-forward payment reservations and current evidence authority'
     assert.equal((await k.payments.payment(id,c.legId)).state,6n);assert.equal(await k.controller.legCount(id),0n);
     await fault.configure(false,false,profile);
     await k.transaction('resume-forward',k.controller.forward(c,signature));assert.equal((await k.payments.payment(id,c.legId)).state,1n);
+  });
+  it('refuses a detached leg ID before reservation or recipient review',async()=>{
+    const s=await k.open();await k.forward(s,0,1);await k.admit(s,1);await k.complete(s,1);
+    const p=await k.consent(s,1,2,{funded:true});const reused={...p.c,legId:s.legs[0]};
+    const nonce=await k.controller.recipientNonces(k.owners[2]);
+    await k.refused('reserve-detached-id',()=>k.payments.connect(k.signers[2]).reserve.staticCall(reused,{value:p.amount}),k.controller,'InvalidInput');
+    await assert.rejects(k.payments.connect(k.signers[2]).reserve(reused,{value:p.amount,gasLimit:1500000}));
+    assert.equal(await k.provider.getBalance(k.payments.target),0n);
+    assert.equal((await k.payments.payment(s.id,reused.legId)).state,0n);
+    assert.equal(await k.controller.recipientNonces(k.owners[2]),nonce);
+    const sdk=await import('../src/controls/index.ts');
+    const pin={chainId:k.domain.chainId,controller:k.controllerAddress.toLowerCase(),
+      runtimeCodeHash:hre.ethers.keccak256(await k.provider.getCode(k.controllerAddress))};
+    let prompts=0;
+    const provider={request:async({method,params=[]})=>{
+      if(method==='eth_signTypedData_v4')prompts++;
+      return hre.network.provider.request({method,params});
+    }};
+    const review=new sdk.ForwardConsentReview(provider,pin);
+    await assert.rejects(review.prepare(reused,k.owners[2],{incoming:{terms:{scheme:'native-payment-v1',adapter:k.payments.target,amount:p.amount},
+      returnConditionText:k.conditionText},inherited:[]}),/CONTROL_RPC_REFUSED/);
+    assert.equal(prompts,0);
+    // A fresh ID remains reservable, with the original recipient nonce intact.
+    await k.transaction('reserve-fresh-id',k.payments.connect(k.signers[2]).reserve(p.c,{value:p.amount}));
+    assert.equal((await k.payments.payment(s.id,p.c.legId)).state,6n);
+  });
+  it('refuses the 129th unresolved reservation without taking principal or consuming nonce',async()=>{
+    const s=await k.open();let at=0;
+    const maximum=Number(await k.controller.MAX_ACTIVE_LEGS());
+    for(let i=0;i<maximum;i++){const to=(at+1)%4;await k.forward(s,at,to);at=to;}
+    const to=(at+1)%4,p=await k.consent(s,at,to,{funded:true});
+    const nonce=await k.controller.recipientNonces(k.owners[to]);
+    await k.refused('reserve-window-full',()=>k.payments.connect(k.signers[to]).reserve.staticCall(p.c,{value:p.amount}),k.controller,'InvalidInput');
+    await assert.rejects(k.payments.connect(k.signers[to]).reserve(p.c,{value:p.amount,gasLimit:2000000}));
+    assert.equal(await k.provider.getBalance(k.payments.target),0n);
+    assert.equal((await k.payments.payment(s.id,p.c.legId)).state,0n);
+    assert.equal(await k.controller.recipientNonces(k.owners[to]),nonce);
+    await k.admit(s,1);await k.complete(s,1);
+    const valid=await k.consent(s,at,to,{funded:true});
+    await k.transaction('reserve-free-window-slot',k.payments.connect(k.signers[to]).reserve(valid.c,{value:valid.amount}));
+    assert.equal((await k.payments.payment(s.id,valid.c.legId)).state,6n);
   });
 });

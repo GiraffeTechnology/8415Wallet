@@ -10,7 +10,7 @@ Date: 2026-09-25. Post-review repair of the two P1 findings on PR #8 head
   delivery precondition. Old 14-field acceptances are refused, not upgraded.
 - The controller creates one immutable, fixed-code native adapter on demand.
   It never holds funds. Caller-selected fake adapters are refused. Controller
-  runtime is 22,470 bytes; adapter runtime is 5,519 bytes with solc 0.8.26,
+  runtime is 23,887 bytes; adapter runtime is 5,631 bytes with solc 0.8.26,
   viaIR, optimizer 200 (below EIP-170).
 - Buyer reserves the exact signed consent before forwarding. Reservation digest
   binds sequence, asset, leg, parties, price, terms, inherited scope, authorities,
@@ -34,8 +34,8 @@ separate native ledger; its payout failure does not restore a completed leg.
 
 Integrated onto main `4775490cd5b20f06133eb414dc08cc736d4bd21f`, preserving
 PR #9 rolling-window pruning and PR #8 recovery. Node 24.19.0: typecheck/browser
-emit exit 0; full Node 636/636 (108 suites); full EVM 46/46 (14 legacy plus
-32 control/adversarial/SDK/window cases), no skipped tests. Payment allocation
+emit exit 0; full Node 636/636 (108 suites); full EVM 48/48 (14 legacy plus
+34 control/adversarial/SDK/window cases), no skipped tests. Payment allocation
 continues by leg ID after its on-chain record has detached. The added SDK
 scenario reserves after a completed prefix, refuses a substituted predecessor,
 then forwards, detaches and allocates without reading deleted records.
@@ -44,6 +44,20 @@ Initial integration run: 45 EVM passed, one new test failed because its assertio
 used receipt.status instead of receipt.state. Corrected the assertion to the
 actual public receipt contract, reran that case and then the full 46-case suite.
 No runtime failure or partial run was relabelled as a pass.
+
+Independent PR #10 review on `2f5241ef6bc25df14dfca649e0a115d5c0331595`
+reported P2: a detached leg ID or a 129th unresolved leg could accept a
+reservation even though forwarding was impossible. The controller now exposes
+a read-only eligibility check backed by the same private validation used by
+forward. Reservation and recipient review use it before accepting funds or
+prompting a signature. It covers the active bound, all historical IDs,
+sequence/revision/identity/authority, recipient/nonce/deadline, ownership and
+explicit payment profile. Seller and signature authorization remain in forward;
+eligibility is neither authorization nor a promise against subsequent races.
+Two real-EVM regressions prove refusal leaves principal and nonce unchanged,
+recipient review cannot prompt, a fresh ID is still accepted, and detaching one
+head frees a reservable slot. Authority drift before reservation is also refused.
+Fresh independent retest of the repair is pending; the review is not an approval.
 Five added EVM tests exercise unpaid forward, wrong payer/amount/terms/adapter,
 digest replacement, replay, original-recipient refund, expiry/closure,
 authority drift, transaction rollback and completed-buyer exit before payout.

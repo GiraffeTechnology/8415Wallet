@@ -67,6 +67,10 @@ contract NativeResponsibilityPayments {
             s.token != c.token || s.tokenId != c.tokenId || s.currentAccount != c.fromAccount ||
             !controller.registeredAccount(c.toAccount) || c.toAccount == c.fromAccount ||
             block.timestamp > c.deadline || controller.inheritedHash(c.sequenceId) != c.inheritedHash) revert InvalidPayment();
+        // Use the controller's same eligibility checks, including its active
+        // window, all historical leg IDs, authority, identity and token position.
+        // Never take a reservation for a consent already impossible to forward.
+        if (!controller.checkForwardEligibility(c)) revert InvalidPayment();
         address payer = ControlledWallet(c.toAccount).owner();
         address payee = ControlledWallet(c.fromAccount).owner();
         if (msg.sender != payer) revert Unauthorized();

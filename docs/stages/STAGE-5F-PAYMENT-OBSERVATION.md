@@ -27,12 +27,18 @@ surface is added. Original standalone and linked modes remain separate.
 
 - Node 24.19.0: complete 651/651 cases, 108 suites, 0 failures/skips.
 - TypeScript noEmit and browser emit: exit 0; browser JavaScript syntax: exit 0.
-- Local EVM: complete 47/47. Existing 46 remain; the new real-contract case
+- Local EVM: complete 49/49. Stage 5E's 48 remain; the new real-contract case
   observes no record, Reserved, Funded, detached-but-unallocated, SettlementDue,
   and Settled. The reader's provider explicitly refuses every write/sign method.
 - Fifteen new unit cases cover all seven adapter states, chain switch, reorg,
   historical code mismatch, missing block, bad quantity, malformed ABI, transport
   error, invalid IDs and unknown state. These are unit fixtures, not UI evidence.
+
+The initial Stage 5F batch was 651/47. After PR #10's independent P2 review,
+the shared forward/reservation/review eligibility repair was integrated and the
+entire batch rerun: 651 Node and 49 EVM, all passing, no skips. The two additional
+cases reject detached-ID and full-window reservations before accepting funds.
+No former count was reinterpreted as coverage of that later repair.
 
 CI and merging remain assigned to Claude Code. Independent exact-version review,
 genuine desktop/mobile wallet interactions and public V3 testnet receipts remain

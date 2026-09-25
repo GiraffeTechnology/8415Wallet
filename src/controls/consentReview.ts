@@ -1,10 +1,10 @@
-import { encodeCall, encodeWords } from '../codec/abi.ts';
+import { encodeCall, encodeWords, type StaticType } from '../codec/abi.ts';
 import { keccak256Utf8 } from '../codec/keccak.ts';
 import type { Eip1193Provider } from '../adapters/signing/eip1193Signer.ts';
 import { ResponsibilityControlClient, decodeControlWords, type ControlSnapshot } from './client.ts';
 import { address, callWords, uint } from './execution.ts';
 import { controlHex, forwardConsentDigest, hashControlBytes, requireControlAdapter as check, signForwardConsent,
-  validateForwardConsent, type ControlDeploymentPin, type ForwardConsent } from './authorization.ts';
+  validateForwardConsent, FORWARD_FIELDS, FORWARD_TUPLE, forwardConsentValues, type ControlDeploymentPin, type ForwardConsent } from './authorization.ts';
 
 export type TermsDocument =
   | { readonly scheme: 'utf8-keccak256'; readonly text: string }
@@ -79,6 +79,10 @@ export class ForwardConsentReview {
         encodeCall('nativePayments()', [], []), block))[0];
       check(adapter === consent.paymentAdapter.toLowerCase(), 'CONTROL_PAYMENT_ADAPTER_REFUSED');
     }
+    const eligible = decodeControlWords(['bool'], await callWords(this.#provider, pin.controller,
+      encodeCall(`checkForwardEligibility(${FORWARD_TUPLE})`, FORWARD_FIELDS.map(f => f.type) as readonly StaticType[],
+        forwardConsentValues(consent)), block))[0];
+    check(eligible === true, 'CONTROL_FORWARD_NOT_EXECUTABLE');
     return s;
   }
   async prepare(input: ForwardConsent, owner: string, documents: ForwardReviewDocuments): Promise<ForwardReview> {
