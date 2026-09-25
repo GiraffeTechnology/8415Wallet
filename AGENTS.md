@@ -9,11 +9,17 @@ It is NOT:
 
 - a generic NFT wallet;
 - an ERC-3643 wallet clone;
-- a token trading application;
+- a marketplace, order book or matching engine;
 - a replacement for ERC-8415 protocol semantics;
 - an adjudicator of legal title, entitlement or remedy.
 
 The wallet MUST consume ERC-8415 semantics, not redefine them.
+
+The product supports both standalone and linked use. v3.0 is an additive
+iteration on the original wallet: retain its readers, views, transaction path
+and legacy single-trade clearing. Linked mode adds the agreed responsibility
+chain in PRD §9; it must not make ArtFi, Oracle or another wallet mandatory for
+standalone use.
 
 ---
 
@@ -61,7 +67,9 @@ boundary: a mirror, not a tribunal. Four layers:
 
 The wallet **presents** layers two and three to a user, and **supports but
 never imposes** layer four. It states what is recorded and what is still
-open; the parties' own terms decide what to do about it.
+open; the parties' own terms decide what to do about it. Executing explicitly
+accepted release, conditional return and refund terms is permitted. A
+commercial obligation is application state, not new ERC state.
 
 ---
 
@@ -85,7 +93,7 @@ Instants are `uint64` seconds since the Unix epoch, on the same scale as
 `block.timestamp`. Formatted time is a display concern only; every query
 carries the integer.
 
-### The finality rule
+### The protocol temporal finality rule
 
 An instant is final if and only if it is at or after the first entry's
 `effectiveAt` and strictly before the latest entry's `effectiveAt`.
@@ -141,7 +149,7 @@ in question.
 
 ## Forbidden Inferences
 
-The wallet MUST NOT treat any of the following as finality:
+The wallet MUST NOT treat any of the following as ERC temporal finality:
 
 - `ownerOf` being equal to the confirmed holder;
 - confirmation depth, block age, or a `FRESH_FINAL` / `REORG_SAFE` freshness
@@ -192,7 +200,7 @@ The wallet MUST NOT:
 
 ## Vocabulary Discipline
 
-Use only protocol-defined terms in UI copy, code identifiers and docs:
+Use protocol-defined terms for protocol UI, model identifiers and docs:
 
 - open gap / closed gap;
 - provisional / final;
@@ -202,6 +210,9 @@ Use only protocol-defined terms in UI copy, code identifiers and docs:
 
 Do not use Pending / Confirmed / Rejected as state names. They are not
 protocol states and read as a rejection event the ERC does not define.
+Separately named application outcomes such as released/detached or
+returned/refunded are permitted for commercial obligations and must never be
+presented as ERC gap states.
 
 ---
 
@@ -242,7 +253,10 @@ register.
 
 Do not create protocol changes inside the wallet project.
 
-Do not introduce rollback, veto or override semantics. The wallet has no
+Do not introduce projection-history rollback, veto or override semantics.
+An application conditional return is a new authorized token transfer and may
+execute only accepted terms within the active responsibility boundary; it
+cannot erase history or cross a completed leg. The wallet has no
 write path into the projection: it does not admit entries, and it exposes
 `beginSettlement`, `finalizeSettlement` and `cancelSettlement` only as
 operations the user's own key performs against the contract, with the
@@ -265,6 +279,56 @@ Conformance is discovered, not assumed:
 
 ---
 
+
+## Linked-mode execution requirements (CP-01 resolved, 2026-09-25)
+
+1. v3.0 extends the original PRD; do not remove the standalone wallet or
+   relabel legacy single-trade escrow tests as linked-mode acceptance.
+2. Responsibility depends on condition/execution controls, NOT escrow. Keep
+   token transfers, admitted history and control-owned obligations distinct.
+   Payment is an optional separate adapter. An escrow record, amount or released
+   payment is never authority for acceptance, completion or return. The token
+   rests with the recipient wallet; no payment is required to model responsibility.
+3. A downstream recipient accepts executable, scoped conditions for its own
+   leg and every still-active upstream obligation. Demonstrate enforcement
+   across alternate transfer paths; a message or revocable allowance alone
+   is insufficient.
+4. For S→B, commercial completion requires BOTH verified owner and admitted
+   holder positions at B or later in the same token's accepted chain. Position
+   means a proved occurrence/leg index, never numeric address order. Bind the
+   observations to chain, asset, leg and accepted terms; refuse missing or
+   ambiguous evidence.
+5. Once the control confirms AB completion, detach AB permanently. If payment
+   exists, settle it separately to A once; payment failure must not revive AB.
+   For A→B→C→D with owner=D/holder=B, AB can complete without BC or CD.
+   With owner=D/holder=C, AB and BC can complete in prefix order. A later
+   callback cannot return the token across AB to A.
+6. Completion does not require owner==holder, either still being B, all
+   descendants completing, an extra confirming entry or a chosen historical
+   `isFinalAsOf=true`. Continue to display raw ERC final/provisional results;
+   commercial completion and protocol temporal finality are distinct.
+7. Only completed prefixes detach. Preserve history and the unresolved tail,
+   including concurrent tail extensions and repeated address occurrences.
+8. A control-authorized callback affects only active dependencies. For unresolved
+   AB, propagate B→C→D and return D→C→B→A. In funded scenarios, refund each
+   original payer after its required return using separate payment records.
+   If AB detached, BC's return boundary is B. No reactivated obligation is allowed.
+   Payment adapters must separately prevent substituted recipients, pooled
+   principal and double settlement/refund.
+9. Revalidate and serialize at execution; persist confirmed progress and
+   resume bounded hops after failure. Protocol delay, RPC failure or a
+   cancelled gap cannot invent an unaccepted callback condition.
+10. CP-01 is closed as a product decision by the rule above. Do not reopen it
+    using the superseded proposed completion profile. Implementation,
+    enforcement and W-01–W-21 evidence remain required.
+11. Develop responsibility controls as an independent module, not a wrapper
+    around escrow. The local kernel is an uncommitted proposal generator, not
+    verified consent or account enforcement. Its input facts are a trust boundary.
+    Do not connect it to signing/execution before authenticated atomic adapters,
+    alternate-path protection and independent security audit are complete.
+
+---
+
 ## Development Rules
 
 Every stage requires:
@@ -283,7 +347,7 @@ first entry.
 
 ## Completion Requirement
 
-The wallet is complete only when a user can see, for any token and any
+The standalone reading foundation is complete only when a user can see, for any token and any
 instant, and without conflating them:
 
 - the tradeable position and the confirmed holder, side by side;
@@ -293,3 +357,10 @@ instant, and without conflating them:
   registry reference;
 - what register this projects, under which verification profile, and who may
   move the answer.
+
+Full product delivery also requires independent standalone use and PRD §9's
+linked-mode W-01–W-21 scenarios, including real selected account enforcement,
+independent controls without escrow, optional funded flows, detachment,
+callback/refund, recovery, independent security audit and deployed UI evidence. Report
+baseline, local EVM, public-testnet and UI results separately; a documentation
+change or one completed leg is not full acceptance.

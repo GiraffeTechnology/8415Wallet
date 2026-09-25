@@ -14,6 +14,76 @@ documentation and evidence. Stages are defined in
 | 5 | Freshness annex and ecosystem integration | Delivered |
 | — | Usability pass: the write path, the application seam, audit export | Delivered |
 | — | PRD v2.1: requirements from the eth-magicians discussion | Delivered |
+| — | v3.0 linked sequence/CP-01 preview and independent control kernel | Local proposals tested; authenticated atomic enforcement, independent audit and W-01–W-21 acceptance remain open |
+
+## Independent escrow-free controls increment — 2026-09-25
+
+Owner clarification: responsibility depends on independent controls, not escrow.
+PRD/AGENTS/README now reflect this and require a version-bound independent
+security audit. Optional payment adapters cannot authorize or revive obligations.
+
+`src/controls/responsibility.ts` implements a pure transition kernel for exact
+inherited acceptance, prefix completion/detachment, authorized callback scope
+and one reverse hop per proposal. It has no escrow/payment, signer, storage or
+network dependency. Its result is explicitly `UNCOMMITTED_PROPOSAL`; structural
+consent/evidence checks are not signature/proof verification or account enforcement.
+
+Fresh local verification after the control-driven refactor (Windows, Node 24.19.0):
+
+- strict TypeScript check: exit 0;
+- linked read model: 58/58; independent kernel: 36/36 (94/94 combined);
+- full Node suite: 607/607, 107 suites, zero skipped;
+- local EVM: 14/14 existing escrow regressions (NOT control-enforcement tests);
+- existing reference CLI: exit 0;
+- patch whitespace check: clean.
+
+The full suite used a temporary `python3` alias to Python 3.12.14 with bytecode
+generation disabled; the alias was removed. No credentials, wallets or deployed
+contracts were touched. No public-chain transactions were sent.
+
+New local adversarial coverage: missing/substituted consent, omitted/reordered
+inherited obligations, cross-domain and stale revision/facts, callback/completion
+races, repeated accounts, reverse-hop order, completed-boundary refusal, shorter
+callback recovery, revision overflow and no optimistic commit on failed effects.
+The race/recovery tests are model tests, not concurrent on-chain execution.
+
+Implementation boundaries and unimplemented release gates are recorded in
+[LINKED-MODE-IMPLEMENTATION.md](LINKED-MODE-IMPLEMENTATION.md) and
+[RESPONSIBILITY-CONTROLS-SECURITY.md](RESPONSIBILITY-CONTROLS-SECURITY.md).
+Authentication, atomic account/token execution, durable receipt/reorg recovery,
+alternate-path protection, testnet/UI acceptance and independent audit remain open.
+This increment is not complete product delivery or a security-audit PASS.
+
+## Historical first code increment — 2026-09-25 (superseded model)
+
+The following counts describe the earlier payment-coupled read-model revision.
+The escrow-independent implementation and fresh counts above supersede it.
+
+`src/sdk/linked.ts`, `src/wallet/linkedChainView.ts` and
+`src/wallet/renderLinkedChain.ts` add an optional read-only public SDK surface.
+Standalone sessions and the legacy escrow remain unchanged. The trusted backend
+contract, supported records, CP-01 rules and remaining execution work are in
+[LINKED-MODE-IMPLEMENTATION.md](LINKED-MODE-IMPLEMENTATION.md).
+
+Executed on Windows, Node v24.19.0:
+
+- strict TypeScript check: exit 0;
+- linked increment: 59/59 tests;
+- full Node suite: 572/572 tests, 104 suites, zero skipped;
+- local EVM: 14/14 existing escrow tests; six Solidity files compiled;
+- existing reference CLI: exit 0;
+- patch whitespace check: clean.
+
+The first full-suite attempt found `python3` unavailable on Windows. A temporary
+command-name alias to the existing Python 3.12.14 runtime was used with its DLL
+search path and PYTHONHOME; the entire suite then ran from zero. No test was
+removed or skipped. Temporary executable aliases and generated Python 3.12
+bytecode were removed. Existing tracked Python 3.11 files were not changed.
+
+These are local model/baseline regression results, NOT linked-contract, public
+testnet, protected-recipient, payment-release, callback/refund or UI acceptance.
+The model deliberately produces no transactions. The earlier real Sepolia test
+remains evidence for its original candidate, not this v3.0 increment.
 
 ---
 

@@ -13,6 +13,16 @@
 // The application seam.
 export { WalletSession } from './wallet/session.ts';
 
+// Read-only linked responsibility preview. Separate from ERC state and signing.
+export type * from './sdk/linked.ts';
+export { buildLinkedChainView, readLinkedChainView, LinkedChainInputError } from './wallet/linkedChainView.ts';
+export type { LinkedChainView } from './wallet/linkedChainView.ts';
+export { renderLinkedChain } from './wallet/renderLinkedChain.ts';
+
+// Experimental escrow-independent kernel; proposals require authenticated atomic execution.
+export { prepareResponsibilityTransition, ResponsibilityControlError } from './controls/responsibility.ts';
+export type * from './controls/responsibility.ts';
+
 // Views.
 export { buildAssetView } from './wallet/assetView.ts';
 export type * from './wallet/assetView.ts';
