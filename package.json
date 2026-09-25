@@ -16,7 +16,9 @@
     "wallet:browser:build": "tsc -p tsconfig.browser.json",
     "wallet:browser:serve": "node scripts/controls/serve-browser.cjs",
     "wallet:controls:testnet": "node scripts/controls/public-testnet.cjs",
-    "test:evm": "hardhat test"
+    "test:evm": "hardhat test",
+    "pack:v2": "node scripts/package/build-v2.mjs",
+    "pack:v2:verify": "node scripts/package/verify-install.mjs"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^3.1.3",
@@ -30,7 +32,8 @@
     ".": "./src/index.ts",
     "./controls": "./src/controls/index.ts",
     "./controls/node-store": "./src/controls/fileOperationStore.ts",
-    "./browser": "./src/browser.ts"
+    "./browser": "./src/browser.ts",
+    "./v2": "./src/v2.ts"
   },
   "types": "./src/index.ts"
 }
