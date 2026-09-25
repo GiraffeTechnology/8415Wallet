@@ -32,7 +32,7 @@ did not perform those merges or waive its earlier PR #3 hold. Review repairs are
 being delivered separately and are not automatically merged. The increment adds
 independent responsibility contracts and a separately imported experimental
 SDK under `src/controls/index.ts`. The implementation pass is complete and its
-latest unified local validation has run: **636/636 Node tests, 46/46 EVM tests,
+latest unified local validation has run: **651/651 Node tests, 47/47 EVM tests,
 typecheck and browser build PASS**. This is **not independently audited or
 deployed as V3**. Original Sepolia receipts remain historical, not V3 acceptance.
 CI, independent review, genuine desktop/mobile UI and actual public-testnet
@@ -48,6 +48,10 @@ the current settlement authority is revalidated before a token moves. Unfunded
 responsibility, completion and conditional return remain independent of payment.
 This changes the experimental consent ABI; old control deployments/acceptances
 are not silently reused. See [Stage 5E](docs/stages/STAGE-5E-PAYMENT-RESERVATION.md).
+
+Stage 5F adds canonical-block, read-only payment lookup by leg ID, including
+unused reservations and payments whose responsibility leg has detached. It adds
+no signing or contract authority. See [Stage 5F](docs/stages/STAGE-5F-PAYMENT-OBSERVATION.md).
 
 ## Implemented
 

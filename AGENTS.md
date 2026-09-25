@@ -411,6 +411,11 @@ an old deployment. Optional payment never authorizes completion or return.
 Fresh integrated regression, independent security review and genuine public
 testnet/UI acceptance remain distinct gates.
 
+Stage 5F adds a read-only payment observation by leg ID for unused reservations
+and detached legs. Do not infer responsibility completion from payment state.
+Local totals are 651 Node / 47 EVM; genuine public-chain/UI acceptance and
+independent review remain separate. CI and merging stay with Claude Code.
+
 Every stage requires:
 
 - implementation;

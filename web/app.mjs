@@ -84,6 +84,12 @@ el('linked-tab').addEventListener('click', () => { el('standalone').hidden = tru
 document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => run(async () => {
   const s = selected(), kind = button.dataset.action;
   if (kind === 'account') { display(await s.accounts.account(actor)); return; }
+  if (kind === 'read-payment') {
+    if (!s.payments) fail('CONTROL_PAYMENT_NOT_CONFIGURED');
+    const observation = await s.payments.observe(bytes(value('sequenceId'), 32), bytes(value('legId'), 32));
+    if (s !== session) fail('CONTROL_CONNECTION_CHANGED');
+    display(observation); return;
+  }
   if (kind === 'read') {
     const observed = await s.reader.observe(bytes(value('sequenceId'), 32));
     const payments = [];

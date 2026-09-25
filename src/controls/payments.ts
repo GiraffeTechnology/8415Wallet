@@ -4,12 +4,15 @@ import { ResponsibilityControlClient, decodeControlWords } from './client.ts';
 import { controlHex, controlRpc, hashControlBytes, requireControlAdapter as check, verifyControlDeployment,
   FORWARD_FIELDS, FORWARD_TUPLE, forwardConsentValues, validateForwardConsent,
   type ForwardConsent, type ControlDeploymentPin } from './authorization.ts';
-import { callWords, uint, wordAddress, submitFixed, receiptFixed, type FixedSubmission, type FixedReceipt } from './execution.ts';
+import { callWords, uint, wordAddress, submitFixed, receiptFixed, rpcObject, rpcQuantity, type FixedSubmission, type FixedReceipt } from './execution.ts';
 
 const PAYMENT_STATES = ['unfunded', 'funded', 'settlement-due', 'refund-due', 'settled', 'refunded', 'reserved'] as const;
 const OUTCOME_NAMES = ['active', 'completed', 'returning', 'returned'] as const;
 export type PaymentSnapshot = { readonly sequenceId: string; readonly legId: string;
   readonly payer: string; readonly payee: string; readonly amount: bigint; readonly state: typeof PAYMENT_STATES[number] };
+export type PaymentObservation = { readonly blockNumber: bigint; readonly blockHash: string;
+  readonly timestamp: bigint; readonly payment: PaymentSnapshot; readonly readOnly: true;
+  readonly protocolFinality: 'not-evaluated' };
 
 /** Optional payment precondition for signed funded forwards, never authority for completion or return. */
 export class NativeResponsibilityPaymentClient {
@@ -41,6 +44,23 @@ export class NativeResponsibilityPaymentClient {
       encodeCall('payment(bytes32,bytes32)', ['bytes32', 'bytes32'], [sequenceId, legId])));
     const state = PAYMENT_STATES[Number(r[3])]; check(state !== undefined, 'CONTROL_PAYMENT_STATE_REFUSED');
     return { sequenceId, legId, payer: r[0] as string, payee: r[1] as string, amount: r[2] as bigint, state };
+  }
+  /** Read a reservation or detached leg's payment without requiring a live leg record.
+   * Every returned fact is pinned to one canonical block; this never submits,
+   * signs, allocates or infers commercial/protocol completion from payment state.
+   */
+  async observe(sequenceId: string, legId: string): Promise<PaymentObservation> {
+    check(controlHex(sequenceId, 32) && controlHex(legId, 32), 'CONTROL_PAYMENT_ID_REFUSED');
+    await this.#verify();
+    const header = rpcObject(await controlRpc(this.#provider, 'eth_getBlockByNumber', ['latest', false]));
+    check(controlHex(header.hash, 32), 'CONTROL_BLOCK_HASH_REFUSED');
+    const blockHash = header.hash.toLowerCase();
+    const blockNumber = rpcQuantity(header.number), timestamp = rpcQuantity(header.timestamp);
+    const payment = await this.readAt(sequenceId, legId, blockHash);
+    const current = rpcObject(await controlRpc(this.#provider, 'eth_getBlockByNumber', [`0x${blockNumber.toString(16)}`, false]));
+    check(typeof current.hash === 'string' && current.hash.toLowerCase() === blockHash, 'CONTROL_SNAPSHOT_REORGED');
+    await this.#verify();
+    return { blockNumber, blockHash, timestamp, payment, readOnly: true, protocolFinality: 'not-evaluated' };
   }
   /**
    * How the leg ended, asked of the controller by id.
