@@ -344,6 +344,13 @@ and run unified CI/testing before merging the stacked PRs in dependency order.
 Writing test cases and acceptance tooling is preparation, not execution.
 An inserted collaboration request or progress report never completes this task.
 
+Source-closure checkpoint: Stage 5C has now supplied contracts, authenticated
+adapters, consent/recovery UI and executable regression/deployment tooling. Once
+this stage's exact tree is published as its draft PR, begin the first unified
+validation batch; fix genuine findings without adding unrelated product scope.
+Source status is SOURCE_COMPLETE_PENDING_UNIFIED_VALIDATION, not release PASS.
+Keep PR #3's merge hold. No new V3 test or chain result exists at this checkpoint.
+
 After development is complete, validation MUST include actual public-testnet
 deployment and real transactions, in addition to local tests and independent
 security review. Historical Sepolia activity and earlier 607/607 Node + 14/14

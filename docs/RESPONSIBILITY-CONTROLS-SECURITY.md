@@ -8,8 +8,8 @@ approval status. See [development checkpoint](../CONTROL-DEVELOPMENT-STATUS.md)
 for the authority-backed occurrence/return profile, token proxy limitations,
 separate funding and unfinished integration. All new execution tests are
 deferred until development is complete by explicit user instruction.
-No production execution adapter is present. Do not deploy this SDK as a signer
-or interpret a proposal as permission. Earlier escrow audit/tests are not an
+Execution adapters now exist as untested development source; none is production
+approved. Do not interpret a proposal as permission. Earlier escrow audit/tests are not an
 audit of these controls. This file is an audit preparation artifact, not approval.
 
 ## Assets and attackers
@@ -36,10 +36,27 @@ and entitlement are outside its claims, even when owner and holder agree.
 | Unbounded sequence / overflow | 4,096-leg bound and uint256 revision exhaustion refusal | Measure gas/work limits for actual executor; no silent truncation |
 | Return followed by new forward loses history | Refuse forward after returned history | Audited new-sequence lifecycle retaining unresolved obligations |
 
-The kernel cannot defend against fabricated trusted state/facts or an executor
-that persists `next` before a transfer succeeds. These are explicit unimplemented
-security boundaries, not risks cured by a passing unit test. It accepts typed
-in-process inputs; untrusted transport schema parsing is not implemented here.
+The pure kernel cannot defend against fabricated trusted state/facts or an executor
+that persists `next` before a transfer succeeds. The new controller, strict RPC
+adapters, consent reviews and receipt-bound recovery now implement those boundaries
+as untested source; they are not validated by earlier kernel tests. Review their
+actual implementations and trust assumptions, not this preparation table alone.
+
+## Application and deployment additions to review
+
+- Persisted public intent before every provider send; wallet errors/timeouts can
+  still be uncertain. Lost-hash reconciliation must match exact transaction and
+  event fields, not merely a successful receipt belonging to the same account.
+- Browser origin/extension and authenticated provider remain trusted boundaries.
+  Web Locks serialize cooperating tabs; localStorage is not a custody store or
+  cryptographic authorization. File-store parent ACL and stale-lock recovery are
+  operational controls, not protection against an already compromised host.
+- UTF-8 committed terms and native-payment commitment schemas must display all
+  live inherited conditions; single-use review handles cannot be caller-forged.
+- Code hashes bind immutable code, not proxy implementation storage. Explicitly
+  reject unsupported deployment profiles during independent deployment review.
+- Test-only signer policy enforces chain and budgets, not legal entitlement. Test
+  proof validators are ephemeral fixtures, never production register authorities.
 
 ## Independent audit acceptance
 

@@ -1,6 +1,6 @@
 import { ResponsibilityWalletSession, ControlAdapterError, WalletSession, RpcErc8415Reader, Eip1193ReadTransport,
   renderAssetView, renderTemporalQuery, renderHistory, renderRegistration, renderAcquisitionDisclosure,
-  renderRiskSurfaces, renderPosture, renderSettlementLog, renderOwnershipHistory, verifyControlDeployment } from '../dist/browser/browser.js';
+  renderRiskSurfaces, renderPosture, renderSettlementLog, renderOwnershipHistory, verifyControlDeployment, controlRpc } from '../dist/browser/browser.js';
 import { BrowserPublicOperationStore } from './public-store.mjs';
 
 const el = id => document.getElementById(id);
@@ -47,10 +47,10 @@ el('connect').addEventListener('click', () => run(async () => {
     provider.on?.('accountsChanged', clearConnection);
     provider.on?.('chainChanged', () => { signed = null; clearConnection(); });
   }
-  const accounts = await provider.request({ method: 'eth_requestAccounts' });
+  const accounts = await controlRpc(provider, 'eth_requestAccounts', []);
   if (!Array.isArray(accounts) || !accounts[0]) fail('CONTROL_SIGNER_REFUSED');
   const connected = bytes(accounts[0], 20);
-  const chain = await provider.request({ method: 'eth_chainId' });
+  const chain = await controlRpc(provider, 'eth_chainId', []);
   if (typeof chain !== 'string' || !/^0x[0-9a-f]+$/i.test(chain) || BigInt(chain) !== deployment.chainId) fail('CONTROL_CHAIN_MISMATCH');
   actor = connected;
   await verifyControlDeployment(provider, deployment.token);
@@ -88,7 +88,7 @@ document.querySelectorAll('[data-action]').forEach(button => button.addEventList
     const observed = await s.reader.observe(bytes(value('sequenceId'), 32));
     const payments = [];
     if (s.payments) for (const leg of observed.snapshot.legs) payments.push(await s.payments.readAt(observed.snapshot.sequenceId, leg.id, observed.snapshot.blockHash));
-    const header = await provider.request({ method: 'eth_getBlockByNumber', params: [`0x${observed.snapshot.blockNumber.toString(16)}`, false] });
+    const header = await controlRpc(provider, 'eth_getBlockByNumber', [`0x${observed.snapshot.blockNumber.toString(16)}`, false]);
     if (header?.hash?.toLowerCase() !== observed.snapshot.blockHash) fail('CONTROL_SNAPSHOT_REORGED');
     display({ responsibility: observed.snapshot, projection: observed.projection, occurrenceEvidence: observed.evidence,
       payments: s.payments ? payments : 'not configured — responsibility remains independent', readOnly: true }); return;

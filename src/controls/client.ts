@@ -39,6 +39,7 @@ export type ControlSnapshot = {
 export type ControlSubmission = {
   readonly schema: '8415-control-submission/1'; readonly deployment: ControlDeploymentPin;
   readonly kind: ControlAction['kind']; readonly transactionHash: Bytes32; readonly actor: Address;
+  readonly nonce: bigint;
   readonly calldataHash: Bytes32; readonly sequenceId: Bytes32 | null; readonly legId: Bytes32 | null;
   readonly expectedRevision: bigint | null; readonly acceptanceHash: Bytes32 | null;
 };
@@ -181,14 +182,15 @@ export class ResponsibilityControlClient {
     const simulated = await controlRpc(this.#provider, 'eth_call', [tx, 'latest']);
     requireValue(controlHex(simulated), 'CONTROL_PREFLIGHT_RESPONSE_REFUSED');
     await verifyControlDeployment(this.#provider, this.deployment); await accounts();
+    const nonce = quantity(await controlRpc(this.#provider, 'eth_getTransactionCount', [actor, 'pending']));
     const template: ControlSubmission = { schema: '8415-control-submission/1', deployment: { ...this.deployment }, kind: fixed.kind,
-      transactionHash: `0x${'0'.repeat(64)}`, actor: actor.toLowerCase(), calldataHash: hashControlBytes(data),
+      transactionHash: `0x${'0'.repeat(64)}`, actor: actor.toLowerCase(), nonce, calldataHash: hashControlBytes(data),
       sequenceId: fixed.kind === 'forward' ? fixed.consent.sequenceId : 'sequenceId' in fixed ? fixed.sequenceId : null,
       legId: fixed.kind === 'forward' ? fixed.consent.legId : fixed.kind === 'return-hop' ? fixed.legId : fixed.kind === 'begin-return' ? fixed.rootLegId : null,
       expectedRevision: fixed.kind === 'forward' ? fixed.consent.expectedRevision : 'expectedRevision' in fixed ? fixed.expectedRevision : null,
       acceptanceHash: fixed.kind === 'forward' ? forwardConsentDigest(this.deployment, fixed.consent) : null };
-    if (this.#beforeSend) await this.#beforeSend(template);
-    const hash = await controlRpc(this.#provider, 'eth_sendTransaction', [tx]);
+    if (this.#beforeSend) await this.#beforeSend(structuredClone(template));
+    const hash = await controlRpc(this.#provider, 'eth_sendTransaction', [{ ...tx, nonce: `0x${nonce.toString(16)}` }]);
     requireValue(controlHex(hash, 32), 'CONTROL_TRANSACTION_HASH_REFUSED');
     return { ...template, transactionHash: hash.toLowerCase() };
   }
@@ -221,7 +223,7 @@ export class ResponsibilityControlClient {
       typeof transaction.hash === 'string' && transaction.hash.toLowerCase() === record.transactionHash &&
       typeof transaction.blockHash === 'string' && transaction.blockHash.toLowerCase() === blockHash &&
       quantity(transaction.blockNumber) === number && quantity(transaction.chainId) === this.deployment.chainId &&
-      quantity(transaction.value) === 0n &&
+      quantity(transaction.value) === 0n && quantity(transaction.nonce) === record.nonce &&
       typeof transaction.from === 'string' && transaction.from.toLowerCase() === record.actor &&
       typeof transaction.to === 'string' && transaction.to.toLowerCase() === this.deployment.controller.toLowerCase(), 'CONTROL_TRANSACTION_BINDING_REFUSED');
     const head = quantity(await controlRpc(this.#provider, 'eth_blockNumber', []));
@@ -278,7 +280,7 @@ export class ResponsibilityControlClient {
 export function serializeControlSubmission(record: ControlSubmission): string {
   return JSON.stringify({ schema: record.schema, deployment: { chainId: record.deployment.chainId.toString(),
     controller: record.deployment.controller, runtimeCodeHash: record.deployment.runtimeCodeHash },
-    kind: record.kind, transactionHash: record.transactionHash, actor: record.actor, calldataHash: record.calldataHash,
+    kind: record.kind, transactionHash: record.transactionHash, actor: record.actor, nonce: record.nonce.toString(), calldataHash: record.calldataHash,
     sequenceId: record.sequenceId, legId: record.legId,
     expectedRevision: record.expectedRevision?.toString() ?? null, acceptanceHash: record.acceptanceHash });
 }
@@ -289,7 +291,7 @@ export function parseControlSubmission(json: string): ControlSubmission {
   let parsed: unknown;
   try { parsed = JSON.parse(json); } catch { throw new Error('CONTROL_JOURNAL_JSON_REFUSED'); }
   const r = object(parsed);
-  const keys = ['schema', 'deployment', 'kind', 'transactionHash', 'actor', 'calldataHash',
+  const keys = ['schema', 'deployment', 'kind', 'transactionHash', 'actor', 'nonce', 'calldataHash',
     'sequenceId', 'legId', 'expectedRevision', 'acceptanceHash'];
   requireValue(Object.keys(r).length === keys.length && keys.every(k => Object.hasOwn(r, k)) &&
     r.schema === '8415-control-submission/1' && typeof r.kind === 'string' && Object.hasOwn(EVENTS, r.kind),
@@ -313,7 +315,7 @@ export function parseControlSubmission(json: string): ControlSubmission {
   requireValue((r.sequenceId !== null) === sequenced && (r.expectedRevision !== null) === sequenced &&
     (r.legId !== null) === legged && (r.acceptanceHash !== null) === (kind === 'forward'), 'CONTROL_JOURNAL_ACTION_REFUSED');
   return Object.freeze({ schema: '8415-control-submission/1', deployment: Object.freeze(deployment), kind,
-    transactionHash: hex(r.transactionHash, 32), actor: hex(r.actor, 20), calldataHash: hex(r.calldataHash, 32),
+    transactionHash: hex(r.transactionHash, 32), actor: hex(r.actor, 20), nonce: decimal(r.nonce), calldataHash: hex(r.calldataHash, 32),
     sequenceId: sequenced ? hex(r.sequenceId, 32) : null, expectedRevision: sequenced ? decimal(r.expectedRevision) : null,
     legId: legged ? hex(r.legId, 32) : null, acceptanceHash: kind === 'forward' ? hex(r.acceptanceHash, 32) : null });
 }

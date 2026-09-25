@@ -14,6 +14,8 @@
     "verify": "npm run typecheck && npm test && npm run test:evm",
     "wallet": "node src/cli/main.ts",
     "wallet:browser:build": "tsc -p tsconfig.browser.json",
+    "wallet:browser:serve": "node scripts/controls/serve-browser.cjs",
+    "wallet:controls:testnet": "node scripts/controls/public-testnet.cjs",
     "test:evm": "hardhat test"
   },
   "devDependencies": {
@@ -25,7 +27,10 @@
     "typescript": "^5.9.0"
   },
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./controls": "./src/controls/index.ts",
+    "./controls/node-store": "./src/controls/fileOperationStore.ts",
+    "./browser": "./src/browser.ts"
   },
   "types": "./src/index.ts"
 }
