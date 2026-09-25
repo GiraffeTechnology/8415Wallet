@@ -331,6 +331,26 @@ Conformance is discovered, not assumed:
 
 ## Development Rules
 
+### Current user-directed order (2026-09-25)
+
+PR #3 must remain unmerged. Complete all remaining independent-control development
+and integration before running the unified validation batch. During this development
+phase do not run unit/EVM/chain tests, deployment or typecheck/build verification.
+The subsequent user instruction requires a new draft PR for each stage: publish
+stage branches with `[skip ci]` in each development HEAD commit, after checking
+that CI only uses push/pull_request events. Do not disable or weaken workflows.
+After all development is complete, publish fresh commits without skip directives
+and run unified CI/testing before merging the stacked PRs in dependency order.
+Writing test cases and acceptance tooling is preparation, not execution.
+An inserted collaboration request or progress report never completes this task.
+
+After development is complete, validation MUST include actual public-testnet
+deployment and real transactions, in addition to local tests and independent
+security review. Historical Sepolia activity and earlier 607/607 Node + 14/14
+legacy EVM results do not validate new control code. Label the current source
+`IMPLEMENTATION_IN_PROGRESS / UNTESTED`; do not invent results or declare all
+development complete from the presence of source files.
+
 Every stage requires:
 
 - implementation;

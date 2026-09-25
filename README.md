@@ -27,6 +27,14 @@ settlement-aware wallet, Kit components, external-provider signing and legacy
 single-trade clearing. The v3.0 linked-wallet requirements below are an
 additive development target; this documentation does not claim their delivery.
 
+PR #3 remains **unmerged**. The current local development increment adds
+independent responsibility contracts and a separately imported experimental
+SDK under `src/controls/index.ts`; it is **uncompiled, untested and undeployed**.
+Per the user's latest order, finish development/integration first, then run one
+unified validation campaign including actual public-testnet deployments and
+transactions. No new CI, local-test or public-chain PASS is claimed.
+See [development order and remaining work](CONTROL-DEVELOPMENT-STATUS.md).
+
 ## Implemented
 
 ### ERC-8415 reading and interpretation

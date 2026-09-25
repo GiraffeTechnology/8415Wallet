@@ -1,6 +1,13 @@
 # Responsibility controls — threat model and audit gate
 
-Status: **EXPERIMENTAL_LOCAL_KERNEL / NOT_INDEPENDENTLY_AUDITED**.
+Status: **EXPERIMENTAL_IMPLEMENTATION_IN_PROGRESS / NOT_INDEPENDENTLY_AUDITED**.
+
+Local development now includes untested account/controller/payment contracts
+and consent/receipt/view adapters. This changes the review surface, not the
+approval status. See [development checkpoint](../CONTROL-DEVELOPMENT-STATUS.md)
+for the authority-backed occurrence/return profile, token proxy limitations,
+separate funding and unfinished integration. All new execution tests are
+deferred until development is complete by explicit user instruction.
 No production execution adapter is present. Do not deploy this SDK as a signer
 or interpret a proposal as permission. Earlier escrow audit/tests are not an
 audit of these controls. This file is an audit preparation artifact, not approval.
