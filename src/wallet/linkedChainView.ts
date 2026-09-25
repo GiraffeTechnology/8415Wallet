@@ -21,6 +21,10 @@ export type LinkedChainView = {
   readonly evidenceStatus: 'bound' | 'unavailable' | 'ambiguous';
   readonly protocolFinality: boolean | null;
   readonly detachedLegIds: readonly Bytes32[];
+  /** Detached legs this snapshot does not carry; ask the register for them. */
+  readonly offChainDetached: bigint;
+  /** Commitment covering those, or null when none are missing. */
+  readonly detachedCommitment: Bytes32 | null;
   /** Predicate-satisfying active prefix only. NOT executed obligation completion or authorization. */
   readonly completionPrefix: readonly Bytes32[];
   readonly legs: readonly (LinkedLeg & {
@@ -187,6 +191,8 @@ export function buildLinkedChainView(
     evidenceStatus: evidence.kind,
     protocolFinality,
     detachedLegIds: snapshot.legs.slice(0, detachedCount).map(leg => leg.id),
+    offChainDetached: snapshot.offChainDetached ?? 0n,
+    detachedCommitment: snapshot.detachedCommitment ?? null,
     completionPrefix,
     legs,
     returnBoundary: lastDetached === undefined

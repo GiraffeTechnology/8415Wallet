@@ -75,8 +75,13 @@ export class NativeResponsibilityPaymentClient {
   async fund(sequenceId: string, legIndex: bigint, payer: string, amount: bigint): Promise<FixedSubmission> {
     uint(legIndex); uint(amount, true); await this.#verify();
     const snapshot = await this.#control.snapshot(sequenceId);
-    check(legIndex < BigInt(snapshot.legs.length), 'CONTROL_LEG_INDEX_REFUSED');
-    const leg = snapshot.legs[Number(legIndex)]!;
+    // legIndex is an absolute occurrence, which is what the contract indexes by;
+    // the snapshot carries only the window. Reading it window-relative would
+    // check the terms and payer of one leg and fund a different one.
+    const within = legIndex - snapshot.firstOccurrence;
+    check(legIndex >= snapshot.firstOccurrence && within < BigInt(snapshot.legs.length),
+      'CONTROL_LEG_INDEX_REFUSED');
+    const leg = snapshot.legs[Number(within)]!;
     check(leg.outcome === 'active' && !snapshot.sequence.closed, 'CONTROL_PAYMENT_OUTCOME_REFUSED');
     const owner = async (account: string) => decodeControlWords(['address'], await callWords(this.#provider, account,
       encodeCall('owner()', [], [])))[0] as string;

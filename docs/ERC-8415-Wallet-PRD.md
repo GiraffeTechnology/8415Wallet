@@ -700,6 +700,28 @@ the token to — because that is where the window now starts and where a return
 stops. A register still lagging at the boundary can therefore bind its admission
 there.
 
+Three things MUST keep holding across that boundary, because detachment removes
+the state each of them used to rely on:
+
+- **leg ids stay unique for the life of the sequence.** A detached leg's index
+  lookup goes with it, so uniqueness MUST be enforced against the detachment
+  record as well. Otherwise a finished leg's id can be reused, the new and still
+  active leg reports as terminated, and an attached payment pays out on it.
+- **a snapshot is anchored where the chain it describes starts** — the boundary,
+  not the sequence's original opening account, once a prefix has detached. A
+  snapshot anchored at an account whose leg is gone names a predecessor that is
+  not there, and a consumer rejects the whole thing: a chain with a detached
+  prefix and a live tail is the ordinary steady state, and it MUST render.
+- **an occurrence number means the same thing everywhere.** Occurrences are
+  absolute; a window is a slice of them. Any caller holding an absolute
+  occurrence MUST translate before indexing a window, or it validates one leg and
+  acts on another.
+
+The view MUST report how many legs are held off chain, separately from any the
+snapshot carries itself. Reporting only the latter says nothing detached about a
+chain that has detached hundreds, and leaves a holder with no reason to ask the
+register anything.
+
 The 129th *unresolved* leg is refused, which is a real operating limit: it means
 128 legs are awaiting registration at the same instant. At the illustrative
 cadence in §9.7 (a trade every 30 seconds against a 180-second serial registrar)
@@ -842,6 +864,7 @@ testnet and desktop/mobile journey. Preserve completed foundation work.
 | W-21 | The same responsibility control works with no escrow/payment adapter: accepted forwarding, CP-01 completion, detachment and scoped return remain valid; attaching payment does not become the authority for responsibility. |
 | W-22 | A chain trading past the active window keeps forwarding as completed prefixes detach: occurrence numbering exceeds the window, the 129th *unresolved* leg is refused, detaching one head frees exactly one slot, inherited conditions still bind after detachment, and per-forward gas does not grow with how much the token has already traded. |
 | W-23 | A completed leg is not carried on chain: reading it reports that it detached rather than returning an empty record, its detachment log carries the whole record for the register, the on-chain commitment covers it in order, it cannot be named again as a completion target or return boundary, and an attached payment still settles from the terminal fact after the leg has gone. |
+| W-24 | Detachment does not break what reads across it: a detached leg's id cannot be reused by a new leg; a chain with a detached prefix AND a live tail still reads and renders, anchored at the boundary; funding by absolute occurrence reads the leg it funds rather than a window-relative one; and the view states how many legs are held off chain rather than reporting none detached. |
 
 Reuse the illustrative 30-second transfer / 180-second independent registrar
 cadence where useful, recording actual times. No local time jump is real

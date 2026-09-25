@@ -299,8 +299,14 @@ contract ResponsibilityController {
         if (s.callbackRootPlusOne != 0) revert CallbackActive();
         if (s.cursor != s.appended) revert SequenceRestartRequired();
         // The window is the unresolved tail, never the whole history.
+        // A detached leg's index lookup is gone, so the uniqueness check has to
+        // consult the detachment flag too. Without it a finished leg's id could be
+        // reused by a new one, and legTerminalOutcome would then report that new,
+        // still-active leg as Completed - which is what an attached payment pays
+        // out on.
         if (s.cursor - s.completedCount >= MAX_ACTIVE_LEGS ||
             c.legId == bytes32(0) || _legIndexPlusOne[c.sequenceId][c.legId] != 0 ||
+            _detachedLeg[c.sequenceId][c.legId] ||
             c.termsHash == bytes32(0) || c.returnAuthority == address(0) || c.returnConditionHash == bytes32(0)) revert InvalidInput();
         if (c.token != s.token || c.tokenId != s.tokenId || c.fromAccount != s.currentAccount ||
             c.evidenceAuthority != s.evidenceAuthority) revert InvalidInput();

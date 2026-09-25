@@ -40,9 +40,20 @@ export class RpcResponsibilityControlReader implements LinkedControlReader {
       [keccak256Utf8('8415Wallet/Occurrence/v1'), sequenceId, index]));
     const controlId = hashControlBytes(encodeWords(['uint256', 'address', 'bytes32'], [pin.chainId, pin.controller, sequenceId]));
     const asset = { chainId: pin.chainId, contract: s.token, tokenId: s.tokenId };
+    // The snapshot describes the chain the contract still carries, so it is
+    // anchored where that chain starts: the boundary, i.e. whoever the last
+    // detached leg handed the token to. Anchoring it at the sequence's original
+    // opening account instead would describe a first leg that is no longer there,
+    // and every consumer would reject the snapshot for a broken predecessor.
+    // With nothing detached the boundary IS the opening account, unchanged.
+    const boundaryHolder = observed.legs[0]?.fromAccount ?? s.currentAccount;
     const snapshot: LinkedChainSnapshot = { asset, sequenceId, revision: s.revision,
-      blockNumber: observed.blockNumber, blockHash: observed.blockHash, initialOccurrenceId: occurrence(0n),
-      initialHolder: s.initialAccount, legs: observed.legs.map((leg, i) => ({ id: leg.id,
+      blockNumber: observed.blockNumber, blockHash: observed.blockHash,
+      initialOccurrenceId: occurrence(observed.firstOccurrence),
+      initialHolder: observed.firstOccurrence === 0n ? s.initialAccount : boundaryHolder,
+      offChainDetached: observed.firstOccurrence,
+      detachedCommitment: observed.sequence.detachedCommitment,
+      legs: observed.legs.map((leg, i) => ({ id: leg.id,
         // The leg before the window has detached, so on chain it has no
         // predecessor to name. Its record is at the register.
         predecessorId: i === 0 ? null : observed.legs[i - 1]!.id,

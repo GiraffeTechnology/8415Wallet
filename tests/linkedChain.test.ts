@@ -232,7 +232,10 @@ describe('public read-only integration seam', () => {
     assert.match(text, /ERC temporal finality: provisional/);
     assert.match(text, /Recorded outcome: active; completion predicate: satisfied/);
     assert.match(text, /Predicate-satisfying prefix \(not executed\): 1/);
-    assert.match(text, /Detached history: 0/);
+    assert.match(text, /Detached history in this snapshot: 0/);
+    // A snapshot that accounts for every leg itself says nothing about the
+    // register, because there is nothing there to ask for.
+    assert.doesNotMatch(text, /held off chain/);
     assert(text.includes(snapshot.asset.tokenId.toString()));
     assert(text.includes(snapshot.blockHash));
     assert.notEqual(view.asset, snapshot.asset);
