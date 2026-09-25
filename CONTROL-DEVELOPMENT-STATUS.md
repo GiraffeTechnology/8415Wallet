@@ -13,9 +13,16 @@ CI scheduling as a substitute for development or change runner configuration.
 
 ## Latest actual validation
 
-Latest integrated Stage 5H plus archive-review repair: 692/692 Node, 51/51 EVM, typecheck and
+Latest integrated Stage 5I local batch: 693/693 Node, 53/53 EVM, typecheck and
 browser emit pass. See Stage 5G/5H reports for the new archive verifier and the
 reproduced pruned-origin SDK crash. Older counts below are historical batches.
+
+Stage 5I now calls existing SDK views, archive verification and payment reads in
+both real-EVM core journeys. Three actual read-only observations per journey
+are required, with separate canonical block identities and no UI PASS claim.
+PR #14 head 836ac94314e9639e7257a281e744d75acc236907 and PR #15 head
+ba996c38a915ef46d6cffe9a42eca2feedd93c29 independently received no-major-issues
+reviews. This does not audit or accept the newer Stage 5I tree.
 
 2026-09-26: V3 is the exclusive active development priority; unrelated inserts
 are not accepted before delivery. Stage 5F review 4106073328 was reproduced by

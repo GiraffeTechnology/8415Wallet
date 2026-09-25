@@ -20,12 +20,17 @@ or authorization to merge further work follows from that remote state.
 
 ## Exact review surface
 
-Latest Stage 5H plus archive-review repair: 692/692 Node, 51/51 local EVM,
-typecheck/browser emit pass. Stage 5H before this repair had 686/51;
+Latest Stage 5I: 693/693 Node, 53/53 local EVM, typecheck/browser emit pass.
+The Stage 5H archive-review repair had 692/51; Stage 5H before it had 686/51;
 Stage 5F canonicality repair had 656/49; Stage 5G had 686/50. Preserve
 these as distinct batches. Add `detachedHistory.ts`'s strict public import and
 chain-anchored fold, caller-method-free indexed copying, browser import, and
 pruned-origin read handling to review.
+
+Stage 5I also binds the actual SDK observers to the shared local/public-testnet
+journey. The resulting read-only/text-render journal is not browser evidence.
+The latest code-review outcomes on PR #14/#15 report no major issues on their
+exact reviewed heads; a fresh review of Stage 5I remains separate.
 
 - Four independent contracts in `contracts/controls/`; the controller has no
   funds and never writes projection history. Token accounts enforce protected

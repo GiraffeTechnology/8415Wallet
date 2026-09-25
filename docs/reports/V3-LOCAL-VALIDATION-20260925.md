@@ -5,6 +5,12 @@ Date: 2026-09-25. Verdict: **IMPLEMENTED_LOCAL_VALIDATION_PASS**.
 
 ## Latest integrated repair batch (2026-09-26)
 
+Stage 5I subsequently passed 693/693 Node (108 suites), 53/53 local EVM,
+typecheck, browser emit and script syntax. Its four targeted EVM cases prove
+actual SDK observations in both core journeys and reject corrupt archives/code
+substitution. See `docs/stages/STAGE-5I-JOURNEY-OBSERVATIONS.md`. This newest
+batch is local; it does not perform or replace CI, chain or browser acceptance.
+
 Stage 5H plus the Stage 5G caller-owned mapper repair: Node 692/692 (108 suites),
 local EVM 51/51, TypeScript noEmit/browser emit and browser JS syntax pass.
 Six new archive regressions failed before the indexed-copy repair, then all

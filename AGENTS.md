@@ -429,10 +429,14 @@ history verification as transaction authority or ERC temporal finality.
 
 Stage 5H preserves raw origin-holder projection observations after prefix
 detachment without manufacturing a completion proof outside the live window.
-Latest integrated local results after archive-review repair: 692 Node / 51 EVM,
+Latest integrated Stage 5I local results: 693 Node / 53 EVM,
 typecheck/browser emit pass. Import records by validated indexed copy, never
 input-controlled map/iterator/species. The prior 651/49, 656/49, 686/50 and 686/51
-batches are historical and not current counts.
+batches, plus the archive repair's 692/51, are historical and not current counts.
+Stage 5I's shared local/testnet journey calls the actual SDK view, archive and
+payment observers at three phases. Text-render evidence is never genuine UI
+evidence. Claude Code alone handles CI execution and merging; stage publication
+does not authorize this task to dispatch workflows or merge PRs.
 
 Every stage requires:
 
