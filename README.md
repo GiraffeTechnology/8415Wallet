@@ -1,5 +1,12 @@
 # 8415Wallet
 
+Current Stage 5F repair baseline (2026-09-26): **656/656 Node, 49/49 local EVM**,
+typecheck and browser emit pass, at code head `bf9ff8451b2d5d5f37c0109ab821467df5782e5a`.
+The 651-case figures below are the pre-repair batch, not the latest result.
+These are local development results, not CI, independent audit, public-testnet
+or genuine desktop/mobile acceptance. CI and merging remain with Claude Code.
+
+
 A reference wallet and client for [ERC-8415 — Asynchronous Register Projection for NFTs](https://github.com/GiraffeTechnology/ERC-8415).
 
 ERC-8415 projects an off-chain register onto an ERC-721 token so that a past instant can resolve to a confirmed holder while the tradeable blockchain position may already have changed. 8415Wallet is designed to expose this distinction to users and applications.

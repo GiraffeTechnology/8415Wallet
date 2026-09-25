@@ -595,6 +595,14 @@ token and any instant:
    that it is not a failure, that waiting is the action, and where the remedy
    lies if the commitment window passes.
 
+**Closed on 2026-09-25.** All seven conditions are met, with a named passing test
+against each, in `docs/V2-CLOSEOUT.md`. That record also states the one thing V2
+does not show: the 2026-09-19 Sepolia run's register was the two counterparties,
+so it demonstrated a projection being written rather than one lagging behind a
+market, and `docs/issues/001-asynchronous-registrar-on-chain.md` — the same shape
+with an independent registrar on a real chain — is still open and has never run.
+V2 is closed with that gap named, not closed clean.
+
 ---
 
 

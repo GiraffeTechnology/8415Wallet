@@ -1,5 +1,12 @@
 # Independent controls — development checkpoint, 2026-09-25
 
+Current Stage 5F repair baseline (2026-09-26): **656/656 Node, 49/49 local EVM**,
+typecheck and browser emit pass, at code head `bf9ff8451b2d5d5f37c0109ab821467df5782e5a`.
+The 651-case figures below are the pre-repair batch, not the latest result.
+These are local development results, not CI, independent audit, public-testnet
+or genuine desktop/mobile acceptance. CI and merging remain with Claude Code.
+
+
 Status: **IMPLEMENTED_LOCAL_VALIDATION_PASS / NOT_INDEPENDENTLY_AUDITED / NOT_RELEASE_READY**.
 PR #3, and the four stages stacked on it, merged into `main` on 2026-09-25
 after the first unified validation batch. This record is not an acceptance
@@ -11,7 +18,7 @@ Latest user assignment: **Claude Code owns CI and merging**. This task keeps
 developing V3, resolving findings and delivering stage PRs. It must not wait for
 CI scheduling as a substitute for development or change runner configuration.
 
-## Latest actual validation
+## Validation batches (historical and repaired)
 
 Latest integrated Stage 5H plus archive-review repair: 692/692 Node, 51/51 EVM, typecheck and
 browser emit pass. See Stage 5G/5H reports for the new archive verifier and the
