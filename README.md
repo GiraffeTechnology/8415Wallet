@@ -286,10 +286,11 @@ The ERC specification remains the source of truth.
 
 ## Development
 
-V3 development order is currently **all implementation first, unified tests/CI
-and actual public-testnet deployment afterwards**. Do not run the validation
-commands below early or treat a draft stage PR as accepted delivery. PR #3
-remains unmerged. Stage 5B now contains an additive browser workflow in `web/`
+V3 is the exclusive active development priority until delivery. Development
+regressions continue after demonstrated repairs; **Claude Code owns CI and PR
+merging**. Do not treat a stage PR or a progress report as release acceptance.
+PRs #3-#9 have merged; PRs #10/#11 cover later development and review repairs.
+Stage 5B contains an additive browser workflow in `web/`
 and an experimental `src/browser.ts` entry, including standalone reads without
 a responsibility deployment. See
 [Stage 5B](docs/stages/STAGE-5B-WALLET-WORKFLOWS.md) for exact remaining gates.
@@ -297,6 +298,13 @@ The Stage 5C implementation pass is source-complete and the first local batch
 has passed after recorded repairs. Release validation remains incomplete. See
 [Stage 5C](docs/stages/STAGE-5C-VALIDATION-TOOLING.md) and the
 [review/validation handoff](docs/V3-REVIEW-AND-VALIDATION.md).
+
+Stage 5F's late-reorg repair has local 656 Node / 49 EVM evidence. The additive
+[Stage 5G](docs/stages/STAGE-5G-DETACHED-HISTORY.md) reads public detached-leg
+exports and checks the entire ordered prefix against the pinned chain commitment,
+not a register's claimed success. It adds no signing or transaction permissions.
+Independent review, new V3 public-testnet transactions and genuine desktop/mobile
+journeys remain distinct open gates; the previous Sepolia test is not relabelled.
 
 Node 22.18 or newer.
 

@@ -38,6 +38,10 @@
     <button data-action="read-payment">Read payment by leg ID (including detached or unused)</button>
     <button data-action="reserve-payment">Reserve accepted payment before forward</button><button data-action="cancel-reservation">Cancel unused reservation after nonce invalidation</button><button data-action="allocate">Allocate terminal payment</button><button data-action="payout">Withdraw due payment</button></div>
     <p>Amount and adapter come only from the reviewed consent. Reserve before switching to the seller for forwarding. After detachment, payment remains readable and withdrawable by leg ID; a missing payment record is not a completed responsibility.</p>
+    <h3>Detached responsibility history</h3>
+    <p>Load a public register export covering the full detached prefix. Every record must match the on-chain commitment; missing, changed or out-of-order records are refused. No registry locator is resolved. The 4 MiB file limit is a UI review budget, not a chain-lifetime limit.</p>
+    <label>Public detached-history JSON <input id="detached-history-file" type="file" accept="application/json,.json"></label>
+    <button data-action="read-detached-history">Verify and read detached history (read only)</button>
     <h3>Receive with informed acceptance</h3><p>Load only public consent and its exact terms documents. No signature is loaded from a file or shown in this page.</p>
     <label>Consent + disclosures JSON <input id="consent-file" type="file" accept="application/json,.json"></label>
     <button id="review">Prepare current review</button><pre id="terms">No review prepared</pre>
