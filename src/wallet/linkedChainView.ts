@@ -33,7 +33,13 @@ export type LinkedChainView = {
 };
 
 const UINT256_MAX = (1n << 256n) - 1n;
-const MAX_LEGS = 4096;
+/** The controller's active-leg window. Detached history does not count. */
+const MAX_ACTIVE_LEGS = 128;
+/**
+ * A guard on untrusted snapshots, not a protocol rule: retained history is
+ * uncapped on chain. A sequence that approaches this needs a paginated read.
+ */
+const MAX_JOURNAL_LEGS = 1_048_576;
 const NOTE = 'Read-only snapshot, not obligation completion or recall authorization. ' +
   'The condition/execution control must revalidate atomically and enforce accepted terms. ' +
   'Commercial completion is separate from ERC temporal finality and legal title.';
@@ -74,8 +80,13 @@ function validateSnapshot(snapshot: LinkedChainSnapshot): {
     uint(snapshot.blockNumber) && hash(snapshot.blockHash), 'LINKED_SNAPSHOT_INVALID');
   requireInput(hash(snapshot.initialOccurrenceId) && address(snapshot.initialHolder),
     'LINKED_INITIAL_OCCURRENCE_INVALID');
-  requireInput(Array.isArray(snapshot.legs) && snapshot.legs.length <= MAX_LEGS,
+  requireInput(Array.isArray(snapshot.legs) && snapshot.legs.length <= MAX_JOURNAL_LEGS,
     'LINKED_SEQUENCE_LIMIT');
+  // A snapshot carrying more unresolved legs than the controller's window could
+  // not have come from it, so it is refused rather than rendered.
+  requireInput(
+    snapshot.legs.filter(leg => leg.outcome === 'active').length <= MAX_ACTIVE_LEGS,
+    'LINKED_ACTIVE_SEQUENCE_LIMIT');
   const occurrences = new Map([[snapshot.initialOccurrenceId,
     { account: snapshot.initialHolder, position: 0 }]]);
   const legIds = new Set<Bytes32>();

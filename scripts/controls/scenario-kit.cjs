@@ -99,7 +99,12 @@ async function createScenario({ ethers, provider, signers, artifact, record = as
   async function admit(s,occurrence) {
     const previous=await projection.currentEntry(s.tokenId);
     const seq=await state(s);
-    const holder=occurrence===0 ? accounts[0] : (await controller.legAt(s.id,occurrence-1)).toAccount;
+    // A detached occurrence has no leg to read. The boundary is the one the chain
+    // still answers for, which is exactly the occurrence a lagging register binds.
+    const seqNow=await state(s);
+    const holder=occurrence===0 ? accounts[0]
+      : BigInt(occurrence)<=seqNow.completedCount ? await controller.boundaryAccount(s.id)
+      : (await controller.legAt(s.id,occurrence-1)).toAccount;
     const settlementId=uid('settlement'), snapshot=uid('snapshot'), commitment=uid('commitment'), reference=uid('registry-reference');
     const now=BigInt((await provider.getBlock('latest')).timestamp);
     const effectiveAt=now > previous.effectiveAt ? now : previous.effectiveAt+1n;
@@ -137,7 +142,7 @@ async function createScenario({ ethers, provider, signers, artifact, record = as
     assert.equal((await controller.legAt(s.id,seq.cursor-1n)).outcome,3n);
   }
   async function payout(s,index,ownerIndex,terminal) {
-    await transaction('allocate-payment',payments.allocate(s.id,index));
+    await transaction('allocate-payment',payments.allocate(s.id,s.legs[index]));
     await transaction('withdraw-payment',payments.connect(signers[ownerIndex]).withdraw(s.id,s.legs[index]));
     assert.equal((await payments.payment(s.id,s.legs[index])).state,terminal);
   }
@@ -162,20 +167,25 @@ async function runCoreJourney(k,{funded}) {
   assert.equal(await projection.holderAsOf(s.tokenId,BigInt((await k.provider.getBlock('latest')).timestamp)),k.accounts[0]);
   await k.refused('owner-only-cannot-complete',async()=>controller.completeThrough.staticCall(s.id,s.legs[0],(await k.state(s)).revision),controller,'CompletionEvidenceUnavailable');
   await k.refused('active-account-cannot-withdraw',()=>k.account(3).withdrawStandalone.staticCall(k.projectionAddress,s.tokenId,k.owners[3]),k.account(3),'ProtectedAsset');
-  if (funded) await k.refused('unresolved-tail-cannot-allocate',()=>payments.allocate.staticCall(s.id,2),payments,'OutcomeUnavailable');
+  if (funded) await k.refused('unresolved-tail-cannot-allocate',()=>payments.allocate.staticCall(s.id,s.legs[2]),payments,'OutcomeUnavailable');
   await k.admit(s,1); await k.complete(s,1);
   const now=BigInt((await k.provider.getBlock('latest')).timestamp);
   assert.equal(await projection.isFinalAsOf(s.tokenId,now),false,'COMMERCIAL_COMPLETION_IS_NOT_TEMPORAL_FINALITY');
   if (funded) await k.payout(s,0,0,4n);
   await k.beginReturn(s,2);
-  if (funded) await k.refused('request-without-return-cannot-refund',()=>payments.allocate.staticCall(s.id,2),payments,'OutcomeUnavailable');
+  if (funded) await k.refused('request-without-return-cannot-refund',()=>payments.allocate.staticCall(s.id,s.legs[2]),payments,'OutcomeUnavailable');
   const beforeHop=await k.state(s);
   await k.hop(s);
   if (funded) await k.payout(s,2,3,5n);
   await k.refused('duplicate-hop-revision',()=>controller.connect(k.signers[4]).returnHop.staticCall(s.id,s.legs[2],beforeHop.revision),controller,'RevisionMismatch');
   await k.hop(s); if (funded) await k.payout(s,1,2,5n);
   assert.equal(await projection.ownerOf(s.tokenId),k.accounts[1]);
-  assert.equal((await controller.legAt(s.id,0)).outcome,1n);
+  // Leg 0 completed and left the chain: its record is not readable here, only
+  // the fact that it ended and the commitment that now covers it.
+  await k.refused('detached-leg-not-on-chain',()=>controller.legAt.staticCall(s.id,0),controller,'LegAtRegister');
+  assert.equal(await controller.legTerminalOutcome(s.id,s.legs[0]),1n);
+  const gone=await controller.detached(s.id);
+  assert.equal(gone.count,1n); assert.notEqual(gone.commitment,'0x'+'00'.repeat(32));
   assert.equal((await k.state(s)).completedCount,1n);
   await k.refused('detached-head-cannot-return',async()=>controller.connect(k.signers[4]).beginReturn.staticCall(s.id,s.legs[0],k.conditionHash,k.uid('evidence'),(await k.state(s)).revision),controller,'ReturnBoundaryRefused');
   await k.admit(s,3);

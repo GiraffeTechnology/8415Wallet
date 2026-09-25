@@ -43,7 +43,10 @@ export class RpcResponsibilityControlReader implements LinkedControlReader {
     const snapshot: LinkedChainSnapshot = { asset, sequenceId, revision: s.revision,
       blockNumber: observed.blockNumber, blockHash: observed.blockHash, initialOccurrenceId: occurrence(0n),
       initialHolder: s.initialAccount, legs: observed.legs.map((leg, i) => ({ id: leg.id,
-        predecessorId: i === 0 ? null : observed.legs[i - 1]!.id, buyerOccurrenceId: occurrence(BigInt(i + 1)),
+        // The leg before the window has detached, so on chain it has no
+        // predecessor to name. Its record is at the register.
+        predecessorId: i === 0 ? null : observed.legs[i - 1]!.id,
+        buyerOccurrenceId: occurrence(observed.firstOccurrence + BigInt(i) + 1n),
         seller: leg.fromAccount, buyer: leg.toAccount, termsHash: leg.termsHash,
         control: { controlId, acceptanceHash: leg.acceptanceHash }, outcome: leg.outcome })) };
     const code = await controlRpc(this.#provider, 'eth_getCode', [s.token, block]);
@@ -68,8 +71,18 @@ export class RpcResponsibilityControlReader implements LinkedControlReader {
     let evidence: LinkedCompletionEvidence = { kind: 'unavailable' };
     if (binding[0] === true) {
       const index = binding[1] as bigint;
-      requireValue(index <= BigInt(observed.legs.length), 'CONTROL_OCCURRENCE_REFUSED');
-      const account = index === 0n ? s.initialAccount : observed.legs[Number(index - 1n)]!.toAccount;
+      // Occurrence 0 is the sequence's own initial account. Anything inside the
+      // window resolves from it; a detached occurrence does not resolve here at
+      // all, and is refused rather than guessed at.
+      requireValue(index === 0n || (index >= observed.firstOccurrence &&
+        index <= observed.firstOccurrence + BigInt(observed.legs.length)), 'CONTROL_OCCURRENCE_REFUSED');
+      // The boundary occurrence is the account the window starts from - the
+      // holder the last detached leg handed the token to. Beyond that the leg
+      // is at the register, so the binding is refused rather than guessed.
+      const boundary = observed.legs[0]?.fromAccount ?? s.currentAccount;
+      const account = index === 0n && observed.firstOccurrence === 0n ? s.initialAccount
+        : index === observed.firstOccurrence ? boundary
+        : observed.legs[Number(index - observed.firstOccurrence - 1n)]!.toAccount;
       const immutableHash = hashControlBytes(encodeWords(REGISTER_ENTRY_TYPES.slice(0, 6), entry.slice(0, 6)));
       requireValue(binding[2] === immutableHash && account === holder && entry[3] === holder, 'CONTROL_ADMISSION_BINDING_REFUSED');
       // After a closed sequence permits a standalone withdrawal, this is historical

@@ -23,7 +23,12 @@ export type OnchainControlSequence = {
   readonly token: Address; readonly tokenId: bigint; readonly initialAccount: Address;
   readonly currentAccount: Address; readonly evidenceAuthority: Address; readonly registerId: Bytes32;
   readonly verificationProfile: Bytes32; readonly tokenCodeHash: Bytes32; readonly revision: bigint;
-  readonly cursor: bigint; readonly completedCount: bigint; readonly callbackRootPlusOne: bigint; readonly closed: boolean;
+  readonly cursor: bigint; readonly completedCount: bigint; readonly callbackRootPlusOne: bigint;
+  /** Legs ever appended, detached ones included. Occurrences are absolute. */
+  readonly appended: bigint;
+  /** Folds every detached leg in order; what a register's copy checks against. */
+  readonly detachedCommitment: Bytes32;
+  readonly closed: boolean;
 };
 export type OnchainControlLeg = {
   readonly id: Bytes32; readonly fromAccount: Address; readonly toAccount: Address;
@@ -33,7 +38,15 @@ export type OnchainControlLeg = {
 export type ControlSnapshot = {
   readonly sequenceId: Bytes32; readonly blockNumber: bigint; readonly blockHash: Bytes32;
   readonly timestamp: bigint; readonly sequence: OnchainControlSequence;
-  readonly legs: readonly OnchainControlLeg[]; readonly inheritedHash: Bytes32;
+  /**
+   * The legs the chain still carries, oldest first. A completed leg detaches and
+   * is not here: ask the register for it, and check what it returns against
+   * `sequence.detachedCommitment`.
+   */
+  readonly legs: readonly OnchainControlLeg[];
+  /** Absolute occurrence of `legs[0]`, i.e. how many legs have detached. */
+  readonly firstOccurrence: bigint;
+  readonly inheritedHash: Bytes32;
 };
 /** Safe persistence surface: intentionally excludes calldata, consent signatures and RPC endpoints. */
 export type ControlSubmission = {
@@ -52,7 +65,7 @@ export type ControlReceipt = {
   readonly protocolFinality: 'not-evaluated';
 };
 const SEQUENCE_TYPES: readonly StaticType[] = ['address', 'uint256', 'address', 'address', 'address',
-  'bytes32', 'bytes32', 'bytes32', 'uint256', 'uint256', 'uint256', 'uint256', 'bool'];
+  'bytes32', 'bytes32', 'bytes32', 'uint256', 'uint256', 'uint256', 'uint256', 'uint256', 'bytes32', 'bool'];
 const LEG_TYPES: readonly StaticType[] = ['bytes32', 'address', 'address', 'bytes32', 'bytes32', 'address', 'bytes32', 'uint8'];
 const OUTCOMES = ['active', 'completed', 'returning', 'returned'] as const;
 const EVENTS: Record<ControlAction['kind'], string> = {
@@ -134,15 +147,20 @@ export class ResponsibilityControlClient {
       initialAccount: f[2] as string, currentAccount: f[3] as string, evidenceAuthority: f[4] as string,
       registerId: f[5] as string, verificationProfile: f[6] as string, tokenCodeHash: f[7] as string,
       revision: f[8] as bigint, cursor: f[9] as bigint, completedCount: f[10] as bigint,
-      callbackRootPlusOne: f[11] as bigint, closed: f[12] as boolean };
+      callbackRootPlusOne: f[11] as bigint, appended: f[12] as bigint,
+      detachedCommitment: f[13] as string, closed: f[14] as boolean };
     const count = (await read('legCount(bytes32)', ['bytes32'], [sequenceId], ['uint256']))[0] as bigint;
-    requireValue(count <= 128n && sequence.completedCount <= sequence.cursor && sequence.cursor <= count &&
+    // The window is bounded; retained history is not, because the chain does not
+    // retain it. A detached prefix lives at the register.
+    requireValue(sequence.cursor - sequence.completedCount <= 128n &&
+      sequence.appended === count && sequence.completedCount <= sequence.cursor && sequence.cursor <= count &&
       (sequence.callbackRootPlusOne === 0n || (sequence.callbackRootPlusOne > sequence.completedCount &&
         sequence.callbackRootPlusOne <= sequence.cursor)) &&
       (!sequence.closed || (sequence.cursor === sequence.completedCount && sequence.callbackRootPlusOne === 0n)),
       'CONTROL_SEQUENCE_SHAPE_REFUSED');
     const legs: OnchainControlLeg[] = [];
-    for (let i = 0n; i < count; i++) {
+    const firstOccurrence = sequence.completedCount;
+    for (let i = firstOccurrence; i < count; i++) {
       const l = await read('legAt(bytes32,uint256)', ['bytes32', 'uint256'], [sequenceId, i], LEG_TYPES);
       const outcome = OUTCOMES[Number(l[7])];
       requireValue(outcome !== undefined, 'CONTROL_OUTCOME_REFUSED');
@@ -153,19 +171,26 @@ export class ResponsibilityControlClient {
     const inheritedHash = (await read('inheritedHash(bytes32)', ['bytes32'], [sequenceId], ['bytes32']))[0] as string;
     const ids = new Set<string>();
     for (const [i, leg] of legs.entries()) {
-      requireValue(!ids.has(leg.id) && leg.fromAccount === (i === 0 ? sequence.initialAccount : legs[i - 1]!.toAccount),
+      // Continuity is checked across the window. The leg before `legs[0]` has
+      // detached, so its account is not on chain to chain back to; when nothing
+      // has detached, the window still starts at the sequence's initial account.
+      const predecessor = i === 0
+        ? (firstOccurrence === 0n ? sequence.initialAccount : leg.fromAccount)
+        : legs[i - 1]!.toAccount;
+      requireValue(!ids.has(leg.id) && leg.fromAccount === predecessor,
         'CONTROL_LEG_CONTINUITY_REFUSED');
       ids.add(leg.id);
-      const n = BigInt(i);
+      const n = firstOccurrence + BigInt(i);
       const expected = n < sequence.completedCount ? 'completed' : n >= sequence.cursor ? 'returned' :
         sequence.callbackRootPlusOne !== 0n && n >= sequence.callbackRootPlusOne - 1n ? 'returning' : 'active';
       requireValue(leg.outcome === expected, 'CONTROL_LEG_STATE_REFUSED');
     }
-    requireValue(sequence.currentAccount === (sequence.cursor === 0n ? sequence.initialAccount :
-      legs[Number(sequence.cursor - 1n)]!.toAccount), 'CONTROL_CURSOR_ACCOUNT_REFUSED');
+    requireValue(sequence.currentAccount === (sequence.cursor === firstOccurrence
+      ? (firstOccurrence === 0n ? sequence.initialAccount : sequence.currentAccount)
+      : legs[Number(sequence.cursor - firstOccurrence - 1n)]!.toAccount), 'CONTROL_CURSOR_ACCOUNT_REFUSED');
     const end = object(await controlRpc(this.#provider, 'eth_getBlockByNumber', [`0x${blockNumber.toString(16)}`, false]));
     requireValue(typeof end.hash === 'string' && end.hash.toLowerCase() === blockHash, 'CONTROL_SNAPSHOT_REORGED');
-    return { sequenceId, blockNumber, blockHash, timestamp, sequence, legs, inheritedHash };
+    return { sequenceId, blockNumber, blockHash, timestamp, sequence, legs, firstOccurrence, inheritedHash };
   }
 
   /** Explicit transaction submission; a returned hash is only pending, never completion. */

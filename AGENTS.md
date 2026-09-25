@@ -309,6 +309,26 @@ Conformance is discovered, not assumed:
    commercial completion and protocol temporal finality are distinct.
 7. Only completed prefixes detach. Preserve history and the unresolved tail,
    including concurrent tail extensions and repeated address occurrences.
+   The chain is a rolling window: the bound is on legs UNRESOLVED at once (128),
+   and detached history never counts against it, so ABCDEF… keeps extending as
+   AB, BC… detach behind it. Any limit MUST be enforced identically off chain and
+   on chain — a kernel that permits a leg the controller refuses hands the
+   execution adapter a proposal that cannot execute.
+
+   A completed leg is NOT carried on chain. Its state is deleted at detachment;
+   the chain keeps only a constant-size commitment over every leg that has left
+   and the fact that it terminated, and the record goes to the off-chain register
+   via its detachment log, to be asked for and checked against that commitment.
+   This is the same division the projection uses — a commitment and a locator on
+   chain, the record at the register — so chain state stays proportional to what
+   is still open. A read of a detached occurrence MUST say it detached, never
+   return a zeroed record. The opening account and the boundary — whoever the
+   last detached leg handed the token to — still resolve, because the window
+   starts there and a return stops there.
+
+   Digests over inherited conditions MUST cover the active window only, or each
+   forward costs gas in proportion to every forward before it, and a detached
+   leg MUST NOT be nameable again as a completion target or return boundary.
 8. A control-authorized callback affects only active dependencies. For unresolved
    AB, propagate B→C→D and return D→C→B→A. In funded scenarios, refund each
    original payer after its required return using separate payment records.

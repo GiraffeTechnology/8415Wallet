@@ -186,10 +186,34 @@ describe('malformed sequence refuses instead of showing success', () => {
   for (const [label, index, delta, code] of deltas) {
     test(label, () => refused(changeLeg(chain(), index, delta), { kind: 'unavailable' }, code));
   }
-  test('bounds sequence work', () => {
+  test('bounds the unresolved tail, not the retained history', () => {
     const snapshot = chain();
-    refused({ ...snapshot, legs: Array.from({ length: 4097 }, () => snapshot.legs[0]!) },
-      { kind: 'unavailable' }, 'LINKED_SEQUENCE_LIMIT');
+    // An oversized UNRESOLVED tail could not have come from the controller, so
+    // it is refused rather than rendered.
+    refused({ ...snapshot, legs: Array.from({ length: 129 }, () => snapshot.legs[0]!) },
+      { kind: 'unavailable' }, 'LINKED_ACTIVE_SEQUENCE_LIMIT');
+
+    // A long DETACHED history is ordinary: a token that keeps trading accumulates
+    // one, and the window it has to fit is the live tail. 600 detached legs plus a
+    // short active tail is well past the window and must still read. The two
+    // parties alternate, which is also a repeated-address chain.
+    const total = 601;
+    const rolled: LinkedChainSnapshot = {
+      ...snapshot,
+      initialHolder: parties[0]!,
+      legs: Array.from({ length: total }, (_unused, i) => ({
+        id: hash(9_000 + i),
+        predecessorId: i === 0 ? null : hash(9_000 + i - 1),
+        buyerOccurrenceId: hash(70_000 + i),
+        seller: parties[i % 2]!,
+        buyer: parties[(i + 1) % 2]!,
+        termsHash: hash(400 + (i % 4)),
+        control: { controlId: hash(500), acceptanceHash: hash(100_000 + i) },
+        outcome: (i < total - 1 ? 'completed' : 'active') as LinkedLeg['outcome'],
+      })),
+    };
+    const view = buildLinkedChainView(rolled, { kind: 'unavailable' });
+    assert.equal(view.detachedLegIds.length, total - 1, 'every detached leg stays readable');
   });
   test('empty sequence has no releasable or detached leg', () => {
     const snapshot = { ...chain(), legs: [] };
