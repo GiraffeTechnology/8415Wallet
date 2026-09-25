@@ -27,6 +27,9 @@ not a claim that tests, deployments, audit or UI journeys have run.
 - `test-evm/control-payments-adversarial.cjs`: three cases for ERC-1271 owner,
   rejected/reentrant native payout, alternate paths and a clearly marked
   negative-only faulting asset. The faulting asset is not conformance evidence.
+- `test-evm/control-sdk.cjs`: two actual SDK-to-EVM journeys covering review,
+  upstream disclosure, typed signing, receipt reconciliation, protocol views,
+  completion/exit and separate original-route payment refund.
 - `scripts/controls/scenario-kit.cjs`: shared, receipt-bound real-reference
   multi-wallet journeys; no mock holder substitutions or clock manipulation.
 - `scripts/controls/public-testnet.cjs`: exact frozen source/build-info/artifact

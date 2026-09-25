@@ -6,7 +6,7 @@ PR #3 remains unmerged. This record is not an acceptance report.
 ## Latest actual validation
 
 After Stage 5C source freeze and PR #7 publication, the unified local campaign
-ran: Node 622/622, EVM 26/26, typecheck, browser build and standalone CLI PASS.
+ran: Node 622/622, EVM 28/28, typecheck, browser build and standalone CLI PASS.
 Two initial Python-backed cases failed because python3 was not on the Windows
 PATH; explicit interpreter selection fixed the environment contract, not the
 assertions. Two recovery edge cases were repaired with regressions. See
@@ -66,6 +66,15 @@ keys, credentials or raw consent signatures in reports.
 
 ## Stage PR tracking
 
+- Stage 5C draft: PR #7. Validation head `d02292969515d48a9a129961b8faa211a2a36833`
+  / tree `60274f38b38b9498d30b9987b15a8cea38639abf` equals local `e38787b`.
+  CI run 36113801906 failed before any step: both jobs have runner_id=0 and no
+  steps; log retrieval returned BlobNotFound. Exact scheduler/billing cause is
+  NOT_PROVEN. Do not weaken workflows or synthesize a green status. Independent
+  review was actually requested and the bot reported Running on that head.
+  Two subsequent real-EVM SDK integration tests passed and are being retained
+  in this stage; they do not constitute UI or public-chain acceptance.
+
 - Stage 5B draft: PR #6, remote `10fbfaddf2a7e437bfa001a099818eb988e423cf`,
   tree `c3237534fbb5debcb425e5003a61b9b60fcb0928`, base Stage 5A branch.
   Local `5655121` has the identical tree. Workflow query returned no runs;
@@ -111,7 +120,7 @@ keys, credentials or raw consent signatures in reports.
 
 Stage 5B source now adds consent review, durable public intent/recovery state,
 standalone/linked browser actions and canonical-block payment presentation.
-Fifteen workflow/receipt cases and twelve independent-control EVM cases now
+Fifteen workflow/receipt cases and fourteen independent-control/SDK EVM cases now
 passed locally. Stage 5C also supplies the source-bound public-testnet runner
 and loopback UI server. No new chain/UI result is asserted.
 

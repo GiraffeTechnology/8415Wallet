@@ -352,7 +352,7 @@ Source status is SOURCE_COMPLETE_PENDING_UNIFIED_VALIDATION, not release PASS.
 Keep PR #3's merge hold. No new V3 test or chain result exists at this checkpoint.
 
 Later validation checkpoint (same day): after PR #7 source freeze, unified
-typecheck/browser build/standalone CLI passed; Node 622/622 and EVM 26/26 passed.
+typecheck/browser build/standalone CLI passed; Node 622/622 and EVM 28/28 passed.
 See docs/reports/V3-LOCAL-VALIDATION-20260925.md. Continue CI/review and genuine
 UI/public-testnet gates; do not keep describing the new source as never tested.
 No new V3 public-chain deployment or independent audit has passed yet.
