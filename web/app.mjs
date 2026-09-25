@@ -99,7 +99,7 @@ document.querySelectorAll('[data-action]').forEach(button => button.addEventList
     if (!signed) fail('CONTROL_IN_MEMORY_CONSENT_REQUIRED');
     operation = { kind, consent: signed.consent };
   }
-  else if (kind === 'allocate') operation = { kind, sequenceId: bytes(value('sequenceId'), 32), legIndex: number('index') };
+  else if (kind === 'allocate') operation = { kind, sequenceId: bytes(value('sequenceId'), 32), legId: bytes(value('legId'), 32) };
   else if (kind === 'payout' || kind === 'cancel-reservation') operation = { kind, sequenceId: bytes(value('sequenceId'), 32), legId: bytes(value('legId'), 32) };
   else {
     let action;

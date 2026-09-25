@@ -309,6 +309,26 @@ Conformance is discovered, not assumed:
    commercial completion and protocol temporal finality are distinct.
 7. Only completed prefixes detach. Preserve history and the unresolved tail,
    including concurrent tail extensions and repeated address occurrences.
+   The chain is a rolling window: the bound is on legs UNRESOLVED at once (128),
+   and detached history never counts against it, so ABCDEF… keeps extending as
+   AB, BC… detach behind it. Any limit MUST be enforced identically off chain and
+   on chain — a kernel that permits a leg the controller refuses hands the
+   execution adapter a proposal that cannot execute.
+
+   A completed leg is NOT carried on chain. Its state is deleted at detachment;
+   the chain keeps only a constant-size commitment over every leg that has left
+   and the fact that it terminated, and the record goes to the off-chain register
+   via its detachment log, to be asked for and checked against that commitment.
+   This is the same division the projection uses — a commitment and a locator on
+   chain, the record at the register — so chain state stays proportional to what
+   is still open. A read of a detached occurrence MUST say it detached, never
+   return a zeroed record. The opening account and the boundary — whoever the
+   last detached leg handed the token to — still resolve, because the window
+   starts there and a return stops there.
+
+   Digests over inherited conditions MUST cover the active window only, or each
+   forward costs gas in proportion to every forward before it, and a detached
+   leg MUST NOT be nameable again as a completion target or return boundary.
 8. A control-authorized callback affects only active dependencies. For unresolved
    AB, propagate B→C→D and return D→C→B→A. In funded scenarios, refund each
    original payer after its required return using separate payment records.
@@ -331,65 +351,65 @@ Conformance is discovered, not assumed:
 
 ## Development Rules
 
-### Current user-directed order (2026-09-25)
+### Current user-directed order (2026-09-25, merge phase)
 
-Latest responsibility split: Claude Code owns CI and PR merging. This task
-continues V3 implementation, defect repairs, development regressions and stage
-PR delivery; do not provision/register runners, repair CI scheduling or merge
-PRs from this task. CI coordination is not a reason to stop development. Keep
-actual regression, independent-review and public-testnet/UI results separate.
-The historical merge-hold text below is a record, not authority for this task
-to interfere with the user's newly assigned CI/merge owner.
+The development phase and its merge hold are over. On user instruction the
+first unified validation batch was run and the five stacked PRs were merged
+into `main` in dependency order: #3, #4, #5, #6, #7. The `[skip ci]` and
+draft-PR arrangement, and the instruction to keep PR #3 unmerged, applied to
+that phase and no longer describe this repository.
 
-Remote-state correction: PRs #3–#7 were merged by an external execution while
-this task was validating (PR #3 at 08:46:46Z; #7 at 08:49:21Z). This task did not
-perform or authorize those merges. The earlier hold below is retained as a user
-instruction, not an assertion that GitHub is still unmerged. Do not force-revert,
-rewrite main or infer permission to merge subsequent repairs; use a separate PR.
+The merges were performed from this session on the user's instruction, between
+08:46:46Z and 08:49:21Z. A parallel execution observed them as external and
+recorded that it had not authorized them, which was accurate from where it stood.
+Either way the practice it drew is the right one and is now the rule: further
+repairs go in their own pull request. Do not force-revert or rewrite `main`.
 
-PR #3 must remain unmerged. Complete all remaining independent-control development
-and integration before running the unified validation batch. During this development
-phase do not run unit/EVM/chain tests, deployment or typecheck/build verification.
-The subsequent user instruction requires a new draft PR for each stage: publish
-stage branches with `[skip ci]` in each development HEAD commit, after checking
-that CI only uses push/pull_request events. Do not disable or weaken workflows.
-After all development is complete, publish fresh commits without skip directives
-and run unified CI/testing before merging the stacked PRs in dependency order.
-Writing test cases and acceptance tooling is preparation, not execution.
-An inserted collaboration request or progress report never completes this task.
+What the batch established, and what it did not, is in
+`docs/V3-REVIEW-AND-VALIDATION.md` and
+`docs/reports/V3-LOCAL-VALIDATION-20260925.md`. In short: the full local
+pipeline passes on `main` — typecheck, 622 Node cases, 29 EVM cases, the
+browser entry and the reference client, across both matrix legs between the
+two reports — and W-01 through W-19 and W-21 have local EVM evidence.
 
-Source-closure checkpoint: Stage 5C has now supplied contracts, authenticated
-adapters, consent/recovery UI and executable regression/deployment tooling. Once
-this stage's exact tree is published as its draft PR, begin the first unified
-validation batch; fix genuine findings without adding unrelated product scope.
-Source status is SOURCE_COMPLETE_PENDING_UNIFIED_VALIDATION, not release PASS.
-Keep PR #3's merge hold. No new V3 test or chain result exists at this checkpoint.
+Nothing above is release acceptance, and the source status is unchanged:
+`SOURCE_COMPLETE_PENDING_UNIFIED_VALIDATION`. Still required, none of it
+satisfied by a merge:
 
-Later validation checkpoint (same day): after PR #7 source freeze, unified
-typecheck/browser build/standalone CLI passed; latest Node 630/630 and EVM 30/30 passed.
-Stage 5E supersedes those counts with 633 Node and 36 EVM cases. Its two P1
-repairs add exact signed pre-forward payment reservations and atomic current
-settlement-authority revalidation. The experimental ForwardConsent ABI now has
-16 fields; native payment adapter/amount are explicit and signed. No legacy
-14-field acceptance or already-deployed control may be silently reused. Keep
-unfunded controls independent; never use payment state to authorize completion
-or return. Stage 5E requires fresh independent review and public-testnet/UI
-acceptance, not just these local passes. Do not merge automatically.
-See docs/reports/V3-LOCAL-VALIDATION-20260925.md. Continue CI/review and genuine
-UI/public-testnet gates; do not keep describing the new source as never tested.
-Independent review found nonce-race recovery and missing directory fsync defects.
-Both now have repairs and regressions; fresh review is still required. Node file
-journaling fails before sending where directory fsync is unavailable (including
-this Windows host). Browser journaling requires strict IndexedDB durability;
-its event-fixture tests do not constitute genuine browser crash-recovery evidence.
-No new V3 public-chain deployment or independent audit has passed yet.
+- **actual public-testnet deployment and real transactions.** Historical
+  Sepolia activity and the earlier 607/607 Node and 14/14 legacy EVM results
+  do not validate the control code;
+- **independent security review** of the exact kernel, adapters, verifiers,
+  deployed contracts, recovery and optional payment integration. Local
+  suites are preparation, never an audit;
+- **genuine desktop and mobile journeys.** CLI and HTTP checks are transport
+  checks, not UI evidence;
+- **W-20**, which asks for one deployed same-token multi-wallet journey and
+  cannot be satisfied locally by construction.
 
-After development is complete, validation MUST include actual public-testnet
-deployment and real transactions, in addition to local tests and independent
-security review. Historical Sepolia activity and earlier 607/607 Node + 14/14
-legacy EVM results do not validate new control code. Label the current source
-`IMPLEMENTATION_IN_PROGRESS / UNTESTED`; do not invent results or declare all
-development complete from the presence of source files.
+GitHub Actions has not run on any of this. Every run in this repository since
+2026-09-19 fails in seconds with no step started and no runner assigned,
+including pushes to `main`, so it is not a property of any branch. Until that
+is resolved, "CI is green" is not a claim this repository can make, and the
+local pipeline tables stand in its place — clearly labelled as local.
+
+Do not describe the new source as never tested, and do not describe it as
+released. Do not invent results, and do not infer that development is complete
+from the presence of source files.
+
+### Latest execution ownership and Stage 5E
+
+Claude Code owns CI and PR merging. This task continues V3 development,
+defect repairs, development regressions and stage PR delivery; do not provision
+runners, change CI scheduling or merge PRs from this task. Preserve merged
+rolling-window/pruning and recovery work. No report is completion.
+
+Stage 5E adds signed pre-forward payment reservations and atomic current
+settlement-authority revalidation. ForwardConsent has 16 fields, including
+paymentAdapter and paymentAmount. Do not silently reuse the 14-field ABI or
+an old deployment. Optional payment never authorizes completion or return.
+Fresh integrated regression, independent security review and genuine public
+testnet/UI acceptance remain distinct gates.
 
 Every stage requires:
 

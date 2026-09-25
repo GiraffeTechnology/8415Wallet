@@ -26,7 +26,7 @@ describe('Separate control payment and contract-owner boundaries',function(){
     await k.transaction('1271-reserve',owner.execute(await k.payments.getAddress(),k.payments.interface.encodeFunctionData('reserve',[c]),{value:amount}));
     await k.transaction('1271-forward',k.controller.forward(c,'0xaabb'));s.legs.push(c.legId);
     await k.beginReturn(s,1);await k.hop(s);
-    await k.transaction('allocate-refund',k.payments.allocate(s.id,0));
+    await k.transaction('allocate-refund',k.payments.allocate(s.id,s.legs[0]));
     const payout=k.payments.interface.encodeFunctionData('withdraw',[s.id,c.legId]);
     await k.transaction('reject-native',owner.configure(true,hre.ethers.ZeroAddress,'0x'));
     await k.refused('payout-rejection',()=>owner.execute.staticCall(k.payments.target,payout),k.payments,'PayoutFailed');

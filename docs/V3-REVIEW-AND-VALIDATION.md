@@ -1,7 +1,7 @@
 # V3 review and unified validation handoff
 
 Source closure is not release acceptance. Source was UNTESTED at initial freeze;
-latest Stage 5E local validation passed 633 Node and 36 EVM cases after review repairs.
+latest integrated Stage 5E local validation passed 636 Node and 46 EVM cases after review repairs.
 Fresh independent review, genuine UI and public-testnet gates remain open.
 Preserve historical Sepolia receipts; do not relabel them as V3.
 
@@ -51,9 +51,9 @@ explicit trust boundary, not cryptographic proof of off-chain legal identity.
    receipt/readback to that deployment and retain public evidence only.
 6. Produce W-01–W-21 results individually, with NOT_RUN/BLOCKED where appropriate;
    never infer them from package integrity, source presence or script exit alone.
-7. Only then evaluate CI and merge the stage PRs in dependency order. PR #3's
-   explicit hold remains until the user changes it; passing CI alone is not that
-   authorization.
+7. CI and PR merging are assigned to Claude Code by the latest user direction.
+   This task delivers implementation, regressions and stage PRs, not runner or
+   merge operations. PRs #3-#9 have merged; no merge satisfies steps 4-6.
 
 No deployment wallet is generated or imported by this handoff. Missing genuine
 provider, signing capability, funding, review or brand inputs must be reported

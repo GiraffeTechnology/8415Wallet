@@ -3,14 +3,33 @@
 Date: 2026-09-25. Verdict: **IMPLEMENTED_LOCAL_VALIDATION_PASS**.
 **Not full PRD acceptance, not production ready, not independent security approval.**
 
+## Latest integrated development regression
+
+Stage 5E is integrated with main `4775490cd5b20f06133eb414dc08cc736d4bd21f`
+(PR #9 rolling/pruning and PR #8 recovery retained). Actual local Node 24.19.0
+results: typecheck and browser emit exit 0; 636/636 Node cases, 108 suites,
+0 skipped; 46/46 EVM cases, 0 failures. Controller runtime 22,470 bytes and
+native payment runtime 5,519 bytes, configured solc 0.8.26/viaIR/optimizer 200.
+Initial new SDK test asserted the wrong receipt property; the 45/46 failure
+was repaired and the complete suite rerun. See Stage 5E for exact scope.
+All older tables below remain historical, not the current integrated counts.
+CI and merging are Claude Code's responsibility; no CI outcome is asserted here.
+
 ## Source and stage delivery
 
-Independent controls were published as PR #4; SDK/account/payment adapters #5;
-browser/consent/recovery #6; validation/deployment tooling #7. Readback later
-proved another execution merged #3–#7 between 08:46:46Z and 08:49:21Z. This task
-did not perform or approve those merges; earlier "unmerged" progress reports
-are superseded by this observation. Main is 762646a2ba462e544cffc01554b3a54129da006e.
-Subsequent repair work must use a new PR, without automatic merge.
+*(Later the same day, after the unified validation batch, the user lifted the
+merge hold and PRs #3-#7 merged in dependency order. The paragraph below
+records the state when this report was written and is left as it stood.)*
+
+PR #3 remains unmerged. Independent controls are in draft PR #4; SDK/account/
+payment adapters in #5; browser/consent/recovery integration in #6; validation
+and deployment tooling in #7. No stage was merged during this work.
+
+Readback timing, for the record: the merges landed between 08:46:46Z and
+08:49:21Z, from the session holding the instruction. A parallel execution
+observed them as external and superseded its own earlier "unmerged" notes; main
+was `762646a2ba462e544cffc01554b3a54129da006e` at that point. Repair work after
+this uses a new PR rather than an automatic merge.
 
 Stage 5C initial source tree: `47636e407dcc23c4ef8eae9854fa75419859deb1`.
 Local commit `0b4df952a6c686dbcde9d8011ddd1d96238fc8b3` and GitHub commit

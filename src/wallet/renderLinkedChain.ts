@@ -18,7 +18,15 @@ export function renderLinkedChain(view: LinkedChainView): string {
     );
   }
   lines.push(
-    `Detached history: ${view.detachedLegIds.length}`,
+    // Detached legs are counted in two places on purpose: the ones this snapshot
+    // carries, and the ones it does not because they left the chain. Reporting
+    // only the first would say "0 detached" about a chain that has detached
+    // hundreds, which is the opposite of true.
+    `Detached history in this snapshot: ${view.detachedLegIds.length}`,
+    ...(view.offChainDetached > 0n
+      ? [`Detached and held off chain: ${view.offChainDetached}` +
+         ` (records at the register; commitment ${view.detachedCommitment})`]
+      : []),
     `Predicate-satisfying prefix (not executed): ${view.completionPrefix.length}`,
     `Return boundary: ${view.returnBoundary.account} (occurrence ${view.returnBoundary.occurrenceId})`,
     view.note,

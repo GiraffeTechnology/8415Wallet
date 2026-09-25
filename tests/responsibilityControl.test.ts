@@ -250,3 +250,62 @@ describe('domain, consent, replay and concurrency gates', () => {
     assert.deepEqual(hop(s, 3), p); // deterministic proposal, not duplicate executed transfer
   });
 });
+
+describe('the active window, not the retained history', () => {
+  // The shared leg() helper derives account(4 - n), which runs out past the
+  // fourth leg. A rolling chain needs a builder that scales.
+  const longLeg = (n: number): ResponsibilityLeg => ({
+    id: hash(10_000 + n), buyer: { occurrenceId: hash(20_000 + n), account: account(1_000 + n) },
+    termsHash: hash(30_000 + n), acceptanceHash: hash(40_000 + n),
+    returnAuthority: account(2_000 + n), returnConditionHash: hash(50_000 + n), outcome: 'active',
+  });
+
+  /** Forward, then detach the head: what a token that keeps trading looks like. */
+  function rolled(hops: number): ResponsibilityState {
+    let s = empty();
+    for (let i = 0; i < hops; i++) {
+      const step = forward(s, longLeg(i + 1));
+      s = prepare(s, step.c, step.f).next;
+      s = prepare(s, command(s, { kind: 'complete-prefix', throughLegId: hash(10_000 + i + 1) }),
+        completion(s, i + 1, i + 1)).next;
+    }
+    return s;
+  }
+
+  test('a chain longer than the window keeps forwarding', () => {
+    const s = rolled(140);
+    assert.equal(s.legs.length, 140, 'history is retained in full');
+    assert.equal(s.legs.filter(l => l.outcome === 'active').length, 0, 'nothing unresolved');
+    // Past the window by history, and still able to move. This is the property:
+    // how much a token has already traded never stops the next trade.
+    const step = forward(s, longLeg(141));
+    assert.equal(prepare(s, step.c, step.f).next.legs.length, 141);
+  });
+
+  test('the window itself is enforced on the unresolved tail', () => {
+    let s = empty();
+    for (let i = 0; i < 128; i++) {
+      const step = forward(s, longLeg(i + 1));
+      s = prepare(s, step.c, step.f).next;
+    }
+    assert.equal(s.legs.filter(l => l.outcome === 'active').length, 128);
+    const blocked = forward(s, longLeg(129));
+    refused(() => prepare(s, blocked.c, blocked.f), 'CONTROL_ACTIVE_LEG_LIMIT');
+
+    // Detaching one head frees exactly one slot, and it moves again.
+    const detached = prepare(s, command(s, { kind: 'complete-prefix', throughLegId: hash(10_001) }),
+      completion(s, 1, 128)).next;
+    const again = forward(detached, longLeg(129));
+    const next = prepare(detached, again.c, again.f).next;
+    assert.equal(next.legs.filter(l => l.outcome === 'active').length, 128, 'still full, never over');
+    assert.equal(next.legs.length, 129, 'history grew past the window');
+  });
+
+  test('the kernel window equals the contract window', async () => {
+    // A kernel that allowed more would hand the execution adapter a proposal the
+    // chain refuses, which is how the two drifted 4096 against 128 before.
+    const { readFileSync } = await import('node:fs');
+    const solidity = readFileSync('contracts/controls/ResponsibilityController.sol', 'utf8');
+    assert.equal(/MAX_ACTIVE_LEGS\s*=\s*(\d+)/.exec(solidity)?.[1], '128');
+  });
+});

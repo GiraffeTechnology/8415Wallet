@@ -32,7 +32,7 @@ did not perform those merges or waive its earlier PR #3 hold. Review repairs are
 being delivered separately and are not automatically merged. The increment adds
 independent responsibility contracts and a separately imported experimental
 SDK under `src/controls/index.ts`. The implementation pass is complete and its
-latest unified local validation has run: **633/633 Node tests, 36/36 EVM tests,
+latest unified local validation has run: **636/636 Node tests, 46/46 EVM tests,
 typecheck and browser build PASS**. This is **not independently audited or
 deployed as V3**. Original Sepolia receipts remain historical, not V3 acceptance.
 CI, independent review, genuine desktop/mobile UI and actual public-testnet

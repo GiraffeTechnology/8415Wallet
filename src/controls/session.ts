@@ -16,7 +16,7 @@ export type WalletOperation =
   | { readonly kind: 'standalone-withdraw'; readonly token: ControlDeploymentPin; readonly tokenId: bigint; readonly destination: string }
   | { readonly kind: 'reserve-payment'; readonly consent: ForwardConsent }
   | { readonly kind: 'cancel-reservation'; readonly sequenceId: string; readonly legId: string }
-  | { readonly kind: 'allocate'; readonly sequenceId: string; readonly legIndex: bigint }
+  | { readonly kind: 'allocate'; readonly sequenceId: string; readonly legId: string }
   | { readonly kind: 'payout'; readonly sequenceId: string; readonly legId: string };
 
 /** Additive application workflow; original WalletSession readers/transactions remain independent. */
@@ -94,7 +94,7 @@ export class ResponsibilityWalletSession {
         case 'standalone-withdraw': record = await this.accounts.withdraw(this.#actor, operation.token, operation.tokenId, operation.destination); break;
         case 'reserve-payment': record = await this.payments!.reserve(operation.consent, this.#actor); break;
         case 'cancel-reservation': record = await this.payments!.cancelReservation(operation.sequenceId, operation.legId, this.#actor); break;
-        case 'allocate': record = await this.payments!.allocate(operation.sequenceId, operation.legIndex, this.#actor); break;
+        case 'allocate': record = await this.payments!.allocate(operation.sequenceId, operation.legId, this.#actor); break;
         case 'payout': record = await this.payments!.withdraw(operation.sequenceId, operation.legId, this.#actor); break;
         default: throw new ControlAdapterError('CONTROL_ACTION_REFUSED');
       }
