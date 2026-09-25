@@ -35,7 +35,7 @@
     <button data-action="bind-admission">Associate admitted occurrence</button><button data-action="complete">Complete prefix</button>
     <button data-action="begin-return">Invoke accepted return</button><button data-action="return-hop">Execute one return hop</button>
     <button data-action="close-sequence">Close resolved sequence</button><button data-action="invalidate-consent">Invalidate older consent</button>
-    <button data-action="fund">Fund accepted leg</button><button data-action="allocate">Allocate terminal payment</button><button data-action="payout">Withdraw due payment</button></div>
+    <button data-action="reserve-payment">Reserve accepted payment before forward</button><button data-action="cancel-reservation">Cancel unused reservation after nonce invalidation</button><button data-action="allocate">Allocate terminal payment</button><button data-action="payout">Withdraw due payment</button></div>
     <h3>Receive with informed acceptance</h3><p>Load only public consent and its exact terms documents. No signature is loaded from a file or shown in this page.</p>
     <label>Consent + disclosures JSON <input id="consent-file" type="file" accept="application/json,.json"></label>
     <button id="review">Prepare current review</button><pre id="terms">No review prepared</pre>

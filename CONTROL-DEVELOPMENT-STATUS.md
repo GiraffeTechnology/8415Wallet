@@ -4,10 +4,14 @@ Status: **IMPLEMENTED_LOCAL_VALIDATION_PASS / NOT_INDEPENDENTLY_AUDITED / NOT_RE
 PRs #3–#7 were externally merged during validation; this task did not execute
 those merges. Subsequent repairs require a separate PR. This is not acceptance.
 
+Latest user assignment: **Claude Code owns CI and merging**. This task keeps
+developing V3, resolving findings and delivering stage PRs. It must not wait for
+CI scheduling as a substitute for development or change runner configuration.
+
 ## Latest actual validation
 
 After Stage 5C source freeze and PR #7 publication, the unified local campaign
-ran: latest Node 630/630, EVM 30/30, typecheck and browser build PASS; earlier standalone CLI PASS.
+ran: latest Stage 5E Node 633/633, EVM 36/36, typecheck and browser build PASS; earlier standalone CLI PASS.
 Two initial Python-backed cases failed because python3 was not on the Windows
 PATH; explicit interpreter selection fixed the environment contract, not the
 assertions. Independent review then found nonce-race recovery and directory-fsync
@@ -66,7 +70,8 @@ keys, credentials or raw consent signatures in reports.
   Transfer-event receipt reconciliation.
 - `payments.ts`: independent optional adapter binding, exact funded terms,
   allocation and exact-recipient withdrawal; unfunded/due/paid states remain
-  distinct from responsibility outcomes. These sources are also untested.
+  distinct from responsibility outcomes. Stage 5E adds signed pre-forward
+  reservation and explicit unused-reservation cancellation after invalidation.
 
 ## Stage PR tracking
 
@@ -110,10 +115,13 @@ keys, credentials or raw consent signatures in reports.
 3. Runtime-code/register/profile pins do not prove an unchanged implementation
    behind an upgradeable token proxy. Deployment compatibility and audit must
    cover the selected token's complete trust/upgrade model.
-4. Optional funding currently follows protected forwarding in a separate
-   transaction. Until funded, the leg is UNFUNDED; do not show principal as
-   reserved or imply atomic delivery-versus-payment. Complete funded-flow UX and
-   validation before claiming W-01/W-02.
+4. Stage 5E supersedes post-forward funding: native-payment acceptance explicitly
+   binds the canonical controller-created adapter and amount. The original payer
+   reserves beforehand; the controller consumes the exact consent reservation
+   in the same transaction as token movement. A failed transfer restores Reserved.
+   An unused reservation is refundable only after nonce/revision/expiry/closure
+   invalidates the acceptance. Completion and return never depend on payment.
+   This repair needs fresh independent review and public-testnet evidence.
 5. The SDK relies on an authenticated intended-chain provider and EIP-1898
    canonical block reads. A malicious RPC is not defeated by hash comparisons
    alone. Missing capability or inconsistent observations must fail closed.

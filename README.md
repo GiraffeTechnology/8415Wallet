@@ -32,7 +32,7 @@ did not perform those merges or waive its earlier PR #3 hold. Review repairs are
 being delivered separately and are not automatically merged. The increment adds
 independent responsibility contracts and a separately imported experimental
 SDK under `src/controls/index.ts`. The implementation pass is complete and its
-latest unified local validation has run: **630/630 Node tests, 30/30 EVM tests,
+latest unified local validation has run: **633/633 Node tests, 36/36 EVM tests,
 typecheck and browser build PASS**. This is **not independently audited or
 deployed as V3**. Original Sepolia receipts remain historical, not V3 acceptance.
 CI, independent review, genuine desktop/mobile UI and actual public-testnet
@@ -40,6 +40,14 @@ deployment/transactions remain separately required gates. Browser automation
 currently fails before opening a tab; HTTP delivery is not UI verification.
 See [the exact local validation report](docs/reports/V3-LOCAL-VALIDATION-20260925.md).
 See [development order and remaining work](CONTROL-DEVELOPMENT-STATUS.md).
+CI and merging are now assigned to Claude Code; this task continues development
+and stage PR delivery. Local regression results do not replace CI or acceptance.
+Stage 5E repairs the two subsequent P1 review findings: exact signed native
+payment reservations must exist before forwarding and are consumed atomically;
+the current settlement authority is revalidated before a token moves. Unfunded
+responsibility, completion and conditional return remain independent of payment.
+This changes the experimental consent ABI; old control deployments/acceptances
+are not silently reused. See [Stage 5E](docs/stages/STAGE-5E-PAYMENT-RESERVATION.md).
 
 ## Implemented
 

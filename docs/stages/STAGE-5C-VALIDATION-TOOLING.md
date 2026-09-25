@@ -28,9 +28,12 @@ security acceptance remain separate open gates, not inferred from tooling.
 - `test-evm/control-payments-adversarial.cjs`: three cases for ERC-1271 owner,
   rejected/reentrant native payout, alternate paths and a clearly marked
   negative-only faulting asset. The faulting asset is not conformance evidence.
-- `test-evm/control-sdk.cjs`: three actual SDK-to-EVM journeys covering review,
+- `test-evm/control-sdk.cjs`: four actual SDK-to-EVM journeys covering review,
   upstream disclosure, typed signing, receipt reconciliation, protocol views,
   completion/exit, separate original-route payment refund and a mined nonce race.
+- Stage 5E adds `test-evm/control-reservations.cjs`: five EVM cases covering
+  unpaid/forged/replayed reservations, cancellation/refund, atomic failed
+  transfer, authority drift and permanent completion despite delayed payout.
 - `scripts/controls/scenario-kit.cjs`: shared, receipt-bound real-reference
   multi-wallet journeys; no mock holder substitutions or clock manipulation.
 - `scripts/controls/public-testnet.cjs`: exact frozen source/build-info/artifact

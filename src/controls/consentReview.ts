@@ -70,6 +70,14 @@ export class ForwardConsentReview {
     const nonce = decodeControlWords(['uint256'], await callWords(this.#provider, pin.controller,
       encodeCall('recipientNonces(address)', ['address'], [recipientOwner]), block))[0];
     check(owner === recipientOwner.toLowerCase() && nonce === consent.recipientNonce, 'CONTROL_REVIEW_RECIPIENT_STALE');
+    const authority = decodeControlWords(['bool'], await callWords(this.#provider, consent.token,
+      encodeCall('isSettlementAuthority(uint256,address)', ['uint256', 'address'], [consent.tokenId, consent.evidenceAuthority]), block))[0];
+    check(authority === true, 'CONTROL_EVIDENCE_AUTHORITY_STALE');
+    if (consent.paymentAmount > 0n) {
+      const adapter = decodeControlWords(['address'], await callWords(this.#provider, pin.controller,
+        encodeCall('nativePayments()', [], []), block))[0];
+      check(adapter === consent.paymentAdapter.toLowerCase(), 'CONTROL_PAYMENT_ADAPTER_REFUSED');
+    }
     return s;
   }
   async prepare(input: ForwardConsent, owner: string, documents: ForwardReviewDocuments): Promise<ForwardReview> {
@@ -90,11 +98,14 @@ export class ForwardConsentReview {
       termsHash: consent.termsHash, terms: docs.incoming.terms, returnAuthority: consent.returnAuthority,
       returnConditionHash: consent.returnConditionHash, returnConditionText: docs.incoming.returnConditionText };
     for (const d of [incoming, ...inherited]) verifyTerms(this.#control.deployment, consent.token, consent.tokenId, d);
+    check(incoming.terms.scheme === 'native-payment-v1'
+      ? incoming.terms.adapter.toLowerCase() === consent.paymentAdapter.toLowerCase() && incoming.terms.amount === consent.paymentAmount
+      : consent.paymentAmount === 0n, 'CONTROL_PAYMENT_DISCLOSURE_MISMATCH');
     const review = freezeReview({ schema: '8415-forward-review/1', digest: forwardConsentDigest(this.#control.deployment, consent),
       recipientOwner: owner.toLowerCase(), consent, observedBlockHash: s.blockHash, inherited, incoming,
       completionRule: 'Both actual owner and admitted holder must reach this buyer occurrence or later in the accepted chain. Completed prefixes detach permanently; later returns cannot cross them.',
       authorityNotice: 'The accepted registrar associates admitted entries with occurrences. The named return authority attests the accepted trigger. Neither is proof of legal title. Protocol delay alone does not authorize return.',
-      paymentNotice: 'Payment is optional and separate from responsibility. Native funding follows forwarding in a separate transaction: acceptance is not proof of funding or atomic delivery-versus-payment.' });
+      paymentNotice: 'Payment is optional. A native-payment acceptance requires the original buyer to reserve its exact amount before forwarding; the control consumes that reservation atomically with token movement. Completion and return remain independent; terminal payment is withdrawn separately. Invalidate the recipient nonce before cancelling an unused reservation.' });
     this.#reviews.add(review); return review;
   }
   async accept(review: ForwardReview, acknowledgedDigest: string): Promise<string> {

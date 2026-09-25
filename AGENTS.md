@@ -333,6 +333,14 @@ Conformance is discovered, not assumed:
 
 ### Current user-directed order (2026-09-25)
 
+Latest responsibility split: Claude Code owns CI and PR merging. This task
+continues V3 implementation, defect repairs, development regressions and stage
+PR delivery; do not provision/register runners, repair CI scheduling or merge
+PRs from this task. CI coordination is not a reason to stop development. Keep
+actual regression, independent-review and public-testnet/UI results separate.
+The historical merge-hold text below is a record, not authority for this task
+to interfere with the user's newly assigned CI/merge owner.
+
 Remote-state correction: PRs #3–#7 were merged by an external execution while
 this task was validating (PR #3 at 08:46:46Z; #7 at 08:49:21Z). This task did not
 perform or authorize those merges. The earlier hold below is retained as a user
@@ -359,6 +367,14 @@ Keep PR #3's merge hold. No new V3 test or chain result exists at this checkpoin
 
 Later validation checkpoint (same day): after PR #7 source freeze, unified
 typecheck/browser build/standalone CLI passed; latest Node 630/630 and EVM 30/30 passed.
+Stage 5E supersedes those counts with 633 Node and 36 EVM cases. Its two P1
+repairs add exact signed pre-forward payment reservations and atomic current
+settlement-authority revalidation. The experimental ForwardConsent ABI now has
+16 fields; native payment adapter/amount are explicit and signed. No legacy
+14-field acceptance or already-deployed control may be silently reused. Keep
+unfunded controls independent; never use payment state to authorize completion
+or return. Stage 5E requires fresh independent review and public-testnet/UI
+acceptance, not just these local passes. Do not merge automatically.
 See docs/reports/V3-LOCAL-VALIDATION-20260925.md. Continue CI/review and genuine
 UI/public-testnet gates; do not keep describing the new source as never tested.
 Independent review found nonce-race recovery and missing directory fsync defects.

@@ -1,9 +1,17 @@
 # V3 review and unified validation handoff
 
 Source closure is not release acceptance. Source was UNTESTED at initial freeze;
-latest local validation passed 630 Node and 30 EVM cases after review repairs.
+latest Stage 5E local validation passed 633 Node and 36 EVM cases after review repairs.
 Fresh independent review, genuine UI and public-testnet gates remain open.
 Preserve historical Sepolia receipts; do not relabel them as V3.
+
+Stage 5D exact head `2a982919162c6bbcd674c4524d180d03475859e8` also
+completed a separate clean Linux Node 22.23.3 run: install/typecheck/browser/CLI,
+630 Node and 30 EVM all passed, including positive POSIX directory fsync.
+Result SHA-256: `4AAA3CF0EDA3366102066512A99AD1CC473292786A54526CD2A65DD1DF56A5BB`.
+This does not validate the later Stage 5E changes or repair GitHub Actions.
+Stage 5E fixes the two P1 findings on that head; see its dedicated report and
+require fresh independent review before public control deployment.
 
 Remote PRs #3–#7 were externally merged during this task's validation. This task
 did not perform those merges. Repairs now need a separate PR; no release approval

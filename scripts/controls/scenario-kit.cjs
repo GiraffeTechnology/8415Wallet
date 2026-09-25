@@ -7,6 +7,7 @@ const FORWARD_FIELDS = [
   ['tokenId','uint256'],['fromAccount','address'],['toAccount','address'],['termsHash','bytes32'],
   ['inheritedHash','bytes32'],['returnAuthority','address'],['returnConditionHash','bytes32'],
   ['evidenceAuthority','address'],['deadline','uint64'],['recipientNonce','uint256'],
+  ['paymentAdapter','address'],['paymentAmount','uint256'],
 ].map(([name,type]) => ({name,type}));
 
 async function createScenario({ ethers, provider, signers, artifact, record = async () => {}, confirmations = 1, timeout = 180000 }) {
@@ -51,7 +52,13 @@ async function createScenario({ ethers, provider, signers, artifact, record = as
   const registerId = hash('8415Wallet V3 TEST_ONLY_NO_REAL_VALUE register');
   const projection = await deploy('RegisterProjectionReference', [registerId,owners[4],validatorAddresses,2]);
   const controller = await deploy('ResponsibilityController', []);
-  const payments = await deploy('NativeResponsibilityPayments', [await controller.getAddress()]);
+  await transaction('create-native-payments',controller.createNativePayments());
+  const paymentAddress=await controller.nativePayments();
+  const payments = new ethers.Contract(paymentAddress,(await artifact('NativeResponsibilityPayments')).abi,A);
+  const paymentCode=await provider.getCode(paymentAddress);
+  assert.notEqual(paymentCode,'0x','SCENARIO_DEPLOYMENT_CODE_MISSING');
+  await record({kind:'deployment',name:'NativeResponsibilityPayments',address:paymentAddress,
+    runtimeCodeHash:ethers.keccak256(paymentCode),chainId:chainId.toString()});
   const accounts = [];
   for (let i=0; i<4; i++) {
     await transaction(`create-account:${i}`,controller.connect(signers[i]).createAccount());
@@ -83,18 +90,19 @@ async function createScenario({ ethers, provider, signers, artifact, record = as
     const c={sequenceId:s.id,expectedRevision:seq.revision,legId:uid('leg'),token:projectionAddress,tokenId:s.tokenId,
       fromAccount:accounts[from],toAccount:accounts[to],termsHash,inheritedHash:await controller.inheritedHash(s.id),
       returnAuthority:owners[4],returnConditionHash:conditionHash,evidenceAuthority:owners[4],
-      deadline:BigInt((await provider.getBlock('latest')).timestamp)+3600n,recipientNonce:await controller.recipientNonces(owners[to])};
+      deadline:BigInt((await provider.getBlock('latest')).timestamp)+3600n,recipientNonce:await controller.recipientNonces(owners[to]),
+      paymentAdapter:funded?paymentAddress:ethers.ZeroAddress,paymentAmount:funded?amount:0n};
     const signature=await signers[to].signTypedData(domain,{ForwardConsent:FORWARD_FIELDS},c);
     assert.equal(await controller.validateRecipientSignature(c,signature),true,'SCENARIO_VALID_CONSENT_REFUSED');
     return {c,signature,amount,from,to,funded};
   }
   async function forward(s,from,to,options={}) {
     const prepared=await consent(s,from,to,options);
+    if(options.funded) await transaction('reserve-leg',payments.connect(signers[to]).reserve(prepared.c,{value:prepared.amount}));
     await transaction('forward',controller.connect(signers[from]).forward(prepared.c,prepared.signature));
     s.legs.push(prepared.c.legId);
     assert.equal(await projection.ownerOf(s.tokenId),accounts[to]);
     if (options.funded) {
-      await transaction('fund-leg',payments.connect(signers[to]).fund(s.id,s.legs.length-1,{value:prepared.amount}));
       const p=await payments.payment(s.id,prepared.c.legId);
       assert.equal(p.state,1n); assert.equal(p.payer,owners[to]); assert.equal(p.payee,owners[from]); assert.equal(p.amount,prepared.amount);
     }

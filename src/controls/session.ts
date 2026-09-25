@@ -6,7 +6,7 @@ import { NativeResponsibilityPaymentClient } from './payments.ts';
 import { ForwardConsentReview } from './consentReview.ts';
 import { RpcResponsibilityControlReader } from './view.ts';
 import { address, proveSupersededNonce, type FixedReceipt, type SupersededNonceProof } from './execution.ts';
-import { ControlAdapterError, controlHex, requireControlAdapter as check, type ControlDeploymentPin } from './authorization.ts';
+import { ControlAdapterError, controlHex, requireControlAdapter as check, type ControlDeploymentPin, type ForwardConsent } from './authorization.ts';
 import { parseOperation, serializeOperation, sameDeployment, type OperationState, type PublicOperationStore,
   type WalletSubmission } from './operationJournal.ts';
 
@@ -14,7 +14,8 @@ export type WalletOperation =
   | { readonly kind: 'control'; readonly action: ControlAction }
   | { readonly kind: 'deposit'; readonly token: ControlDeploymentPin; readonly tokenId: bigint }
   | { readonly kind: 'standalone-withdraw'; readonly token: ControlDeploymentPin; readonly tokenId: bigint; readonly destination: string }
-  | { readonly kind: 'fund'; readonly sequenceId: string; readonly legIndex: bigint; readonly amount: bigint }
+  | { readonly kind: 'reserve-payment'; readonly consent: ForwardConsent }
+  | { readonly kind: 'cancel-reservation'; readonly sequenceId: string; readonly legId: string }
   | { readonly kind: 'allocate'; readonly sequenceId: string; readonly legIndex: bigint }
   | { readonly kind: 'payout'; readonly sequenceId: string; readonly legId: string };
 
@@ -73,7 +74,7 @@ export class ResponsibilityWalletSession {
     return this.#exclusive(async () => {
       const current = await this.#state();
       check(current.status === 'idle', 'CONTROL_RECONCILIATION_REQUIRED');
-      if (['fund', 'allocate', 'payout'].includes(operation.kind)) check(this.payments !== null, 'CONTROL_PAYMENT_NOT_CONFIGURED');
+      if (['reserve-payment', 'cancel-reservation', 'allocate', 'payout'].includes(operation.kind)) check(this.payments !== null, 'CONTROL_PAYMENT_NOT_CONFIGURED');
       // Persist uncertainty BEFORE any external prompt. No plaintext consent/calldata goes to disk.
       const requestDigest = keccak256Utf8(JSON.stringify(operation, (_key, value: unknown) => typeof value === 'bigint' ? value.toString() : value));
       let reserved: OperationState = { ...current, revision: current.revision + 1n, status: 'outcome-unknown', requestDigest, submission: null };
@@ -91,7 +92,8 @@ export class ResponsibilityWalletSession {
         case 'control': record = await this.controls.submit(operation.action, this.#actor); break;
         case 'deposit': record = await this.accounts.deposit(this.#actor, operation.token, operation.tokenId); break;
         case 'standalone-withdraw': record = await this.accounts.withdraw(this.#actor, operation.token, operation.tokenId, operation.destination); break;
-        case 'fund': record = await this.payments!.fund(operation.sequenceId, operation.legIndex, this.#actor, operation.amount); break;
+        case 'reserve-payment': record = await this.payments!.reserve(operation.consent, this.#actor); break;
+        case 'cancel-reservation': record = await this.payments!.cancelReservation(operation.sequenceId, operation.legId, this.#actor); break;
         case 'allocate': record = await this.payments!.allocate(operation.sequenceId, operation.legIndex, this.#actor); break;
         case 'payout': record = await this.payments!.withdraw(operation.sequenceId, operation.legId, this.#actor); break;
         default: throw new ControlAdapterError('CONTROL_ACTION_REFUSED');

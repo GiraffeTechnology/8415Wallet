@@ -7,7 +7,7 @@ and consent/receipt/view adapters. This changes the review surface, not the
 approval status. See [development checkpoint](../CONTROL-DEVELOPMENT-STATUS.md)
 for the authority-backed occurrence/return profile, token proxy limitations,
 separate funding and remaining release gates. The first unified local campaign
-completed after source closure: latest 630 Node and 30 EVM cases passed. This does not
+completed after source closure: latest 633 Node and 36 EVM cases passed. This does not
 replace independent review or deployed UI/testnet evidence.
 Execution adapters now exist as development source; none is production
 approved. Do not interpret a proposal as permission. Earlier escrow audit/tests are not an
@@ -26,7 +26,9 @@ and entitlement are outside its claims, even when owner and holder agree.
 
 | Threat | Local kernel check | Required before release |
 | --- | --- | --- |
-| Escrow treated as responsibility authority | No escrow/payment dependency or field | Test independent account execution without funding; isolate optional payment calls |
+| Escrow treated as responsibility authority | Unfunded control remains independent; no payment outcome authorizes completion/return | Native-payment fields are signed delivery preconditions only; test both profiles |
+| Buyer exits before accepted price is reserved | Exact canonical-adapter reservation consumed atomically with forward | Missing/changed/duplicate reservations refuse; failed transfer rolls all state back |
+| Registrar role changes after sequence open | Live protocol authority check within forward | Role drift refuses before token, nonce, revision or payment mutation |
 | Cross-chain/token/control replay | Exact domain and revision matching | Domain-separated signatures, expiry/nonce, contract/account identity validation |
 | Fabricated consent or authority | Separate exact consent structure and actor/return-role checks | Real signer verification; full payload including inherited scope; no caller-supplied authenticated flags |
 | Dropped/replaced upstream terms | Exact ordered active inherited list | Atomic receiver acceptance; alternate transfer/approval/delegation/upgrade bypass matrix |
@@ -84,5 +86,7 @@ actual implementations and trust assumptions, not this preparation table alone.
    Bind results to candidate hashes and deployments. Unit/EVM tests are not a
    substitute for public-chain receipts or UI evidence.
 
-No independent auditor has reviewed this increment. No audit certificate,
-production approval, fresh testnet receipt or security guarantee is asserted.
+PR #8 review found two P1 defects (post-forward funding and stale authority).
+Stage 5E implements repairs; independent retest is still pending. No audit
+certificate, production approval, fresh testnet receipt or security guarantee
+is asserted.

@@ -1,0 +1,70 @@
+{
+  "commit": "2a982919162c6bbcd674c4524d180d03475859e8",
+  "githubActions": false,
+  "node": "v22.23.3",
+  "nodeMajor": 22,
+  "passed": true,
+  "runtimeSha256": "df450af89261115ef9f9e3830c3eeb2cc9213b63c720b1af623cb5dcbe2e02de",
+  "schema": "8415-v3-manual-ci/1",
+  "serviceCreated": false,
+  "sourceArchiveSha256": "badc1da141d948bdea3fb07ab213eb254edfe1a088a784d6fbfa59d1aec6cb4c",
+  "stableCode": "MANUAL_NODE22_COMPLETE",
+  "steps": [
+    {
+      "counts": {},
+      "elapsedSeconds": 50.902,
+      "exitCode": 0,
+      "stderrSha256": "7103709af58583cf04d2626f33b802bc735c382958623aec0119054cbbabf4a7",
+      "stdoutSha256": "8581084407bf94101fb741c5d958b1d7a5780b110e0ccd0c3c49e07c24bfb9e2",
+      "step": "install"
+    },
+    {
+      "counts": {},
+      "elapsedSeconds": 4.114,
+      "exitCode": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdoutSha256": "c5a4552ec8c9a8cee1a4fc9ce92f0b21b895ecdc1522288c81b166ecf148c2c0",
+      "step": "typecheck"
+    },
+    {
+      "counts": {
+        "fail": 0,
+        "pass": 630,
+        "tests": 630
+      },
+      "elapsedSeconds": 6.098,
+      "exitCode": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdoutSha256": "2dabaababc74f323a46861ab90c82151f446ca367add4f7b3e699a116a725df0",
+      "step": "node"
+    },
+    {
+      "counts": {},
+      "elapsedSeconds": 3.028,
+      "exitCode": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdoutSha256": "7d1f9fc095a07c91a0072a25fb827cbefa3dd10ae328f5b113ec10589ddbc55a",
+      "step": "browser"
+    },
+    {
+      "counts": {
+        "evmPassing": 30
+      },
+      "elapsedSeconds": 19.274,
+      "exitCode": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdoutSha256": "ed9c67a62d0cedd1e97f3fcdcf7966b6f929fbbee95cce7f0838fa4107360d2a",
+      "step": "evm"
+    },
+    {
+      "counts": {},
+      "elapsedSeconds": 0.325,
+      "exitCode": 0,
+      "stderrSha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "stdoutSha256": "7b3467182301bf013034a3f5e65a8f716d7e2132f46141d14205a5ab1d1db83a",
+      "step": "standalone"
+    }
+  ],
+  "testnet": false,
+  "tree": "a6d493ea83f8453bab24777cec4b9c8eff90f0f8"
+}

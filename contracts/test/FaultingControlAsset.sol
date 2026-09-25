@@ -6,12 +6,13 @@ pragma solidity ^0.8.20;
 /// in positive conformance, admission, completion or public-testnet evidence.
 contract FaultingControlAsset {
     address public owner;
-    address public immutable registrar;
+    address public registrar;
     bool public failTransfers;
     bool public rejectInterface;
     bytes32 public registerId = keccak256("FAULT_INJECTION_ONLY_REGISTER");
     bytes32 public verificationProfile = keccak256("FAULT_INJECTION_ONLY_PROFILE");
     constructor(address initialOwner, address registrar_) { owner = initialOwner; registrar = registrar_; }
+    function configureRegistrar(address registrar_) external { registrar = registrar_; }
     function configure(bool fail_, bool reject_, bytes32 profile) external {
         failTransfers = fail_; rejectInterface = reject_; verificationProfile = profile;
     }

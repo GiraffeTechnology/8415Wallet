@@ -65,6 +65,21 @@ describe('V3 production SDK against actual local EVM contracts',function(){
     assert.equal((await b.payments.read(s.id,p.c.legId)).state,'refunded');
     assert.equal((await b.reader.observe(s.id)).snapshot.legs[0].outcome,'returned');
   });
+  it('SDK reserves exact reviewed consent and can refund unused funds after explicit invalidation',async()=>{
+    const s=await k.open(),p=await k.consent(s,0,1,{funded:true}),a=session(0,true),b=session(1,true);
+    const documents={incoming:{terms:{scheme:'native-payment-v1',adapter:payment.controller,amount:p.amount},returnConditionText:condition},inherited:[]};
+    const review=await b.consent.prepare(p.c,k.owners[1],documents);
+    const signature=await b.consent.accept(review,review.digest);
+    await execute(b,{kind:'reserve-payment',consent:p.c});assert.equal((await b.payments.read(s.id,p.c.legId)).state,'reserved');
+    await execute(a,{kind:'control',action:{kind:'forward',consent:p.c,recipientSignature:signature}});
+    assert.equal((await b.payments.read(s.id,p.c.legId)).state,'funded');
+    const t=await k.open(),q=await k.consent(t,0,1,{funded:true});
+    await execute(b,{kind:'reserve-payment',consent:q.c});
+    await execute(b,{kind:'control',action:{kind:'invalidate-consent',nextNonce:q.c.recipientNonce+1n}});
+    await execute(b,{kind:'cancel-reservation',sequenceId:t.id,legId:q.c.legId});
+    await execute(b,{kind:'payout',sequenceId:t.id,legId:q.c.legId});
+    assert.equal((await b.payments.read(t.id,q.c.legId)).state,'refunded');
+  });
   it('recovers a real nonce race only after a different canonical transaction, without retrying the intended send',async()=>{
     const sequence=await k.open();
     let stored=null,replacement=null,sends=0;
