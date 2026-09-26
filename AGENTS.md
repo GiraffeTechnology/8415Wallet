@@ -401,10 +401,10 @@ from the presence of source files.
 
 2026-09-26 direct user priority: continue V3 until delivered; reject unrelated
 inserted work until V3 completion. Reports and intermediate passes are not
-completion. Claude Code retains CI/merge ownership; this task develops, repairs
+completion. The release owner retains CI/merge ownership; this task develops, repairs
 and runs development regressions without starting unrelated project tasks.
 
-Claude Code owns CI and PR merging. This task continues V3 development,
+The release owner owns CI and PR merging. This task continues V3 development,
 defect repairs, development regressions and stage PR delivery; do not provision
 runners, change CI scheduling or merge PRs from this task. Preserve merged
 rolling-window/pruning and recovery work. No report is completion.
@@ -419,7 +419,7 @@ testnet/UI acceptance remain distinct gates.
 Stage 5F adds a read-only payment observation by leg ID for unused reservations
 and detached legs. Do not infer responsibility completion from payment state.
 Historical pre-repair Stage 5F totals were 651 Node / 49 EVM; genuine public-chain/UI acceptance and
-independent review remain separate. CI and merging stay with Claude Code.
+independent review remain separate. CI and merging stay with the release owner.
 
 Stage 5F's later canonicality repair passed 656 Node / 49 EVM locally. Stage 5G
 adds a read-only verifier for a register's detached-leg export against the exact

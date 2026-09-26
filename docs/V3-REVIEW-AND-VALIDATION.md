@@ -64,7 +64,7 @@ explicit trust boundary, not cryptographic proof of off-chain legal identity.
    receipt/readback to that deployment and retain public evidence only.
 6. Produce W-01–W-21 results individually, with NOT_RUN/BLOCKED where appropriate;
    never infer them from package integrity, source presence or script exit alone.
-7. CI and PR merging are assigned to Claude Code by the latest user direction.
+7. CI and PR merging are assigned to the release owner by the latest user direction.
    This task delivers implementation, regressions and stage PRs, not runner or
    merge operations. PRs #3-#9 have merged; no merge satisfies steps 4-6.
 

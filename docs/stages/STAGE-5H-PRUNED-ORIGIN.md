@@ -21,6 +21,6 @@ test failed 0/1 with the captured TypeError. Complete local Node 686/686,
 typecheck and browser emit pass. Complete local EVM regression is 51/51.
 No public testnet or real UI result is claimed.
 
-CI/merging belong to Claude Code. V3 is not release-accepted until exact-version
+CI/merging belong to the release owner. V3 is not release-accepted until exact-version
 independent review, public-chain W scenarios and genuine desktop/mobile evidence
 are completed. Unrelated inserted tasks remain refused until V3 delivery.

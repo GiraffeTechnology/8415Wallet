@@ -4,7 +4,7 @@ Current Stage 5F repair baseline (2026-09-26): **656/656 Node, 49/49 local EVM**
 typecheck and browser emit pass, at code head `bf9ff8451b2d5d5f37c0109ab821467df5782e5a`.
 The 651-case figures below are the pre-repair batch, not the latest result.
 These are local development results, not CI, independent audit, public-testnet
-or genuine desktop/mobile acceptance. CI and merging remain with Claude Code.
+or genuine desktop/mobile acceptance. CI and merging remain with the release owner.
 
 
 Status: **IMPLEMENTED_LOCAL_VALIDATION_PASS / NOT_INDEPENDENTLY_AUDITED / NOT_RELEASE_READY**.
@@ -14,7 +14,7 @@ report, and the merge did not make it one.
 The merges were performed from the session holding the user's instruction; a
 parallel execution saw them as external. Later repairs go in their own PR.
 
-Latest user assignment: **Claude Code owns CI and merging**. This task keeps
+Latest user assignment: **the release owner owns CI and merging**. This task keeps
 developing V3, resolving findings and delivering stage PRs. It must not wait for
 CI scheduling as a substitute for development or change runner configuration.
 

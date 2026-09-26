@@ -74,6 +74,6 @@ Fresh independent review, exact new-tree Node 22 validation, real wallet desktop
 mobile UI, and actual V3 public-testnet deployment/transactions are still needed.
 The earlier 630/30 Linux run is retained as separate Stage 5D evidence. GitHub
 Historical CI failed before any runner/step was assigned; current CI and merging
-belong to Claude Code. This task neither changes runners nor claims CI status.
+belong to the release owner. This task neither changes runners nor claims CI status.
 No merge, public deployment, real-asset operation or new public-chain receipt
 is asserted by this stage.

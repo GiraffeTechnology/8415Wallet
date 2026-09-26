@@ -73,7 +73,7 @@ forged archive with every intermediate hash recomputed fails against the real
 chain commitment. The reader rejects all write/sign RPC methods.
 
 These are local regressions, not public-testnet or genuine desktop/mobile
-acceptance. Independent code review, CI/merge by Claude Code and the exact
+acceptance. Independent code review, CI/merge by the release owner and the exact
 deployed V3/W-20/UI campaign remain required. Historical Sepolia tests remain
 valid historical evidence but do not accept this revision.
 
