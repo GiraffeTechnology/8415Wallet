@@ -5,11 +5,50 @@ const {createScenario,runCoreJourney,runExtendedJourneys,FORWARD_FIELDS}=require
 // Written now, execution intentionally deferred until all V3 implementation is complete.
 describe('Independent responsibility controls — real reference projection',function(){
   this.timeout(180000);
-  let k;
-  beforeEach(async()=>{ k=await createScenario({ethers:hre.ethers,provider:hre.ethers.provider,
-    signers:await hre.ethers.getSigners(),artifact:name=>hre.artifacts.readArtifact(name)}); });
-  it('W-04/08/10/12/14/18/19/21: escrow-free prefix detach and actual bounded tail return',async()=>{await runCoreJourney(k,{funded:false});});
-  it('W-01/02/04/08/09/10/12/18: independently funded legs release and refund original routes',async()=>{await runCoreJourney(k,{funded:true});});
+  let k,records;
+  beforeEach(async()=>{ records=[];k=await createScenario({ethers:hre.ethers,provider:hre.ethers.provider,
+    signers:await hre.ethers.getSigners(),artifact:name=>hre.artifacts.readArtifact(name),record:async r=>records.push(r)}); });
+  function assertSdkObservations(funded){
+    const observations=records.filter(r=>r.kind==='sdk-observation');
+    assert.deepEqual(observations.map(r=>r.phase),['forwarded','prefix-detached','tail-returned']);
+    assert.deepEqual(observations.map(r=>r.detachedCount),['0','1','1']);
+    for(const r of observations){
+      assert.equal(r.uiVerified,false);assert.equal(r.readOnly,true);assert.equal(r.protocolFinality,false);
+      assert.ok(r.readCalls>0);assert.match(r.textSha256,/^[a-f0-9]{64}$/);
+      assert.match(r.viewBlock.hash,/^0x[a-f0-9]{64}$/);assert.match(r.archiveBlock.hash,/^0x[a-f0-9]{64}$/);
+    }
+    assert.deepEqual(observations[2].payments.map(r=>r.state),funded?['settled','refunded','refunded']:['unfunded','unfunded','unfunded']);
+  }
+  it('W-04/08/10/12/14/18/19/21: escrow-free prefix detach and actual bounded tail return',async()=>{
+    await runCoreJourney(k,{funded:false});assertSdkObservations(false);
+  });
+  it('W-01/02/04/08/09/10/12/18: independently funded legs release and refund original routes',async()=>{
+    await runCoreJourney(k,{funded:true});assertSdkObservations(true);
+  });
+  it('shared journey observer refuses corrupted receipt archives without recording success or sending',async()=>{
+    const {observeJourney}=require('../scripts/controls/observe-journey.cjs');
+    const s=await k.open();for(let i=0;i<3;i++)await k.forward(s,i,i+1);
+    await k.admit(s,1);await k.complete(s,1);
+    const original=s.detachedRecords[0].termsHash;s.detachedRecords[0].termsHash=hre.ethers.id('tampered');
+    const calls=[],before=records.length;
+    const readOnly={...k,provider:{send:async(method,params)=>{
+      calls.push(method);assert.ok(['eth_chainId','eth_getCode','eth_call','eth_getBlockByNumber'].includes(method));
+      return k.provider.send(method,params);
+    }}};
+    await assert.rejects(observeJourney(readOnly,s,'prefix-detached',{funded:false}),/CONTROL_ARCHIVE_COMMITMENT_REFUSED/);
+    assert.equal(records.length,before);assert.ok(calls.length>0);
+    s.detachedRecords[0].termsHash=original;
+    const result=await observeJourney(readOnly,s,'prefix-detached',{funded:false});
+    assert.equal(result.detachedCount,'1');assert.equal(records.length,before+1);
+  });
+  it('shared journey observer keeps the deployment-time runtime pin and refuses code substitution',async()=>{
+    const {observeJourney}=require('../scripts/controls/observe-journey.cjs');
+    const s=await k.open();for(let i=0;i<3;i++)await k.forward(s,i,i+1);
+    const before=records.length;
+    const changed={...k,provider:{send:async(method,params)=>method==='eth_getCode'?'0x6001':k.provider.send(method,params)}};
+    await assert.rejects(observeJourney(changed,s,'forwarded',{funded:false}),/CONTROL_RUNTIME_PIN_MISMATCH/);
+    assert.equal(records.length,before);
+  });
   // These journeys were reachable only from the public-testnet runner, which
   // has not been run. Locally they were dead coverage, so the W-03 observation
   // that ordinary register lag never locks a forward — and the tail-extension,

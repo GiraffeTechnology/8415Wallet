@@ -133,7 +133,7 @@ async function main(){
       createJson('result.json',{schema:'8415-v3-testnet-core/1',verdict:'CORE_JOURNEYS_EXECUTED_NOT_FULL_V3_ACCEPTANCE',
         chainId:chainId.toString(),sourceCommit,sourceTree,artifactPins,eventCount:count,evidenceHeadSha256:previousHash,
         reservedMaximumWei:reserved.toString(),uiVerified:false,independentAuditPassed:false,
-        remaining:'Full W-01–W-21, adversarial matrix and genuine desktop/mobile acceptance remain separate required gates.',
+        remaining:'Full W-01–W-24, adversarial matrix and genuine desktop/mobile acceptance remain separate required gates; sdk-observation is not UI evidence.',
         privateMaterialPersisted:false,validatorKeys:'ephemeral-test-only-not-retained',completedAt:new Date().toISOString()});
     }catch(error){
       createJson('result.json',{schema:'8415-v3-testnet-core/1',verdict:'INCOMPLETE',stableCode:error?.safeCode??'TESTNET_EXECUTION_REFUSED',

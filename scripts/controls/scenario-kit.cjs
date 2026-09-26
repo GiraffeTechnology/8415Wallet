@@ -1,4 +1,5 @@
 const assert = require('node:assert/strict');
+const {observeJourney}=require('./observe-journey.cjs');
 
 // Same real reference admission path for local EVM and public testnet. No mock
 // projection, time warp, skipped assertion or hard-coded PASS count in this kit.
@@ -19,6 +20,7 @@ async function createScenario({ ethers, provider, signers, artifact, record = as
   const hash = label => ethers.keccak256(ethers.toUtf8Bytes(label));
   const coder = ethers.AbiCoder.defaultAbiCoder();
   let serial = 0;
+  const deploymentPins=new Map();
   const uid = label => hash(`${label}:${++serial}`);
   async function transaction(label, promise) {
     const tx = await promise;
@@ -40,6 +42,7 @@ async function createScenario({ ethers, provider, signers, artifact, record = as
     await c.waitForDeployment();
     const address = await c.getAddress(); const code = await provider.getCode(address);
     assert.notEqual(code, '0x', 'SCENARIO_DEPLOYMENT_CODE_MISSING');
+    deploymentPins.set(name,Object.freeze({chainId,controller:address.toLowerCase(),runtimeCodeHash:ethers.keccak256(code)}));
     await record({ kind: 'deployment', name, address, runtimeCodeHash: ethers.keccak256(code), chainId: chainId.toString() });
     return c;
   }
@@ -57,6 +60,7 @@ async function createScenario({ ethers, provider, signers, artifact, record = as
   const payments = new ethers.Contract(paymentAddress,(await artifact('NativeResponsibilityPayments')).abi,A);
   const paymentCode=await provider.getCode(paymentAddress);
   assert.notEqual(paymentCode,'0x','SCENARIO_DEPLOYMENT_CODE_MISSING');
+  deploymentPins.set('NativeResponsibilityPayments',Object.freeze({chainId,controller:paymentAddress.toLowerCase(),runtimeCodeHash:ethers.keccak256(paymentCode)}));
   await record({kind:'deployment',name:'NativeResponsibilityPayments',address:paymentAddress,
     runtimeCodeHash:ethers.keccak256(paymentCode),chainId:chainId.toString()});
   const accounts = [];
@@ -81,7 +85,7 @@ async function createScenario({ ethers, provider, signers, artifact, record = as
     await transaction('mint-test-token',projection.mint(accounts[0],tokenId,uid('genesis'),uid('reference'),now-3600n));
     await transaction('open-sequence',controller.openSequence(projectionAddress,tokenId,owners[4]));
     const id=await controller.currentSequence(projectionAddress,tokenId);
-    return {id,tokenId,legs:[]};
+    return {id,tokenId,legs:[],detachedRecords:[]};
   }
   const state = s => controller.sequence(s.id);
   async function consent(s,from,to,{funded=false}={}) {
@@ -141,7 +145,18 @@ async function createScenario({ ethers, provider, signers, artifact, record = as
     return previous.version+1n;
   }
   async function complete(s,through) {
-    await transaction('complete-prefix',controller.completeThrough(s.id,s.legs[through-1],(await state(s)).revision));
+    const receipt=await transaction('complete-prefix',controller.completeThrough(s.id,s.legs[through-1],(await state(s)).revision));
+    // Collect only the actual canonical receipt's public detachment records, not
+    // fabricated records or an unbounded historic log query on a shared chain.
+    for(const log of receipt.logs){
+      if(log.address.toLowerCase()!==controllerAddress.toLowerCase())continue;
+      const parsed=controller.interface.parseLog(log);
+      if(parsed?.name!=='LegDetached')continue;
+      const r=parsed.args;assert.equal(r.sequenceId,s.id,'SCENARIO_ARCHIVE_SEQUENCE_REFUSED');
+      s.detachedRecords.push({occurrence:String(r.occurrence),legId:r.legId,fromAccount:r.fromAccount,toAccount:r.toAccount,
+        termsHash:r.termsHash,acceptanceHash:r.acceptanceHash,returnAuthority:r.returnAuthority,
+        returnConditionHash:r.returnConditionHash,detachedCommitment:r.detachedCommitment});
+    }
     assert.equal((await state(s)).completedCount,BigInt(through));
   }
   async function beginReturn(s,root) {
@@ -168,6 +183,7 @@ async function createScenario({ ethers, provider, signers, artifact, record = as
     await record({kind:'read-only-revert',label,errorName,transactionSent:false});
   }
   return { ethers,provider,signers,owners,accounts,account,projection,controller,payments,projectionAddress,controllerAddress,
+    observationPins:Object.freeze({controller:deploymentPins.get('ResponsibilityController'),payment:deploymentPins.get('NativeResponsibilityPayments')}),
     domain,conditionHash,hash,uid,transaction,open,state,consent,forward,admit,complete,beginReturn,hop,payout,refused,record };
 }
 
@@ -175,6 +191,7 @@ async function runCoreJourney(k,{funded}) {
   const {projection,controller,payments}=k;
   const s=await k.open();
   await k.forward(s,0,1,{funded}); await k.forward(s,1,2,{funded}); await k.forward(s,2,3,{funded});
+  await observeJourney(k,s,'forwarded',{funded});
   assert.equal(await projection.ownerOf(s.tokenId),k.accounts[3]);
   assert.equal(await projection.holderAsOf(s.tokenId,BigInt((await k.provider.getBlock('latest')).timestamp)),k.accounts[0]);
   await k.refused('owner-only-cannot-complete',async()=>controller.completeThrough.staticCall(s.id,s.legs[0],(await k.state(s)).revision),controller,'CompletionEvidenceUnavailable');
@@ -184,6 +201,7 @@ async function runCoreJourney(k,{funded}) {
   const now=BigInt((await k.provider.getBlock('latest')).timestamp);
   assert.equal(await projection.isFinalAsOf(s.tokenId,now),false,'COMMERCIAL_COMPLETION_IS_NOT_TEMPORAL_FINALITY');
   if (funded) await k.payout(s,0,0,4n);
+  await observeJourney(k,s,'prefix-detached',{funded});
   await k.beginReturn(s,2);
   if (funded) await k.refused('request-without-return-cannot-refund',()=>payments.allocate.staticCall(s.id,s.legs[2]),payments,'OutcomeUnavailable');
   const beforeHop=await k.state(s);
@@ -191,6 +209,7 @@ async function runCoreJourney(k,{funded}) {
   if (funded) await k.payout(s,2,3,5n);
   await k.refused('duplicate-hop-revision',()=>controller.connect(k.signers[4]).returnHop.staticCall(s.id,s.legs[2],beforeHop.revision),controller,'RevisionMismatch');
   await k.hop(s); if (funded) await k.payout(s,1,2,5n);
+  await observeJourney(k,s,'tail-returned',{funded});
   assert.equal(await projection.ownerOf(s.tokenId),k.accounts[1]);
   // Leg 0 completed and left the chain: its record is not readable here, only
   // the fact that it ended and the commitment that now covers it.

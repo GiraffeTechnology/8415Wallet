@@ -2,8 +2,8 @@
 
 Status: **IMPLEMENTED_LOCAL_TESTS_PASS / NOT_INDEPENDENTLY_AUDITED**.
 
-Latest integrated Stage 5H plus archive-review repair passed 692 Node / 51 EVM
-locally. An input-owned mapper could bypass strict archive validation; indexed
+Latest integrated Stage 5I passed 693 Node / 53 EVM locally; the preceding
+archive-review repair passed 692/51. An input-owned mapper could bypass strict archive validation; indexed
 copying and six adversarial regressions repair review 4106621481. Public archive
 objects are not trusted merely because they are arrays. Fresh exact-head review
 remains required; this development check is not security approval.
