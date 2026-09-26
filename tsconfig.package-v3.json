@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "declarationMap": false,
+    "sourceMap": false,
+    "outDir": "./dist/package-v3",
+    "rootDir": "./src"
+  },
+  "include": ["src/index.ts", "src/controls/index.ts", "src/controls/fileOperationStore.ts", "src/browser.ts", "src/cli/main.ts"],
+  "exclude": ["tests"]
+}
