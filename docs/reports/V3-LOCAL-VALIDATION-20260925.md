@@ -34,7 +34,7 @@ was repaired and the complete suite rerun. Subsequent independent review found
 P2 impossible reservations; shared execution eligibility plus two additional
 regressions repair that finding. See Stage 5E for exact scope.
 All older tables below remain historical, not the current integrated counts.
-CI and merging are Claude Code's responsibility; no CI outcome is asserted here.
+CI and merging are the release owner's responsibility; no CI outcome is asserted here.
 
 ## Source and stage delivery
 

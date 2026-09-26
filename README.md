@@ -4,7 +4,7 @@ Current Stage 5F repair baseline (2026-09-26): **656/656 Node, 49/49 local EVM**
 typecheck and browser emit pass, at code head `bf9ff8451b2d5d5f37c0109ab821467df5782e5a`.
 The 651-case figures below are the pre-repair batch, not the latest result.
 These are local development results, not CI, independent audit, public-testnet
-or genuine desktop/mobile acceptance. CI and merging remain with Claude Code.
+or genuine desktop/mobile acceptance. CI and merging remain with the release owner.
 
 
 A reference wallet and client for [ERC-8415 — Asynchronous Register Projection for NFTs](https://github.com/GiraffeTechnology/ERC-8415).
@@ -47,8 +47,8 @@ deployment/transactions remain separately required gates. Browser automation
 currently fails before opening a tab; HTTP delivery is not UI verification.
 See [the exact local validation report](docs/reports/V3-LOCAL-VALIDATION-20260925.md).
 See [development order and remaining work](CONTROL-DEVELOPMENT-STATUS.md).
-CI and merging are now assigned to Claude Code; this task continues development
-and stage PR delivery. Local regression results do not replace CI or acceptance.
+CI and merging are assigned to the release owner; this task continues
+development and stage PR delivery. Local regression results do not replace CI or acceptance.
 Stage 5E repairs the two subsequent P1 review findings: exact signed native
 payment reservations must exist before forwarding and are consumed atomically;
 the current settlement authority is revalidated before a token moves. Unfunded
@@ -295,8 +295,8 @@ receipt archives, wallet views and payment observations into both core test
 journeys without extra transactions. These are not release acceptance.
 
 V3 is the exclusive active development priority until delivery. Development
-regressions continue after demonstrated repairs; **Claude Code owns CI and PR
-merging**. Do not treat a stage PR or a progress report as release acceptance.
+regressions continue after demonstrated repairs; **the release owner owns CI
+and PR merging**. Do not treat a stage PR or a progress report as release acceptance.
 PRs #3-#9 have merged; PRs #10/#11 cover later development and review repairs.
 Stage 5B contains an additive browser workflow in `web/`
 and an experimental `src/browser.ts` entry, including standalone reads without

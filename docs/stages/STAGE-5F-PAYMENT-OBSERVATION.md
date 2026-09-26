@@ -40,7 +40,7 @@ entire batch rerun: 651 Node and 49 EVM, all passing, no skips. The two addition
 cases reject detached-ID and full-window reservations before accepting funds.
 No former count was reinterpreted as coverage of that later repair.
 
-CI and merging remain assigned to Claude Code. Independent exact-version review,
+CI and merging remain assigned to the release owner. Independent exact-version review,
 genuine desktop/mobile wallet interactions and public V3 testnet receipts remain
 separate outstanding gates. Historical Sepolia activity is preserved, not reused.
 
