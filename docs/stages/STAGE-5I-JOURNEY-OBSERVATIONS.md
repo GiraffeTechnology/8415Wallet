@@ -1,7 +1,7 @@
 # Stage 5I — connect the deployed journey to wallet observations
 
 Date: 2026-09-26. Test tooling only; no contract, ABI, wallet authority or new
-business feature. CI and merges remain exclusively with Claude Code.
+business feature.
 
 ## Gap and repair
 

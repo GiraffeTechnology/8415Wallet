@@ -435,8 +435,7 @@ input-controlled map/iterator/species. The prior 651/49, 656/49, 686/50 and 686/
 batches, plus the archive repair's 692/51, are historical and not current counts.
 Stage 5I's shared local/testnet journey calls the actual SDK view, archive and
 payment observers at three phases. Text-render evidence is never genuine UI
-evidence. Claude Code alone handles CI execution and merging; stage publication
-does not authorize this task to dispatch workflows or merge PRs.
+evidence.
 
 Every stage requires:
 
