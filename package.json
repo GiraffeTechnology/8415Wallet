@@ -16,6 +16,8 @@
     "wallet:browser:build": "tsc -p tsconfig.browser.json",
     "wallet:browser:serve": "node scripts/controls/serve-browser.cjs",
     "wallet:controls:testnet": "node scripts/controls/public-testnet.cjs",
+    "wallet:controls:signer": "node scripts/controls/testnet-signer.cjs",
+    "wallet:ui:journey": "node scripts/controls/browser-journey.cjs",
     "test:evm": "hardhat test",
     "pack:v2": "node scripts/package/build-v2.mjs",
     "pack:v2:verify": "node scripts/package/verify-install.mjs"
@@ -25,6 +27,7 @@
     "@types/node": "^22.0.0",
     "ethers": "^6.17.0",
     "hardhat": "^2.29.0",
+    "playwright-core": "^1.56.1",
     "solc": "^0.8.37",
     "typescript": "^5.9.0"
   },

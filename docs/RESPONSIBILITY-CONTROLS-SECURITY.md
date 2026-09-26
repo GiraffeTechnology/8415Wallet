@@ -2,11 +2,20 @@
 
 Status: **IMPLEMENTED_LOCAL_TESTS_PASS / NOT_INDEPENDENTLY_AUDITED**.
 
-Latest integrated Stage 5I passed 693 Node / 53 EVM locally; the preceding
+Latest integrated Stage 5J passed 699 Node / 53 EVM locally; Stage 5I passed
+693/53 and the preceding
 archive-review repair passed 692/51. An input-owned mapper could bypass strict archive validation; indexed
 copying and six adversarial regressions repair review 4106621481. Public archive
 objects are not trusted merely because they are arrays. Fresh exact-head review
 remains required; this development check is not security approval.
+
+Stage 5J adds a surface that did not exist before and has not been reviewed: a
+loopback JSON-RPC endpoint that holds five throwaway test keys so the public
+journey runner has accounts to sign with. It is bound to test chain ids, a
+1000 wei value ceiling, a bounded read allowlist, and the single ForwardConsent
+typed domain, and it never relays `eth_sendRawTransaction` on a caller's
+behalf. None of that is an audit. Treat any key it holds as disposable, and do
+not point it at an account that holds value.
 
 Local development now includes account/controller/payment contracts
 and consent/receipt/view adapters. This changes the review surface, not the

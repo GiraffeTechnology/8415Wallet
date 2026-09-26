@@ -5,6 +5,18 @@ Date: 2026-09-25. Verdict: **IMPLEMENTED_LOCAL_VALIDATION_PASS**.
 
 ## Latest integrated repair batch (2026-09-26)
 
+Stage 5J then passed 699/699 Node (108 suites), 53/53 local EVM, typecheck and
+browser emit. It also executed two things this repository could not execute
+before, both recorded in `docs/stages/STAGE-5J-PUBLIC-PATH-AND-UI.md`:
+
+- the public-testnet runner, end to end, against a loopback rehearsal chain —
+  243 evidence events, 105 transactions, 30,464,890 gas, 7 journeys with
+  assertions completed. A rehearsal is not a public chain and does not close
+  the public-testnet gate or W-20;
+- a genuine browser journey in Chromium 141 at a desktop and an emulated phone
+  viewport — 14 recorded steps and 14 screenshots per profile, zero page
+  requests leaving the origin. An emulated viewport is not a physical handset.
+
 Stage 5I subsequently passed 693/693 Node (108 suites), 53/53 local EVM,
 typecheck, browser emit and script syntax. Its four targeted EVM cases prove
 actual SDK observations in both core journeys and reject corrupt archives/code

@@ -20,7 +20,7 @@ CI scheduling as a substitute for development or change runner configuration.
 
 ## Validation batches (historical and repaired)
 
-Latest integrated Stage 5I local batch: 693/693 Node, 53/53 EVM, typecheck and
+Latest integrated Stage 5J local batch: 699/699 Node, 53/53 EVM, typecheck and
 browser emit pass. See Stage 5G/5H reports for the new archive verifier and the
 reproduced pruned-origin SDK crash. Older counts below are historical batches.
 
