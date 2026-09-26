@@ -1,6 +1,7 @@
 const assert=require('node:assert/strict');
 const hre=require('hardhat');
 const {createScenario,runCoreJourney,runExtendedJourneys,FORWARD_FIELDS}=require('../scripts/controls/scenario-kit.cjs');
+const {observeDetachment}=require('../scripts/controls/detach-observation.cjs');
 
 // Written now, execution intentionally deferred until all V3 implementation is complete.
 describe('Independent responsibility controls — real reference projection',function(){
@@ -24,6 +25,37 @@ describe('Independent responsibility controls — real reference projection',fun
   });
   it('W-01/02/04/08/09/10/12/18: independently funded legs release and refund original routes',async()=>{
     await runCoreJourney(k,{funded:true});assertSdkObservations(true);
+  });
+  it('AB detaches out of a chain that keeps trading, and the window rolls to BC-CD',async()=>{
+    const {states}=await observeDetachment(k,{shape:'continuous'});
+    const at=label=>states.find(r=>r.state===label);
+    const abcd=at('forwarded-ABCD'),detached=at('detached-AB'),extended=at('extended-DB-after-detach');
+    // The position ran ahead of the register: that lag is the normal state.
+    assert.equal(abcd.erc.ownerOf,'D');assert.equal(abcd.erc.holder,'A');
+    assert.equal(abcd.chain.activeLegs,'3');assert.equal(abcd.chain.detachedCount,'0');
+    // Detachment frees a slot and moves the boundary, and changes nothing on the ERC side.
+    assert.equal(detached.chain.activeLegs,'2');assert.equal(detached.chain.detachedCount,'1');
+    assert.equal(detached.chain.boundaryAccount,'B');
+    assert.equal(detached.erc.ownerOf,abcd.erc.ownerOf);
+    assert.equal(detached.erc.entryCount,at('admitted-B').erc.entryCount);
+    assert.equal(detached.legs[0].detached,true);
+    // Detached history never counts against the window, so the chain keeps extending.
+    assert.equal(extended.chain.appended,'4');assert.equal(extended.chain.activeLegs,'3');
+    assert.equal(extended.chain.boundaryAccount,'B');
+  });
+  it('AB alone detaches to an empty window that still extends, without moving the token',async()=>{
+    const {states}=await observeDetachment(k,{shape:'ab-only'});
+    const at=label=>states.find(r=>r.state===label);
+    const admitted=at('admitted-B'),detached=at('detached-AB'),reopened=at('forwarded-BC-after-empty');
+    assert.equal(admitted.erc.ownerOf,'B');assert.equal(admitted.erc.holder,'B');
+    assert.equal(detached.chain.activeLegs,'0');assert.equal(detached.chain.completedCount,'1');
+    assert.equal(detached.chain.boundaryAccount,'B');
+    assert.equal(detached.erc.ownerOf,'B');
+    assert.equal(detached.erc.entryCount,admitted.erc.entryCount);
+    assert.notEqual(detached.chain.detachedCommitment,`0x${'0'.repeat(64)}`);
+    // An empty window is not a closed one: occurrence 1 opens on the same sequence.
+    assert.equal(reopened.chain.appended,'2');assert.equal(reopened.chain.activeLegs,'1');
+    assert.equal(reopened.chain.detachedCount,'1');assert.equal(reopened.chain.boundaryAccount,'B');
   });
   it('shared journey observer refuses corrupted receipt archives without recording success or sending',async()=>{
     const {observeJourney}=require('../scripts/controls/observe-journey.cjs');
