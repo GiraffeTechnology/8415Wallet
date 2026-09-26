@@ -20,7 +20,8 @@ or authorization to merge further work follows from that remote state.
 
 ## Exact review surface
 
-Latest Stage 5I: 693/693 Node, 53/53 local EVM, typecheck/browser emit pass.
+Latest Stage 5J: 699/699 Node, 53/53 local EVM, typecheck/browser emit pass.
+Stage 5I had 693/53.
 The Stage 5H archive-review repair had 692/51; Stage 5H before it had 686/51;
 Stage 5F canonicality repair had 656/49; Stage 5G had 686/50. Preserve
 these as distinct batches. Add `detachedHistory.ts`'s strict public import and
