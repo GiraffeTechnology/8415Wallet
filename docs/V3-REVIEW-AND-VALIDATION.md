@@ -1,14 +1,7 @@
 # V3 review and unified validation handoff
 
-Current Stage 5F repair baseline (2026-09-26): **656/656 Node, 49/49 local EVM**,
-typecheck and browser emit pass, at code head `bf9ff8451b2d5d5f37c0109ab821467df5782e5a`.
-The 651-case figures below are the pre-repair batch, not the latest result.
-These are local development results, not CI, independent audit, public-testnet
-or genuine desktop/mobile acceptance. CI and merging remain with Claude Code.
-
-
 Source closure is not release acceptance. Source was UNTESTED at initial freeze;
-pre-repair Stage 5F local validation passed 651 Node and 49 EVM cases after review repairs
+pre-repair Stage 5F local validation passed 651 Node and 49 EVM cases after earlier review repairs
 and read-only detached/reserved payment observation. No new authority is added.
 Fresh independent review, genuine UI and public-testnet gates remain open.
 Preserve historical Sepolia receipts; do not relabel them as V3.
@@ -26,6 +19,13 @@ did not perform those merges. Repairs now need a separate PR; no release approva
 or authorization to merge further work follows from that remote state.
 
 ## Exact review surface
+
+Latest Stage 5H plus archive-review repair: 692/692 Node, 51/51 local EVM,
+typecheck/browser emit pass. Stage 5H before this repair had 686/51;
+Stage 5F canonicality repair had 656/49; Stage 5G had 686/50. Preserve
+these as distinct batches. Add `detachedHistory.ts`'s strict public import and
+chain-anchored fold, caller-method-free indexed copying, browser import, and
+pruned-origin read handling to review.
 
 - Four independent contracts in `contracts/controls/`; the controller has no
   funds and never writes projection history. Token accounts enforce protected

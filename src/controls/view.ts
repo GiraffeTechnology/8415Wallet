@@ -91,14 +91,17 @@ export class RpcResponsibilityControlReader implements LinkedControlReader {
       // holder the last detached leg handed the token to. Beyond that the leg
       // is at the register, so the binding is refused rather than guessed.
       const boundary = observed.legs[0]?.fromAccount ?? s.currentAccount;
-      const account = index === 0n && observed.firstOccurrence === 0n ? s.initialAccount
+      const account = index === 0n ? s.initialAccount
         : index === observed.firstOccurrence ? boundary
         : observed.legs[Number(index - observed.firstOccurrence - 1n)]!.toAccount;
       const immutableHash = hashControlBytes(encodeWords(REGISTER_ENTRY_TYPES.slice(0, 6), entry.slice(0, 6)));
       requireValue(binding[2] === immutableHash && account === holder && entry[3] === holder, 'CONTROL_ADMISSION_BINDING_REFUSED');
       // After a closed sequence permits a standalone withdrawal, this is historical
       // control state, not a claim that the token is still at its former cursor.
-      if (owner === s.currentAccount) evidence = { kind: 'bound', asset, sequenceId, revision: s.revision,
+      // Origin occurrence zero remains resolvable on chain after detachment,
+      // but is outside the live view once its prefix has left. Preserve raw
+      // projection facts without manufacturing an in-window completion proof.
+      if (owner === s.currentAccount && index >= observed.firstOccurrence) evidence = { kind: 'bound', asset, sequenceId, revision: s.revision,
         blockNumber: observed.blockNumber, blockHash: observed.blockHash,
         owner: { occurrenceId: occurrence(s.cursor), account: owner },
         admittedHolder: { occurrenceId: occurrence(index), account: holder }, protocolFinality: finality };

@@ -1,12 +1,5 @@
 # ERC-8415 Wallet AGENTS.md
 
-Current Stage 5F repair baseline (2026-09-26): **656/656 Node, 49/49 local EVM**,
-typecheck and browser emit pass, at code head `bf9ff8451b2d5d5f37c0109ab821467df5782e5a`.
-The 651-case figures below are the pre-repair batch, not the latest result.
-These are local development results, not CI, independent audit, public-testnet
-or genuine desktop/mobile acceptance. CI and merging remain with Claude Code.
-
-
 ## Product Boundary
 
 8415Wallet is an application-layer wallet and reference client for ERC-8415
@@ -425,7 +418,7 @@ testnet/UI acceptance remain distinct gates.
 
 Stage 5F adds a read-only payment observation by leg ID for unused reservations
 and detached legs. Do not infer responsibility completion from payment state.
-Pre-repair Stage 5F totals were 651 Node / 49 EVM; genuine public-chain/UI acceptance and
+Historical pre-repair Stage 5F totals were 651 Node / 49 EVM; genuine public-chain/UI acceptance and
 independent review remain separate. CI and merging stay with Claude Code.
 
 Stage 5F's later canonicality repair passed 656 Node / 49 EVM locally. Stage 5G
@@ -433,6 +426,13 @@ adds a read-only verifier for a register's detached-leg export against the exact
 on-chain count/commitment and live boundary. Never call a partial archive,
 untrusted `verified` field or commitment-only copy verified history; never use
 history verification as transaction authority or ERC temporal finality.
+
+Stage 5H preserves raw origin-holder projection observations after prefix
+detachment without manufacturing a completion proof outside the live window.
+Latest integrated local results after archive-review repair: 692 Node / 51 EVM,
+typecheck/browser emit pass. Import records by validated indexed copy, never
+input-controlled map/iterator/species. The prior 651/49, 656/49, 686/50 and 686/51
+batches are historical and not current counts.
 
 Every stage requires:
 
@@ -449,12 +449,6 @@ first entry.
 ---
 
 ## Completion Requirement
-
-The standalone reading foundation (V2) was closed on 2026-09-25 against PRD §8,
-condition by condition, in `docs/V2-CLOSEOUT.md` — including the one gap that
-closeout names rather than hides: no public chain has yet shown an independent
-registrar lagging a live market, which is issue 001 and is still open. Do not
-read V2's closure, or its Sepolia run, as evidence for anything in v3.0.
 
 The standalone reading foundation is complete only when a user can see, for any token and any
 instant, and without conflating them:

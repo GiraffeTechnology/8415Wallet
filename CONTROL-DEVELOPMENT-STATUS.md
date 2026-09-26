@@ -20,6 +20,10 @@ CI scheduling as a substitute for development or change runner configuration.
 
 ## Validation batches (historical and repaired)
 
+Latest integrated Stage 5H plus archive-review repair: 692/692 Node, 51/51 EVM, typecheck and
+browser emit pass. See Stage 5G/5H reports for the new archive verifier and the
+reproduced pruned-origin SDK crash. Older counts below are historical batches.
+
 2026-09-26: V3 is the exclusive active development priority; unrelated inserts
 are not accepted before delivery. Stage 5F review 4106073328 was reproduced by
 five failing tests and repaired; local 656 Node / 49 EVM plus typecheck/browser

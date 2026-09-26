@@ -286,6 +286,12 @@ The ERC specification remains the source of truth.
 
 ## Development
 
+Latest integrated Stage 5H plus archive-review repair: **692/692 Node and 51/51 EVM**, plus
+typecheck/browser emit. Stage 5G adds verified detached history; Stage 5H repairs
+the pruned-origin read crash. Earlier 651/49 and 656/49 totals are separate
+historical runs, not the current count. The prior 686/51 batch predates the six
+untrusted-array regressions. These are not release acceptance.
+
 V3 is the exclusive active development priority until delivery. Development
 regressions continue after demonstrated repairs; **Claude Code owns CI and PR
 merging**. Do not treat a stage PR or a progress report as release acceptance.
