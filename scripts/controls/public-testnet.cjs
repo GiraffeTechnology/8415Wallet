@@ -4,6 +4,7 @@ const crypto=require('node:crypto');
 const {execFileSync}=require('node:child_process');
 const {ethers}=require('ethers');
 const {createScenario,runCoreJourney,runExtendedJourneys}=require('./scenario-kit.cjs');
+const {runDetachObservations}=require('./detach-observation.cjs');
 
 const hash=bytes=>crypto.createHash('sha256').update(bytes).digest('hex');
 const refuse=code=>{throw Object.assign(new Error(code),{safeCode:code});};
@@ -126,7 +127,7 @@ async function main(){
         if(r.kind==='deployment')deployments.set(r.name,r);await record(r);
       }});
       await runCoreJourney(k,{funded:false});await runCoreJourney(k,{funded:true});
-      await runExtendedJourneys(k);
+      await runExtendedJourneys(k);await runDetachObservations(k);
       const pin=name=>{const d=deployments.get(name);return{address:d.address,runtimeCodeHash:d.runtimeCodeHash};};
       createJson('public-deployment.json',{schema:'8415-controls-testnet/1',chainId:chainId.toString(),
         controller:pin('ResponsibilityController'),token:pin('RegisterProjectionReference'),payment:pin('NativeResponsibilityPayments')});
