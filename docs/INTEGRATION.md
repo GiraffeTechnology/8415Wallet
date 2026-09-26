@@ -90,6 +90,43 @@ unreachable endpoint once surfaced as "the contract does not advertise
 both were absorbed by callers that treat a revert as an answer. Nothing above
 the port may render a `TransportError` as a fact about the register.
 
+## Reading and acting in one transaction
+
+Everything this port returns is a snapshot of the block it was read in.
+`holderAsOf`, `isFinalAsOf` and `openGapOf` can all move between the read and
+whatever the read was for.
+
+The recommended shape is the **on-chain atomic read**: your contract calls
+these inside the same transaction as the action that depends on them. That
+closes the window. Handling a shift at land time narrows it, and is the
+fallback for a display read — not an equal option. The wallet reads for
+display and says so; it never lets a display read authorize an action.
+
+The shape that goes wrong is subtle, because it looks careful: read the holder
+over RPC, check it, then send a transaction that takes the holder as a
+parameter. Every step is verified and the result is still unauthorized, since
+what the transaction acted on is whatever was true one block ago. A consuming
+contract that accepts a holder, a version or an instant as calldata has a
+stale-read problem by construction — there is nowhere for a fresh answer to
+enter.
+
+A minimal executable example lives in the Kit at
+`contracts/examples/RecordDateClaim.sol` (proposed in erc8415-kit#13): a
+distribution paid once to whoever the register confirms held a token at a
+fixed record date, where `claim` takes a token id and nothing else. Its tests
+cover the case documentation cannot — the admission that makes the claim
+eligible is mined in the same block as the claim, ordered before it, so a read
+taken one block earlier would have looked right and been wrong.
+
+Two things that example keeps apart are worth repeating here. Protocol
+temporal finality comes from `isFinalAsOf` and is never recomputed by the
+consumer; a record date becomes final only once an entry with a strictly later
+`effectiveAt` is admitted, which a confirming entry for the same holder can
+supply without any change of hands. And refusing to act while a gap is open is
+an application's **policy**, not a finality rule: an open gap does not make an
+already-final historical instant non-final, so a consumer that waits one out
+should say that the choice is its own.
+
 ## The Native Infrastructure Kit adapter
 
 Built, and composed rather than substituted.
