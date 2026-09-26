@@ -69,6 +69,17 @@ function load({file}){
   return parsed.keys;
 }
 const wallets=keys=>keys.map(k=>new ethers.Wallet(k));
+/**
+ * What each role is still short, given what it already holds. Role A funds the
+ * others, so its own shortfall is settled by the person funding it; the rest is
+ * a single transfer per role and nothing is sent to a role already funded.
+ */
+function shortfalls(rows,balances){
+  const transfers=rows.slice(1)
+    .map((row,index)=>({role:row.role,index:row.index,wei:row.weiRequired>balances[index+1]?row.weiRequired-balances[index+1]:0n}))
+    .filter(t=>t.wei>0n);
+  return {transfers,totalWei:transfers.reduce((t,x)=>t+x.wei,0n)};
+}
 function requirement(maxFee){
   const rows=ROLES.map((role,index)=>({role,index,
     weiRequired:MEASURED_GAS[role]*maxFee*HEADROOM_PERCENT/100n}));
@@ -211,8 +222,28 @@ async function main(){
     report(signers.map(s=>s.address),config.maxFee,await Promise.all(signers.map(s=>provider.getBalance(s.address))));
     return;
   }
+  if(mode==='distribute'){
+    const signers=wallets(load(store));
+    const provider=await connect(config);
+    const balances=await Promise.all(signers.map(s=>provider.getBalance(s.address)));
+    const {rows}=requirement(config.maxFee);
+    const {transfers,totalWei}=shortfalls(rows,balances);
+    if(transfers.length===0){process.stdout.write('every role is already funded; nothing to send\n');return;}
+    // A plain transfer costs 21000; keep a margin so the last one is not stranded.
+    const fees=BigInt(transfers.length)*21000n*config.maxFee*2n;
+    if(balances[0]<totalWei+fees)refuse('SIGNER_FUNDER_INSUFFICIENT');
+    const funder=signers[0].connect(provider);
+    for(const transfer of transfers){
+      const sent=await funder.sendTransaction({to:signers[transfer.index].address,value:transfer.wei,
+        maxFeePerGas:config.maxFee,maxPriorityFeePerGas:config.maxFee/10n,gasLimit:21000n});
+      const receipt=await sent.wait(1);
+      process.stdout.write(`${transfer.role.padEnd(9)} ${ethers.formatEther(transfer.wei)} ETH  ${receipt.hash}\n`);
+    }
+    report(signers.map(s=>s.address),config.maxFee,await Promise.all(signers.map(s=>provider.getBalance(s.address))));
+    return;
+  }
   if(mode==='serve'){await serve(config,load(store));return;}
   refuse('SIGNER_MODE_REFUSED');
 }
 if(require.main===module)main().catch(error=>{process.stderr.write(`${error?.safeCode??'SIGNER_FAILED'}\n`);process.exit(1);});
-module.exports={ALLOWED_CHAINS,FORWARD,LOCAL,MEASURED_GAS,ROLES,HEADROOM_PERCENT,requirement,typedData,load};
+module.exports={ALLOWED_CHAINS,FORWARD,LOCAL,MEASURED_GAS,ROLES,HEADROOM_PERCENT,requirement,shortfalls,typedData,load};

@@ -68,6 +68,30 @@ test('funding requirement carries headroom over the measured gas of every role',
   }
 });
 
+test('distribution tops up only the roles that are short, and never role A itself', () => {
+  const maxFee = 3000000000n;
+  const { rows } = signer.requirement(maxFee);
+  const zero = rows.map(() => 0n);
+
+  const all = signer.shortfalls(rows, zero);
+  assert.deepEqual(all.transfers.map((t: { role: string }) => t.role), ['B', 'C', 'D', 'registrar'],
+    'A funds the others and is never sent to itself');
+  assert.equal(all.totalWei, rows.slice(1).reduce((t: bigint, r: { weiRequired: bigint }) => t + r.weiRequired, 0n));
+  for (const transfer of all.transfers) {
+    assert.equal(transfer.wei, rows[transfer.index].weiRequired, 'a role at zero is sent its whole requirement');
+  }
+
+  // A role already holding enough is skipped; a partly funded one gets the difference.
+  const partial = [0n, rows[1].weiRequired, rows[2].weiRequired / 2n, 0n, rows[4].weiRequired + 1n];
+  const some = signer.shortfalls(rows, partial);
+  assert.deepEqual(some.transfers.map((t: { role: string }) => t.role), ['C', 'D']);
+  assert.equal(some.transfers[0].wei, rows[2].weiRequired - rows[2].weiRequired / 2n);
+  assert.equal(some.transfers[1].wei, rows[3].weiRequired);
+
+  assert.deepEqual(signer.shortfalls(rows, rows.map((r: { weiRequired: bigint }) => r.weiRequired)).transfers, [],
+    'a fully funded set sends nothing');
+});
+
 test('a keystore is refused unless it is a private regular file holding five keys', () => {
   const base = fs.mkdtempSync(path.join(os.tmpdir(), '8415-keystore-'));
   const write = (name: string, body: unknown, mode: number) => {
