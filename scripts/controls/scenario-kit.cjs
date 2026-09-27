@@ -54,7 +54,13 @@ async function createScenario({ ethers, provider, signers, artifact, record = as
   const setHash = ethers.keccak256(coder.encode(['address[]','uint8'], [validatorAddresses,2]));
   const registerId = hash('8415Wallet V3 TEST_ONLY_NO_REAL_VALUE register');
   const projection = await deploy('RegisterProjectionReference', [registerId,owners[4],validatorAddresses,2]);
-  const controller = await deploy('ResponsibilityController', []);
+  // The controller adopts its payment adapter only from a factory whose code
+  // hash it was given at construction, so the factory is deployed first and the
+  // hash is read from the chain rather than assumed.
+  const paymentsFactory = await deploy('NativePaymentsFactory', []);
+  const paymentsFactoryAddress = await paymentsFactory.getAddress();
+  const paymentsFactoryCodeHash = ethers.keccak256(await provider.getCode(paymentsFactoryAddress));
+  const controller = await deploy('ResponsibilityController', [paymentsFactoryAddress, paymentsFactoryCodeHash]);
   await transaction('create-native-payments',controller.createNativePayments());
   const paymentAddress=await controller.nativePayments();
   const payments = new ethers.Contract(paymentAddress,(await artifact('NativeResponsibilityPayments')).abi,A);

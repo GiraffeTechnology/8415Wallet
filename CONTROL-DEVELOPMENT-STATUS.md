@@ -20,8 +20,10 @@ CI scheduling as a substitute for development or change runner configuration.
 
 ## Validation batches (historical and repaired)
 
-Latest integrated local batch: 700/700 Node, 58/58 EVM, typecheck and browser
-emit pass.
+Latest integrated local batch: 700/700 Node, 59/59 EVM, typecheck and browser
+emit pass. **This file is the canonical record of the current counts.** Other
+documents point here rather than restating them, because a number repeated in
+five places is a number that drifts in four.
 
 Open constraint, measured and now guarded: `ResponsibilityController` is at
 97.2% of the EIP-170 contract size limit, with 689 bytes of headroom, because
