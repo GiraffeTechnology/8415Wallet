@@ -20,8 +20,15 @@ CI scheduling as a substitute for development or change runner configuration.
 
 ## Validation batches (historical and repaired)
 
-Latest integrated Stage 5J local batch: 699/699 Node, 53/53 EVM, typecheck and
-browser emit pass. See Stage 5G/5H reports for the new archive verifier and the
+Latest integrated local batch: 700/700 Node, 58/58 EVM, typecheck and browser
+emit pass.
+
+Open constraint, measured and now guarded: `ResponsibilityController` is at
+97.2% of the EIP-170 contract size limit, with 689 bytes of headroom, because
+`createAccount` and `createNativePayments` embed two other contracts' creation
+bytecode. `test-evm/deployment-budgets.cjs` fails before that headroom runs
+out. The measured options and the trust property that blocks the larger one are
+in `docs/reports/CONTRACT-SIZE-BUDGET.md`. See Stage 5G/5H reports for the new archive verifier and the
 reproduced pruned-origin SDK crash. Older counts below are historical batches.
 
 Stage 5I now calls existing SDK views, archive verification and payment reads in

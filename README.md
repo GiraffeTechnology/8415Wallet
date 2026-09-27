@@ -286,7 +286,7 @@ The ERC specification remains the source of truth.
 
 ## Development
 
-Latest integrated Stage 5J local batch: **699/699 Node and 53/53 EVM**, plus
+Latest integrated local batch: **700/700 Node and 58/58 EVM**, plus
 typecheck/browser emit. Stage 5G adds verified detached history; Stage 5H repairs
 the pruned-origin read crash. Earlier 651/49 and 656/49 totals are separate
 historical runs, not the current count. The prior 686/51 batch predates the six
