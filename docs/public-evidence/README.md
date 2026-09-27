@@ -2,7 +2,7 @@
 
 Status: **LOCAL_VALIDATION_PASS / NOT_INDEPENDENTLY_AUDITED / NO_PUBLIC_CHAIN_RUN_YET**
 
-Date: 2026-09-27 · Source commit `0e06b4f9e58188184323b720dc5905cf22ef1c30`
+Date: 2026-09-27 · Source commit `59a3349f977be0d331d1d2386db97bf783f0611c`
 
 This document publishes what has actually been measured. It is not a release
 announcement, not an audit result, and not acceptance. Where something has not
@@ -25,20 +25,23 @@ later checkout will show a different head.
 
 | Binding | Value |
 | --- | --- |
-| Source commit | `0e06b4f9e58188184323b720dc5905cf22ef1c30` |
-| Source tree | `a83c133b7f216dcf2dc462e4ac18485c2d2ac369` |
+| Source commit | `59a3349f977be0d331d1d2386db97bf783f0611c` |
+| Source tree | `e31b622021f218aa6fda1e4162a67d55de4febba` |
 | Compiler | solc 0.8.26, viaIR, optimizer enabled, 200 runs |
 
-Compiled artifact digests (sha256 of the build artifact, with its byte length).
-These are unchanged from the previous issue of this document: no contract was
-modified between them, which the digests themselves demonstrate.
+Compiled artifact digests (sha256 of the build artifact, with its byte length):
 
 | Contract | sha256 | bytes |
 | --- | --- | --- |
 | RegisterProjectionReference | `a7bce770acfc8bb9889fec297090a1b7e3fcc0954b039ac773098690f2f6f94c` | 70,185 |
-| ResponsibilityController | `d0bdbf5ae351fbf2e7e630bfe6306ec3e5d91474f9b5d621dcd6ce689165e197` | 131,747 |
-| NativeResponsibilityPayments | `1cf5b035dccf17b7b30e24028c7c28e6f9232cf1346b12086858b26ce2a0fb2a` | 36,427 |
+| ResponsibilityController | `d8e857653703f9126af5f4e1c5d43909bc34500955cc4dd4541210908f0c353e` | 110,677 |
+| NativeResponsibilityPayments | `598c276ab32895df42853dc30023e5b68e40c44eb67f4383d5ff088327262755` | 36,427 |
+| NativePaymentsFactory | `8aa0691738ca762d4f0e515b549435e29c97e3b6a35f61e02280018f032eda6c` | 25,486 |
 | ControlledWallet | `af3b31310c7c586d558abca637e557069b108e073600eb2d40345a89ee7344ad` | 9,423 |
+
+The adapter's own code is unchanged; its digest moved because it imports the
+controller, so the metadata appended to its bytecode covers a source that
+changed. Its byte length is identical, which is what that looks like.
 
 ---
 
@@ -52,7 +55,7 @@ pass count.
 | --- | --- |
 | TypeScript typecheck | pass |
 | Node test suite | **700 / 700**, 108 suites |
-| EVM suite (deployed contracts) | **58 / 58** |
+| EVM suite (deployed contracts) | **59 / 59** |
 | Browser bundle emit + syntax | pass |
 | V2 package install checks | **7 / 7** |
 | V3 candidate install checks | **9 / 9** |
@@ -196,7 +199,7 @@ An emulated phone viewport is not a physical handset. The journal records
 | Package | Artifact | sha256 | Entries | Size | Runtime deps |
 | --- | --- | --- | --- | --- | --- |
 | V2 product | `8415wallet-0.1.0.tgz` | `d483920bdd25fb5c9d30099d6f5122c72d971a6d4f88c29bc5406eec32524aee` | 122 | 556 KB | 0 |
-| V3 candidate | `8415wallet-0.1.0-v3-candidate.tgz` | `9161735bb4ef2a1361acbc1bcfe42bb4ceb52a522f7d698eab2a869ae01d4811` | 159 | 678 KB | 0 |
+| V3 candidate | `8415wallet-0.1.0-v3-candidate.tgz` | `a1ed1003d0418d14791834f9ef50172eb31fba91cff50fcc09b3ffe84642e303` | 159 | 678 KB | 0 |
 
 V2 ships the standalone reading client and excludes the unaudited control
 kernel — the build derives its file list from the import graph and fails if the
@@ -221,12 +224,12 @@ needs.
 - **No physical device journey.** Section 5 is a real browser at an emulated
   viewport.
 - **No CI.** See section 2.
-- **The controller has 689 bytes of deployment headroom.** It occupies 97.2% of
-  the EIP-170 contract size limit, because two other contracts' creation
-  bytecode is embedded in it. It deploys today — section 4 deployed it — but it
-  cannot absorb another feature without recovering room first. A test now fails
-  before that headroom runs out. Measured options are in
-  `docs/reports/CONTRACT-SIZE-BUDGET.md`.
+- **The controller has 6,265 bytes of deployment headroom**, 74.5% of the
+  EIP-170 limit. It had 689 until the payment adapter was moved behind a
+  factory pinned by code hash; the account's creation bytecode is still
+  embedded, deliberately, because only the controller may create an account
+  that names it. A test fails before the remaining headroom is spent.
+  `docs/reports/CONTRACT-SIZE-BUDGET.md` has the measurements and the reasoning.
 - **Semantic claims are not third-party verifiable while the source is
   withheld.** Anything in sections 2, 3 and 5 that describes *what the code
   does* rests on this project's own report. Sections 1 and 6 are the parts
