@@ -20,10 +20,10 @@ or authorization to merge further work follows from that remote state.
 
 ## Exact review surface
 
-Latest: 700/700 Node, 58/58 local EVM, typecheck/browser emit pass. The
-controller's EIP-170 headroom is 689 bytes and is now guarded; add
-`docs/reports/CONTRACT-SIZE-BUDGET.md` to review.
-Stage 5J had 699/53.
+Current counts are in `CONTROL-DEVELOPMENT-STATUS.md`, which this file does
+not restate. Add `docs/reports/CONTRACT-SIZE-BUDGET.md` to review: the
+controller's deployment headroom, why the payment adapter moved behind a
+code-hash-pinned factory, and why the account did not.
 Stage 5I had 693/53.
 The Stage 5H archive-review repair had 692/51; Stage 5H before it had 686/51;
 Stage 5F canonicality repair had 656/49; Stage 5G had 686/50. Preserve

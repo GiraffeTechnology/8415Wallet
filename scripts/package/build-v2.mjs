@@ -11,6 +11,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSyn
 import { createHash } from 'node:crypto';
 import { dirname, join, relative, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
+import { importGraph } from './shared.mjs';
 
 const root = process.cwd();
 const stage = join(root, 'dist', 'package');
@@ -19,19 +20,7 @@ const ENTRIES = ['src/v2.ts', 'src/cli/main.ts'];
 const FORBIDDEN = [/^src\/controls\//, /^src\/wallet\/linkedChainView\.ts$/,
   /^src\/wallet\/renderLinkedChain\.ts$/, /^src\/sdk\/linked\.ts$/, /^src\/browser\.ts$/];
 
-function graph(entry) {
-  const seen = new Set();
-  (function walk(file) {
-    if (seen.has(file) || !existsSync(file)) return;
-    seen.add(file);
-    const src = readFileSync(file, 'utf8');
-    for (const m of src.matchAll(/from\s+'(\.[^']+)'/g)) walk(resolve(dirname(file), m[1]));
-    for (const m of src.matchAll(/^\s*import\s+'(\.[^']+)'/gm)) walk(resolve(dirname(file), m[1]));
-  })(resolve(root, entry));
-  return [...seen].map((f) => relative(root, f));
-}
-
-const sources = [...new Set(ENTRIES.flatMap(graph))].sort();
+const sources = importGraph(root, ENTRIES);
 const leaked = sources.filter((f) => FORBIDDEN.some((re) => re.test(f)));
 if (leaked.length > 0) {
   console.error('PACKAGE_WOULD_SHIP_UNAUDITED_SURFACE');

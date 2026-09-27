@@ -8,6 +8,10 @@ import {ControlledWallet, IControlToken} from "./ControlledWallet.sol";
 import {ControlSignatures} from "./ControlSignatures.sol";
 import {NativeResponsibilityPayments} from "./NativeResponsibilityPayments.sol";
 
+interface INativePaymentsFactory {
+    function deploy(address controller) external returns (address adapter);
+}
+
 /// @notice Independent application responsibility controls; never holds funds or tokens.
 /// @dev UNTESTED DEVELOPMENT CANDIDATE. No protocol-state write methods are called.
 /// An explicitly accepted, protocol-authorized registrar attests entry-to-occurrence
@@ -111,6 +115,14 @@ contract ResponsibilityController {
     bool private _entered;
     address public nativePayments;
 
+    /// The only code allowed to produce this controller's payment adapter, and
+    /// the hash that code must have. Both are fixed at construction: carrying
+    /// the adapter's creation bytecode here instead cost 5,831 bytes of a
+    /// 24,576 byte limit, and what may be adopted is a decision that belongs to
+    /// deployment rather than to whoever calls `createNativePayments` first.
+    address public immutable paymentsFactory;
+    bytes32 public immutable paymentsFactoryCodeHash;
+
     error Unauthorized();
     error InvalidInput();
     error SequenceUnavailable();
@@ -158,10 +170,27 @@ contract ResponsibilityController {
         _entered = false;
     }
 
+    /// @param paymentsFactory_ the fixed factory for the optional payment adapter.
+    /// @param paymentsFactoryCodeHash_ the runtime code hash that factory must
+    /// have. A reader of a deployed controller checks this against the hash of
+    /// the reviewed factory source and knows what it can adopt, without
+    /// trusting whoever deployed it.
+    constructor(address paymentsFactory_, bytes32 paymentsFactoryCodeHash_) {
+        if (paymentsFactoryCodeHash_ == bytes32(0) || paymentsFactory_.codehash != paymentsFactoryCodeHash_) {
+            revert InvalidInput();
+        }
+        paymentsFactory = paymentsFactory_;
+        paymentsFactoryCodeHash = paymentsFactoryCodeHash_;
+    }
+
     /// @notice Optional fixed implementation, never an arbitrary callback chosen by a party.
+    /// @dev The adapter is produced by the pinned factory, whose only code path
+    /// constructs one bound to the controller it is given. That binding is
+    /// immutable in the adapter, so nothing here can adopt an adapter serving a
+    /// different controller.
     function createNativePayments() external nonReentrant returns (address adapter) {
         if (nativePayments != address(0)) revert InvalidInput();
-        adapter = address(new NativeResponsibilityPayments(address(this)));
+        adapter = INativePaymentsFactory(paymentsFactory).deploy(address(this));
         nativePayments = adapter;
         emit NativePaymentsCreated(adapter);
     }

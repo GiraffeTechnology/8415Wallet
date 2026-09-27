@@ -45,17 +45,50 @@ describe('Deployment and execution budgets', function () {
     }
   });
 
-  it('the controller carries the two embedded factories this budget is dominated by', async () => {
-    // Recorded so the cause is not rediscovered: `createAccount` and
-    // `createNativePayments` use `new`, which embeds each contract's full
-    // creation bytecode in the controller. Measured at 7,589 bytes, 31.8% of it.
+  it('the controller no longer carries the payment adapter, and still carries the account', async () => {
+    // `new` embeds a contract's whole creation bytecode in its creator. The
+    // adapter was moved behind a pinned factory for 5,831 bytes; the account
+    // stays, because only the controller may create one that names it, and
+    // moving that would change what a registered account means.
     const controller = await runtimeSize('ResponsibilityController');
     const account = ((await hre.artifacts.readArtifact('ControlledWallet')).bytecode.length - 2) / 2;
     const payments = ((await hre.artifacts.readArtifact('NativeResponsibilityPayments')).bytecode.length - 2) / 2;
-    assert.ok(account + payments > 7000,
-      'the embedded creation bytecode shrank: re-measure the controller budget, the finding may be stale');
-    assert.ok(controller > account + payments,
-      'sanity: the controller must be larger than what it embeds');
+
+    assert.ok(controller > account,
+      'the account creation bytecode is still embedded, so the controller must exceed it');
+    assert.ok(controller < 24576 - payments,
+      `the controller is ${controller} bytes: re-embedding the ${payments}-byte adapter would not fit, ` +
+      'which is the saving this arrangement exists to keep');
+  });
+
+  it('a controller refuses any factory but the one its code hash names', async () => {
+    const [deployer] = await hre.ethers.getSigners();
+    const factory = await (await hre.ethers.getContractFactory('NativePaymentsFactory', deployer)).deploy();
+    await factory.waitForDeployment();
+    const address = await factory.getAddress();
+    const codeHash = hre.ethers.keccak256(await hre.ethers.provider.getCode(address));
+    const controllerFactory = await hre.ethers.getContractFactory('ResponsibilityController', deployer);
+
+    // A hash that does not match the code at that address is refused, so a
+    // controller cannot be deployed pointing at something it did not name.
+    await assert.rejects(controllerFactory.deploy(address, hre.ethers.id('not-this-factory')), /InvalidInput/);
+    // The empty hash is refused too, so the check cannot be opted out of.
+    await assert.rejects(controllerFactory.deploy(address, hre.ethers.ZeroHash), /InvalidInput/);
+    // An address with no code hashes to zero, and is refused by the same rule.
+    await assert.rejects(controllerFactory.deploy(deployer.address, codeHash), /InvalidInput/);
+
+    const controller = await controllerFactory.deploy(address, codeHash);
+    await controller.waitForDeployment();
+    assert.equal(await controller.paymentsFactory(), address);
+    assert.equal(await controller.paymentsFactoryCodeHash(), codeHash);
+
+    // What it adopts comes from that factory, and is bound to this controller.
+    await (await controller.createNativePayments()).wait();
+    const adapter = await controller.nativePayments();
+    const adopted = await hre.ethers.getContractAt('NativeResponsibilityPayments', adapter);
+    assert.equal(await adopted.controller(), await controller.getAddress());
+    // Adoption is one-shot: a second call cannot replace a live adapter.
+    await assert.rejects(controller.createNativePayments.staticCall(), /InvalidInput/);
   });
 
   it('the core write path stays within its measured gas budget', async () => {

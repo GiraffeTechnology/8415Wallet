@@ -92,6 +92,7 @@ async function main(){
     const files={RegisterProjectionReference:'reference/RegisterProjectionReference.sol/RegisterProjectionReference.json',
       ResponsibilityController:'controls/ResponsibilityController.sol/ResponsibilityController.json',
       NativeResponsibilityPayments:'controls/NativeResponsibilityPayments.sol/NativeResponsibilityPayments.json',
+      NativePaymentsFactory:'controls/NativePaymentsFactory.sol/NativePaymentsFactory.json',
       ControlledWallet:'controls/ControlledWallet.sol/ControlledWallet.json'};
     const artifactPins=[];
     const artifact=async name=>{

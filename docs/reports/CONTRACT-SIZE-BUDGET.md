@@ -1,7 +1,11 @@
-# Contract size budget — the controller is at 97% of the deployable limit
+# Contract size budget — what it was, and what was done
 
-Date: 2026-09-27. Measured at tree `e3ba6c6210fe369a9b46fc49ab6b6054f7f43e16`,
-solc 0.8.26, viaIR, optimizer enabled, 200 runs.
+Date: 2026-09-27. solc 0.8.26, viaIR, optimizer enabled, 200 runs.
+
+**Resolved for the payment adapter; the account remains embedded by design.**
+The controller went from 689 bytes of headroom to 6,265. The finding below is
+kept because the constraint is permanent and the reasoning is what a later
+change needs.
 
 ## The finding
 
@@ -93,14 +97,41 @@ What it costs, and why it is not free:
 - the published evidence document's section 1 digests change, so it must be
   reissued.
 
+## What was done
+
+The payments extraction was taken. `NativePaymentsFactory` holds no state, no
+owner and no immutable, so its runtime code is identical at every address and
+its hash is a constant recomputable from source. The controller now takes that
+factory's address and the code hash it will accept, both immutable, and refuses
+at construction if they disagree — so what a deployed controller can adopt is
+fixed by its own construction, not by whoever calls `createNativePayments`
+first.
+
+| Measure | Before | After |
+| --- | --- | --- |
+| Controller runtime | 23,887 | **18,311** |
+| Headroom | 689 | **6,265** |
+| Of EIP-170 | 97.2% | **74.5%** |
+| Controller deployment gas | 5,212,144 | **4,014,722** |
+
+The factory costs 1,367,293 gas to deploy once, so total deployment gas rose by
+about 170,000 — 3% — while the controller's own deployment fell 23%. That is
+the trade, stated rather than buried: one more contract, for room to change the
+one that matters.
+
+`test-evm/deployment-budgets.cjs` covers the new rule as a negative case: a hash
+that does not match the code at that address is refused, the empty hash is
+refused, an address with no code is refused, adoption is one-shot, and what is
+adopted answers for this controller.
+
+`ControlledWallet` stays embedded, for the reason above. That is a deliberate
+27% of the remaining budget, not an oversight.
+
 ## Recommendation
 
-Take the payments extraction, and leave `ControlledWallet` embedded. That buys
-roughly nine times the headroom while leaving the account trust anchor exactly
-as an auditor will find it described.
+If more room is needed later than 6,265 bytes, the account factory is the next
+candidate — but it should be decided together with the independent review, not
+before it, because what it changes is the meaning of a registered account.
 
-If more room is needed later than that provides, the account factory is the
-next candidate — but it should be decided together with the independent review,
-not before it, because what it changes is the meaning of a registered account.
-
-Until either is done, treat 689 bytes as the real budget for the controller.
+Until then, 6,265 bytes is the real budget for the controller, and the guard
+fails before it is spent.
