@@ -19,7 +19,9 @@ today without source, and which must wait.
 
 These are commitments, not content. They disclose nothing about the source, and
 they let anyone verify — once the source is released — that it is the same code
-that produced every figure below.
+that produced every figure below. The commit named is the one whose code was
+measured; this document itself was added to the repository afterwards, so a
+later checkout will show a different head.
 
 | Binding | Value |
 | --- | --- |
@@ -136,13 +138,21 @@ establishes that the path runs; it establishes nothing about a public chain.
 
 | Measure | Value |
 | --- | --- |
-| Evidence events | 243 |
-| Transactions | 105 |
-| Total gas | 30,464,890 |
+| Evidence events | 311 |
+| Transactions | 131 |
+| Total gas | 35,300,869 |
 | Largest single transaction | 5,212,144 |
-| Journeys with assertions completed | 7 |
+| Journeys with assertions completed | 9 |
+| Recorded detachment states | 14 |
+| SDK observations recorded | 6 |
 | Read-only refusals asserted | 16 |
+| Evidence chain head | `df5805e0696a5d24…` |
 | Verdict | `CORE_JOURNEYS_EXECUTED_NOT_FULL_V3_ACCEPTANCE` |
+
+Each record is chained to its predecessor by hash, so the journal cannot be
+edited after the fact without breaking the chain. The two detachment shapes in
+section 3 are part of this run: the same observations execute on a public chain
+from the same code, which is what makes those tables reproducible later.
 
 No reorg, no independent block producer, no real fee market and no third-party
 node were involved. See section 6.
@@ -161,6 +171,8 @@ extension offers, so the page has no network path to the chain.
 | Recorded steps | 14 | 14 |
 | Screenshots | 14 | 14 |
 | Page requests leaving the origin | **0** | **0** |
+| Requests made by the page | 50 | 50 |
+| Provider calls through the injected wallet | 354 | 354 |
 | Console errors / failed resources | 0 | 0 |
 
 Two of the steps are product assertions rather than smoke checks:
