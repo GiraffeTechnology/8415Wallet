@@ -57,8 +57,39 @@ async function main(){
       const publicRecord={index:++count,previousHash,...record};const bytes=JSON.stringify(publicRecord);
       previousHash=hash(bytes);fs.writeSync(evidenceFd,JSON.stringify({...publicRecord,evidenceHash:previousHash})+'\n');fs.fsyncSync(evidenceFd);
     };
+    let resultWritten=false;
     const createJson=(name,value)=>{const fd=fs.openSync(path.join(output,name),'wx',0o600);
       try{fs.writeFileSync(fd,JSON.stringify(value,null,2)+'\n');fs.fsyncSync(fd);}finally{fs.closeSync(fd);}};
+    // A failure that escapes the awaited path must still leave a verdict.
+    //
+    // A run died at its 28th public transaction with no result.json, because an
+    // unhandled rejection from a provider poll exits the process before any
+    // catch runs. The evidence file was complete and said nothing about why it
+    // stopped. These handlers close that: they persist what is known, and they
+    // never resend, retry or infer an outcome for anything in flight.
+    //
+    // Diagnostics are recorded as a stable code and a digest of the message. A
+    // provider's message can quote the endpoint it was given, so the text
+    // itself is never written down; the digest is enough to correlate two
+    // failures without disclosing what they were talking to.
+    const persistEscape=(origin,error)=>{
+      if(resultWritten)return;
+      resultWritten=true;
+      const code=typeof error?.code==='string'&&/^[A-Z_]{1,40}$/.test(error.code)?error.code:'UNKNOWN';
+      try{
+        createJson('result.json',{schema:'8415-v3-testnet-core/1',verdict:'INCOMPLETE',
+          stableCode:'TESTNET_ASYNC_ESCAPE',origin,errorCode:code,errorName:String(error?.name??'').slice(0,40),
+          messageSha256:hash(String(error?.message??'')),
+          sourceCommit,sourceTree,eventCount:count,evidenceHeadSha256:previousHash,
+          automaticRetry:false,transactionResent:false,privateMaterialPersisted:false,
+          note:'An asynchronous failure ended the run. Submitted transactions are in transactions.jsonl and must be reconciled from the chain; none was resent.'});
+      }catch{/* the directory may be gone; the exit code still reports failure */}
+      if(evidenceFd!==null){try{fs.fsyncSync(evidenceFd);fs.closeSync(evidenceFd);}catch{}evidenceFd=null;}
+      process.exit(1);
+    };
+    process.on('unhandledRejection',error=>persistEscape('unhandledRejection',error));
+    process.on('uncaughtException',error=>persistEscape('uncaughtException',error));
+
     let reserved=0n;const deployments=new Map();
     class BudgetSigner extends ethers.AbstractSigner{
       constructor(inner){super(provider);this.inner=inner;}
@@ -132,12 +163,14 @@ async function main(){
       const pin=name=>{const d=deployments.get(name);return{address:d.address,runtimeCodeHash:d.runtimeCodeHash};};
       createJson('public-deployment.json',{schema:'8415-controls-testnet/1',chainId:chainId.toString(),
         controller:pin('ResponsibilityController'),token:pin('RegisterProjectionReference'),payment:pin('NativeResponsibilityPayments')});
+      resultWritten=true;
       createJson('result.json',{schema:'8415-v3-testnet-core/1',verdict:'CORE_JOURNEYS_EXECUTED_NOT_FULL_V3_ACCEPTANCE',
         chainId:chainId.toString(),sourceCommit,sourceTree,artifactPins,eventCount:count,evidenceHeadSha256:previousHash,
         reservedMaximumWei:reserved.toString(),uiVerified:false,independentAuditPassed:false,
         remaining:'Full W-01–W-24, adversarial matrix and genuine desktop/mobile acceptance remain separate required gates; sdk-observation is not UI evidence.',
         privateMaterialPersisted:false,validatorKeys:'ephemeral-test-only-not-retained',completedAt:new Date().toISOString()});
     }catch(error){
+      resultWritten=true;
       createJson('result.json',{schema:'8415-v3-testnet-core/1',verdict:'INCOMPLETE',stableCode:error?.safeCode??'TESTNET_EXECUTION_REFUSED',
         sourceCommit,sourceTree,eventCount:count,evidenceHeadSha256:previousHash,automaticRetry:false,privateMaterialPersisted:false});
       throw error;

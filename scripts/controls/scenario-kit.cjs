@@ -1,6 +1,40 @@
 const assert = require('node:assert/strict');
 const {observeJourney}=require('./observe-journey.cjs');
 
+/**
+ * Wait for a receipt by asking for it, rather than by subscribing.
+ *
+ * ethers' polling subscriber calls its async `_poll` without awaiting or
+ * catching it, so a transient failure of the receipt read surfaces as an
+ * unhandled rejection outside every try/catch around it and takes the process
+ * down. On a public chain that ended a funded run at its 28th transaction with
+ * no result written. Asking directly keeps the failure inside our control flow.
+ *
+ * Only the read is retried. A receipt read is idempotent and cannot resend
+ * anything; nothing here re-broadcasts, whatever the provider does.
+ */
+async function waitForReceipt(provider, hash, { confirmations, timeout, pollMs = 1500, readFailureLimit = 10 }) {
+  const deadline = Date.now() + Number(timeout);
+  let consecutiveReadFailures = 0;
+  for (;;) {
+    let receipt = null;
+    try {
+      receipt = await provider.getTransactionReceipt(hash);
+      consecutiveReadFailures = 0;
+    } catch (error) {
+      // A provider that cannot answer is not evidence about the transaction.
+      if (++consecutiveReadFailures > readFailureLimit) throw error;
+    }
+    if (receipt !== null && receipt !== undefined) {
+      let head = null;
+      try { head = await provider.getBlockNumber(); } catch { head = null; }
+      if (head !== null && head - receipt.blockNumber + 1 >= Number(confirmations)) return receipt;
+    }
+    assert.ok(Date.now() < deadline, 'SCENARIO_RECEIPT_WAIT_EXPIRED');
+    await new Promise((resolve) => setTimeout(resolve, pollMs));
+  }
+}
+
 // Same real reference admission path for local EVM and public testnet. No mock
 // projection, time warp, skipped assertion or hard-coded PASS count in this kit.
 const FORWARD_FIELDS = [
@@ -27,7 +61,7 @@ async function createScenario({ ethers, provider, signers, artifact, record = as
     // Keep the known public hash even if receipt/depth waiting times out. Never
     // persist a raw signature/transaction or infer that a timeout means no send.
     await record({ kind: 'submitted', label, chainId: chainId.toString(), hash: tx.hash, nonce: tx.nonce });
-    const receipt = await tx.wait(confirmations, timeout);
+    const receipt = await waitForReceipt(provider, tx.hash, { confirmations, timeout });
     assert.ok(receipt && receipt.status === 1, 'SCENARIO_TRANSACTION_NOT_SUCCESSFUL');
     const block = await provider.getBlock(receipt.blockNumber);
     assert.equal(block?.hash, receipt.blockHash, 'SCENARIO_RECEIPT_REORGED');
@@ -268,4 +302,4 @@ async function runExtendedJourneys(k) {
   await k.hop(race);
   await k.record({kind:'journey',name:'callback-completion-serialization',sequenceId:race.id,assertionsCompleted:true});
 }
-module.exports={createScenario,runCoreJourney,runExtendedJourneys,FORWARD_FIELDS};
+module.exports={createScenario,runCoreJourney,runExtendedJourneys,FORWARD_FIELDS, waitForReceipt};
