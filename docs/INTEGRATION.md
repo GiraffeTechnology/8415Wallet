@@ -111,12 +111,20 @@ stale-read problem by construction — there is nowhere for a fresh answer to
 enter.
 
 A minimal executable example lives in the Kit at
-`contracts/examples/RecordDateClaim.sol` (proposed in erc8415-kit#13): a
-distribution paid once to whoever the register confirms held a token at a
-fixed record date, where `claim` takes a token id and nothing else. Its tests
-cover the case documentation cannot — the admission that makes the claim
-eligible is mined in the same block as the claim, ordered before it, so a read
-taken one block earlier would have looked right and been wrong.
+`contracts/examples/RecordDateClaim.sol`: a distribution paid once to whoever
+the register confirms held a token at a fixed record date, where `claim` takes
+**no arguments at all** — the token, the instant and the amount are fixed at
+construction, so there is no calldata through which a stale reading could
+enter. Its tests cover the case documentation cannot: a gap is opened and the
+claim attempted in the same block, with the ordering between them asserted by
+transaction index rather than assumed, and the claim refuses while finality at
+the record date is demonstrably unchanged.
+
+One difference to carry across when copying it. That example is handed its
+projection at construction, so it never asks whether the contract is one. If
+your consumer accepts a projection address from a caller, check the ERC-165
+identifier `0x6309e170` first: reading `holderAsOf` from something that merely
+answers is not reading a projection.
 
 Two things that example keeps apart are worth repeating here. Protocol
 temporal finality comes from `isFinalAsOf` and is never recomputed by the
