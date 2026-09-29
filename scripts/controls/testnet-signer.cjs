@@ -17,9 +17,10 @@ const FORWARD=new Set(['eth_chainId','net_version','eth_blockNumber','eth_getBal
   'eth_getTransactionReceipt','eth_getTransactionCount','eth_feeHistory','eth_gasPrice','eth_maxPriorityFeePerGas','eth_getLogs']);
 const LOCAL=new Set(['eth_accounts','eth_sendTransaction','eth_signTypedData_v4']);
 // Actual gas measured for the whole runner journey set on a local EVM at
-// commit 988847f: 105 transactions, 30,464,513 gas. An estimate for funding,
-// never a promise about a public network.
-const MEASURED_GAS={A:18518762n,B:3450509n,C:2965657n,D:1131883n,registrar:4397702n};
+// commit 7a4e970: 128 transactions, 35,392,861 gas. An estimate for funding,
+// never a promise about a public network. Re-measure when the runner's set of
+// journeys changes, or this under-funds a run and it stops halfway.
+const MEASURED_GAS={A:21221446n,B:4103742n,C:3314654n,D:1497762n,registrar:5255257n};
 const ROLES=['A','B','C','D','registrar'];
 const HEADROOM_PERCENT=150n;
 
