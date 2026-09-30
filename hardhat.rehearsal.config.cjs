@@ -7,4 +7,7 @@ const chainId=Number(process.env.WALLET_REHEARSAL_CHAIN_ID??'11155111');
 if(![11155111,560048].includes(chainId))throw new Error('REHEARSAL_CHAIN_REFUSED');
 module.exports={...base,networks:{...base.networks,hardhat:{...base.networks?.hardhat,chainId,
   // A public run pays real testnet gas; keep the rehearsal on the same rules.
+  // Produce blocks without paid clock-advance transactions. The public-ID
+  // runner now waits for a real advancing clock, even on this explicit rehearsal.
+  mining:{auto:true,interval:2000},
   initialBaseFeePerGas:1000000000,hardfork:'cancun'}}};

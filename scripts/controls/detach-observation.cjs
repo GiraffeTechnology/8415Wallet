@@ -14,17 +14,35 @@ const ERC=['ownerOf','holder','finalNow','entryCount','entryVersion','entryEffec
 const CHAIN=['cursor','appended','completedCount','activeLegs','detachedCount','detachedCommitment',
   'boundaryAccount','currentAccount','inheritedHash'];
 
+// Only the explicit local chain uses the short automining window. A quiet
+// public chain is never reclassified as local from a timing sample.
+function gapTiming(chainId,timestamp,maximumInterval){
+  assert.ok(typeof chainId==='bigint' && [31337n,11155111n,560048n].includes(chainId),'DETACH_CHAIN_REFUSED');
+  assert.ok(typeof timestamp==='bigint' && timestamp>=0n && timestamp<(1n<<64n),'DETACH_TIMESTAMP_REFUSED');
+  const windowSeconds=chainId===31337n?3n:120n;
+  assert.ok(typeof maximumInterval==='bigint' && maximumInterval>=windowSeconds,'DETACH_SETTLEMENT_PERIOD_REFUSED');
+  assert.ok(timestamp+windowSeconds<(1n<<64n),'DETACH_DEADLINE_OVERFLOW');
+  return {deadline:timestamp+windowSeconds,windowSeconds,localAutomine:chainId===31337n};
+}
+
 async function snapshot(k,s,state){
   const {projection,controller}=k;
-  const seq=await controller.sequence(s.id);
-  const entry=await projection.currentEntry(s.tokenId);
-  const now=BigInt((await k.provider.getBlock('latest')).timestamp);
+  const block=await k.provider.getBlock('latest');
+  assert.ok(block && Number.isSafeInteger(block.number) && block.number>=0 &&
+    /^0x[0-9a-fA-F]{64}$/.test(block.hash) && Number.isSafeInteger(block.timestamp) && block.timestamp>=0,
+    'DETACH_BLOCK_REFUSED');
+  // Hash-addressed reads cannot silently mix versions at one height. Refuse
+  // unsupported historical reads; never fall back to latest.
+  const at={blockTag:block.hash};
+  const seq=await controller.sequence(s.id,at);
+  const entry=await projection.currentEntry(s.tokenId,at);
+  const now=BigInt(block.timestamp);
   // The chain answers the open gap as a settlement id; its openedAt is the
   // instant from which the token is contested, and it is read, never assumed.
-  const gapId=await projection.openGapOf(s.tokenId);
+  const gapId=await projection.openGapOf(s.tokenId,at);
   const gapOpen=gapId!==`0x${'0'.repeat(64)}`;
-  const gapOpenedAt=gapOpen?String((await projection.settlement(gapId)).openedAt):'0';
-  const [detachedCount,detachedCommitment]=await controller.detached(s.id);
+  const gapOpenedAt=gapOpen?String((await projection.settlement(gapId,at)).openedAt):'0';
+  const [detachedCount,detachedCommitment]=await controller.detached(s.id,at);
   const label=a=>{const i=k.accounts.findIndex(x=>x.toLowerCase()===String(a).toLowerCase());
     return i<0?String(a).toLowerCase():['A','B','C','D','registrar'][i];};
   // Occurrence numbers are absolute: a detached one still names its place, and a
@@ -32,24 +50,27 @@ async function snapshot(k,s,state){
   const legs=[];
   for(let i=0n;i<seq.appended;i++){
     if(i<seq.completedCount){legs.push({occurrence:String(i),detached:true});continue;}
-    const leg=await controller.legAt(s.id,i);
+    const leg=await controller.legAt(s.id,i,at);
     legs.push({occurrence:String(i),detached:false,from:label(leg.fromAccount),to:label(leg.toAccount),
       outcome:Number(leg.outcome)});
   }
-  return {state,
-    erc:{ownerOf:label(await projection.ownerOf(s.tokenId)),
-      holder:label(await projection.holderAsOf(s.tokenId,entry.effectiveAt)),
-      finalNow:await projection.isFinalAsOf(s.tokenId,now),
-      finalAtEntry:await projection.isFinalAsOf(s.tokenId,entry.effectiveAt),
-      entryCount:String(await projection.entryCount(s.tokenId)),
+  const result={state,observationBlock:{number:block.number,hash:block.hash,timestamp:String(now)},
+    erc:{ownerOf:label(await projection.ownerOf(s.tokenId,at)),
+      holder:label(await projection.holderAsOf(s.tokenId,entry.effectiveAt,at)),
+      finalNow:await projection.isFinalAsOf(s.tokenId,now,at),
+      finalAtEntry:await projection.isFinalAsOf(s.tokenId,entry.effectiveAt,at),
+      entryCount:String(await projection.entryCount(s.tokenId,at)),
       entryVersion:String(entry.version),entryEffectiveAt:String(entry.effectiveAt),
       gapOpen,gapOpenedAt,gapSettlementId:gapId},
     chain:{cursor:String(seq.cursor),appended:String(seq.appended),completedCount:String(seq.completedCount),
-      activeLegs:String(await controller.activeLegCount(s.id)),detachedCount:String(detachedCount),
-      detachedCommitment,boundaryAccount:label(await controller.boundaryAccount(s.id)),
-      currentAccount:label(seq.currentAccount),inheritedHash:await controller.inheritedHash(s.id),
+      activeLegs:String(await controller.activeLegCount(s.id,at)),detachedCount:String(detachedCount),
+      detachedCommitment,boundaryAccount:label(await controller.boundaryAccount(s.id,at)),
+      currentAccount:label(seq.currentAccount),inheritedHash:await controller.inheritedHash(s.id,at),
       revision:String(seq.revision)},
     legs};
+  const canonical=await k.provider.getBlock(block.number);
+  assert.equal(canonical?.hash,block.hash,'DETACH_BLOCK_REORGED');
+  return result;
 }
 
 async function observeDetachment(k,{shape}){
@@ -63,23 +84,24 @@ async function observeDetachment(k,{shape}){
     const registrar=k.signers[4];
     const settlementId=k.uid('observed-gap');
     // The window up to the deadline belongs to the proof, so a gap cannot be
-    // cancelled before it passes. Take the shortest legitimate window and wait
-    // for the chain's own clock rather than warping it.
-    const deadline=BigInt((await k.provider.getBlock('latest')).timestamp)+3n;
+    // cancelled before it passes. Public inclusion needs more than the local
+    // 3-second fixture window. No timestamp warp or transaction resend.
+    const {chainId}=await k.provider.getNetwork();
+    const timing=gapTiming(chainId,BigInt((await k.provider.getBlock('latest')).timestamp),
+      await k.projection.settlementPeriod());
+    const {deadline}=timing;
+    await k.record({kind:'detach-gap-timing',chainId:String(chainId),deadline:String(deadline),
+      windowSeconds:String(timing.windowSeconds),localAutomine:timing.localAutomine});
     await k.transaction('begin-observed-gap',k.projection.connect(registrar)
       .beginSettlement(scenario.tokenId,settlementId,k.accounts[expectedIndex],k.uid('observed-snapshot'),deadline));
     const row=await at('gap-open');
-    // A public chain produces blocks by itself; a development chain only mines
-    // on demand. Find out which this is by watching, rather than warping time
-    // or assuming, and only nudge a chain that needs it.
+    // Never send clock-advance transactions on a public chain merely because
+    // it did not produce a block within 2.5 seconds.
     const clock=async()=>BigInt((await k.provider.getBlock('latest')).timestamp);
-    const observed=await clock();
-    await new Promise(r=>setTimeout(r,2500));
-    const selfMining=await clock()>observed;
     const until=Date.now()+180000;
     while(await clock()<=deadline){
       assert.ok(Date.now()<until,'DETACH_BLOCK_CLOCK_TIMEOUT');
-      if(!selfMining)await k.transaction('advance-clock',
+      if(timing.localAutomine)await k.transaction('advance-clock',
         registrar.sendTransaction({to:await registrar.getAddress(),value:0n}));
       else await new Promise(r=>setTimeout(r,2000));
     }
@@ -175,4 +197,4 @@ async function runDetachObservations(k){
   }
   return results;
 }
-module.exports={observeDetachment,runDetachObservations,snapshot,ERC,CHAIN};
+module.exports={observeDetachment,runDetachObservations,snapshot,gapTiming,ERC,CHAIN};

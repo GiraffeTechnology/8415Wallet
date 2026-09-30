@@ -28,6 +28,13 @@ describe('Independent responsibility controls — real reference projection',fun
   });
   it('AB detaches out of a chain that keeps trading, and the window rolls to BC-CD',async()=>{
     const {states}=await observeDetachment(k,{shape:'continuous'});
+    assert.equal(states.length,9);
+    for(const row of states){
+      const block=await k.provider.getBlock(row.observationBlock.number);
+      assert.equal(block.hash,row.observationBlock.hash);
+      assert.equal(String(block.timestamp),row.observationBlock.timestamp);
+      assert.equal(await k.projection.entryCount(1n,{blockTag:block.hash}),BigInt(row.erc.entryCount));
+    }
     const at=label=>states.find(r=>r.state===label);
     const abcd=at('forwarded-ABCD'),detached=at('detached-AB'),extended=at('extended-DB-after-detach');
     // The position ran ahead of the register: that lag is the normal state.
@@ -45,6 +52,11 @@ describe('Independent responsibility controls — real reference projection',fun
   });
   it('AB alone detaches to an empty window that still extends, without moving the token',async()=>{
     const {states}=await observeDetachment(k,{shape:'ab-only'});
+    assert.equal(states.length,5);
+    for(const row of states){
+      const block=await k.provider.getBlock(row.observationBlock.number);
+      assert.equal(block.hash,row.observationBlock.hash);
+    }
     const at=label=>states.find(r=>r.state===label);
     const admitted=at('admitted-B'),detached=at('detached-AB'),reopened=at('forwarded-BC-after-empty');
     assert.equal(admitted.erc.ownerOf,'B');assert.equal(admitted.erc.holder,'B');
