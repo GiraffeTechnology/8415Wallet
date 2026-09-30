@@ -126,6 +126,20 @@ export class Eip1193Signer implements TransactionSigner {
       throw new AccountMismatchError(request.from.toLowerCase(), this.account);
     }
 
+    // A connected signer is not a permanent grant. Re-read the selected
+    // account immediately before sending; retaining it elsewhere in the
+    // exposed account list is not permission to act as the selected account.
+    const selected = await Eip1193Signer.connect(this.#provider);
+    if (selected.account !== this.account) {
+      throw new AccountMismatchError(this.account, selected.account);
+    }
+    // Account discovery is asynchronous too. Detect a network change during
+    // that read, and also bind the eventual provider prompt to the chain.
+    const currentChainId = await this.#chainId();
+    if (currentChainId !== request.chainId) {
+      throw new ChainMismatchError(request.chainId, currentChainId);
+    }
+
     // Passed through exactly as built. No gas estimate is added and no field
     // is rewritten: what the user was shown is what is sent, and the provider
     // is free to fill what it fills.
@@ -137,6 +151,7 @@ export class Eip1193Signer implements TransactionSigner {
           to: request.to,
           data: request.data,
           value: request.value,
+          chainId: `0x${request.chainId.toString(16)}`,
         },
       ],
     });
