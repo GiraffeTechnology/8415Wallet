@@ -3,8 +3,7 @@
  *
  * V3 ships the surface V2 deliberately excludes: the responsibility control
  * kernel, the linked chain views and the browser entry. That surface has not
- * been independently audited, and AGENTS.md forbids connecting the kernel to
- * signing or execution before it is. So this package is a CANDIDATE: the
+ * completed independent security acceptance. So this package is a CANDIDATE: the
  * status is in its name, its package.json and a notice this build refuses to
  * omit. A build that cannot find the notice does not produce a tarball.
  *
@@ -16,6 +15,7 @@ import { createHash } from 'node:crypto';
 import { dirname, join, relative, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { importGraph } from './shared.mjs';
+import { V3_DOCUMENTS, verifyBoundaryDocument, verifyDocumentEntries } from './v3-document-contract.mjs';
 
 const root = process.cwd();
 const stage = join(root, 'dist', 'package-v3');
@@ -33,10 +33,9 @@ if (controls.length === 0) {
   process.exit(1);
 }
 
-const DOCS = ['LICENSE', 'docs/INTEGRATION.md', 'docs/ERC-8415-Wallet-PRD.md',
-  'docs/RESPONSIBILITY-CONTROLS-SECURITY.md', 'docs/V3-REVIEW-AND-VALIDATION.md',
-  'docs/stages/STAGE-5J-PUBLIC-PATH-AND-UI.md', 'AGENTS.md'];
+const DOCS = V3_DOCUMENTS;
 for (const d of DOCS) if (!existsSync(d)) { console.error('MISSING_REQUIRED_DOC', d); process.exit(1); }
+verifyBoundaryDocument(readFileSync(join(root, 'docs/INTEGRATION-BOUNDARIES.md'), 'utf8'));
 
 // The notice is a shipped fact, not a build-time intention.
 const notice = readFileSync('PACKAGE-V3.md', 'utf8');
@@ -81,6 +80,7 @@ writeFileSync(join(stage, 'package.json'), `${JSON.stringify({
 
 const out = execFileSync('npm', ['pack', '--json'], { cwd: stage, encoding: 'utf8' });
 const packed = JSON.parse(out)[0];
+verifyDocumentEntries(packed.files.map(file => file.path));
 const sha = createHash('sha256').update(readFileSync(join(stage, packed.filename))).digest('hex');
 
 writeFileSync(join(root, 'dist', 'v3-package-manifest.json'), `${JSON.stringify({

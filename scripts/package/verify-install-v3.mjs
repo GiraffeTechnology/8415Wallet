@@ -5,9 +5,10 @@
  * candidate that installs cleanly while presenting itself as accepted would be
  * the worse failure.
  */
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { builtTarball, verifyInstalled } from './shared.mjs';
+import { verifyBoundaryDocument, verifyDocumentEntries } from './v3-document-contract.mjs';
 
 const tarball = builtTarball('scripts/package/build-v3.mjs',
   join(process.cwd(), 'dist', 'v3-package-manifest.json'), 'package-v3');
@@ -54,6 +55,7 @@ console.log(JSON.stringify({
     installed.version.endsWith('-v3-candidate') && /not independently audited/i.test(installed.description) &&
     notice.includes('NOT_INDEPENDENTLY_AUDITED'),
     installed.version);
-  check('ships the boundaries it is integrated against',
-    readFileSync(join(packageRoot, 'AGENTS.md'), 'utf8').includes('Forbidden Inferences'));
+  verifyBoundaryDocument(readFileSync(join(packageRoot, 'docs/INTEGRATION-BOUNDARIES.md'), 'utf8'));
+  verifyDocumentEntries(readdirSync(packageRoot, { recursive: true }).map(p => String(p).replaceAll('\\', '/')));
+  check('ships product boundaries without development instructions', true);
 });
