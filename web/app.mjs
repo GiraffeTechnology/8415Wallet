@@ -1,6 +1,6 @@
 import { ResponsibilityWalletSession, DetachedResponsibilityHistoryClient, ControlAdapterError, WalletSession, RpcErc8415Reader, Eip1193ReadTransport,
   renderAssetView, renderTemporalQuery, renderHistory, renderRegistration, renderAcquisitionDisclosure,
-  renderRiskSurfaces, renderPosture, renderSettlementLog, renderOwnershipHistory, verifyControlDeployment, controlRpc } from '../dist/browser/browser.js';
+  renderRiskSurfaces, renderPosture, renderSettlementLog, renderOwnershipHistory, renderCollisions, CollisionScanError, verifyControlDeployment, controlRpc } from '../dist/browser/browser.js';
 import { BrowserPublicOperationStore } from './public-store.mjs';
 
 const el = id => document.getElementById(id);
@@ -85,8 +85,22 @@ document.querySelectorAll('[data-read]').forEach(button => button.addEventListen
   if (!plainWallet || !deployment) fail('CONTROL_CONNECTION_REQUIRED');
   const wallet = plainWallet; await verifyControlDeployment(provider, deployment.token);
   requireCurrentConnection();
-  const tokenId = number('tokenId'); let output;
+  const tokenId = button.dataset.read === 'collisions' ? 0n : number('tokenId'); let output;
   switch (button.dataset.read) {
+    case 'collisions': {
+      const input = value('collision-token-ids');
+      if (input.length === 0 || input.length > 2560) fail('COLLISION_TOKEN_INPUT_REFUSED');
+      const parts = input.split(',');
+      if (parts.length > 32) fail('COLLISION_TOKEN_BUDGET_REFUSED');
+      const ids = parts.map(part => integer(part.trim()));
+      if (new Set(ids).size !== ids.length) fail('COLLISION_DUPLICATE_TOKEN_REFUSED');
+      try { output = renderCollisions(await wallet.collisions(ids)); }
+      catch (error) {
+        if (error instanceof CollisionScanError) fail(error.code);
+        throw error;
+      }
+      break;
+    }
     case 'asset': output = renderAssetView(await wallet.assetView(tokenId)); break;
     case 'temporal': output = renderTemporalQuery(await wallet.temporalQuery(tokenId, number('instant'))); break;
     case 'history': output = renderHistory(await wallet.history(tokenId)); break;

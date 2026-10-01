@@ -24,14 +24,16 @@ function fixture() {
   const actions = ['account', 'read', 'reserve-payment'].map(name => {
     const node = element(name); node.dataset.action = name; return node;
   });
-  const reads = [element('read-asset')]; reads[0].dataset.read = 'asset';
-  const hooks: Record<'request' | 'chain' | 'verify' | 'status' | 'read' | 'prepare' | 'accept' | 'execute', () => Promise<any>> = {
+  const reads = [element('read-asset'), element('read-collisions')];
+  reads[0].dataset.read = 'asset'; reads[1].dataset.read = 'collisions';
+  const hooks: Record<'request' | 'chain' | 'verify' | 'status' | 'read' | 'collisions' | 'prepare' | 'accept' | 'execute', () => Promise<any>> = {
     request: async () => [address], chain: async () => '0x88bb0', verify: async () => undefined,
     status: async () => ({ status: 'idle' }), read: async () => 'current asset',
     prepare: async () => ({ digest, consent: {} }), accept: async () => 'memory-only-signature',
-    execute: async () => ({ submitted: true }),
+    execute: async () => ({ submitted: true }), collisions: async () => ({ scopeNote: 'only these tokens', collisions: [] }),
   };
   let executions = 0, prepares = 0, accepts = 0;
+  let collisionIds: bigint[] = [];
   const provider = { request: async () => undefined, on(name: string, fn: () => void) { events.set(name, fn); } };
   class ControlAdapterError extends Error { code: string; constructor(code: string) { super(code); this.code = code; } }
   class Session {
@@ -45,9 +47,14 @@ function fixture() {
   } };
   const sdk = {
     ResponsibilityWalletSession: Session, ControlAdapterError,
-    WalletSession: class { assetView() { return hooks.read(); } },
+    WalletSession: class {
+      assetView() { return hooks.read(); }
+      collisions(ids: bigint[]) { collisionIds = ids; return hooks.collisions(); }
+    },
     RpcErc8415Reader: class {}, Eip1193ReadTransport: class {}, BrowserPublicOperationStore: class {},
     renderAssetView: (v: unknown) => v,
+    renderCollisions: (v: unknown) => v,
+    CollisionScanError: class extends Error {},
     verifyControlDeployment: () => hooks.verify(),
     controlRpc: (_p: unknown, method: string) => method === 'eth_requestAccounts' ? hooks.request() : hooks.chain(),
   };
@@ -60,7 +67,7 @@ function fixture() {
     token: { address, runtimeCodeHash: digest }, controller: { address, runtimeCodeHash: digest }, payment: null });
   file('consent-file', { consent: { expectedRevision: '0', tokenId: '1', deadline: '1', recipientNonce: '0', paymentAmount: '0' },
     documents: { incoming: { terms: { scheme: 'utf8-keccak256' } }, inherited: [] } });
-  return { hooks, element, click, state, emit: (event: string) => events.get(event)!(),
+  return { hooks, element, click, state, collisionIds: () => collisionIds, emit: (event: string) => events.get(event)!(),
     counts: () => ({ executions, prepares, accepts }),
     load: () => click('deployment', 'change'),
     async connect() { await click('deployment', 'change'); await click('connect'); },
@@ -84,6 +91,47 @@ test('failed reconnect cannot retain the prior connected session', async () => {
   f.hooks.request = async () => { throw new Error('private provider diagnostic'); };
   await f.click('connect'); assert.equal(f.state().connected, false);
   assert.equal(f.element('result').textContent, 'CONTROL_UI_OPERATION_REFUSED');
+});
+
+test('collision review reads the explicit token set without any send', async () => {
+  const f = fixture(); await f.connect();
+  f.element('collision-token-ids').value = '1, 2,3';
+  f.element('tokenId').value = 'unrelated input';
+  await f.click('read-collisions');
+  assert.deepEqual(f.collisionIds(), [1n, 2n, 3n]);
+  assert.match(f.element('result').textContent, /only these tokens/);
+  assert.equal(f.counts().executions, 0);
+});
+
+test('collision review rejects duplicate, empty and malformed input before scanning', async () => {
+  const f = fixture(); await f.connect();
+  f.hooks.collisions = async () => { assert.fail('must not scan'); };
+  for (const input of ['', '1,1', '1,', '-1', '1.5', '0x1', Array(33).fill('1').join(',')]) {
+    f.element('collision-token-ids').value = input;
+    await f.click('read-collisions');
+    assert.deepEqual(f.collisionIds(), []);
+    assert.match(f.element('result').textContent, /REFUSED/);
+  }
+});
+
+test('late collision result is discarded after a wallet change', { timeout: 5000 }, async () => {
+  const f = fixture(); await f.connect();
+  const gate = deferred(), entered = deferred();
+  f.hooks.collisions = () => { entered.resolve(); return gate.promise; };
+  f.element('collision-token-ids').value = '1,2';
+  const pending = f.click('read-collisions');
+  await entered.promise;
+  f.emit('accountsChanged'); gate.resolve({ stale: true }); await pending;
+  assert.equal(f.element('result').textContent, 'CONTROL_CONNECTION_CHANGED');
+});
+
+test('unavailable collision data is not rendered as a clean report or raw error', async () => {
+  const f = fixture(); await f.connect();
+  f.hooks.collisions = async () => { throw new Error('private provider diagnostic'); };
+  f.element('collision-token-ids').value = '1,2';
+  await f.click('read-collisions');
+  assert.equal(f.element('result').textContent, 'CONTROL_UI_OPERATION_REFUSED');
+  assert.equal(f.counts().executions, 0);
 });
 test('delayed review cannot restore stale terms after an account change', { timeout: 5000 }, async () => {
   const f = fixture(); await f.connect(); const gate = deferred(), entered = deferred();

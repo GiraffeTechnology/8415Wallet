@@ -20,6 +20,10 @@
     <button data-read="history">Admitted history</button><button data-read="registration">Registration explanation</button>
     <button data-read="acquisition">Acquisition disclosure</button><button data-read="risk">Authority and bounds</button>
     <button data-read="posture">Finality / freshness</button><button data-read="settlements">Settlement log</button><button data-read="ownership">Ownership history</button></div>
+    <h3>Cross-token commitment and reference review</h3>
+    <p>Compare up to 32 distinct token IDs on this deployment, with at most 2048 total entries per scan. A budget refusal produces no partial report. No collision found only applies to these tokens and reads, never the whole register. Registry locators are not resolved; sequential reads are not an atomic snapshot or transaction authority.</p>
+    <label>Token IDs (decimal, comma-separated) <input id="collision-token-ids" value="1,2" maxlength="2560" spellcheck="false" autocomplete="off"></label>
+    <button data-read="collisions" type="button">Compare public commitments and references (read only)</button>
     <label>Withdrawal destination <input id="destination" spellcheck="false" autocomplete="off"></label>
     <div class="actions"><button data-action="create-account">Create account</button><button data-action="account">Read account</button>
     <button data-action="deposit">Deposit owned token</button><button data-action="standalone-withdraw">Withdraw unencumbered token</button></div>
