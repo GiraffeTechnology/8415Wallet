@@ -3,7 +3,7 @@ import { keccak256Utf8 } from '../codec/keccak.ts';
 import type { Eip1193Provider } from '../adapters/signing/eip1193Signer.ts';
 import type { Address, Bytes32 } from '../sdk/types.ts';
 import {
-  controlHex, controlRpc, encodeForward, forwardConsentDigest, hashControlBytes,
+  controlHex, controlRpc, controlPendingNonce, encodeForward, forwardConsentDigest, hashControlBytes,
   requireControlAdapter as requireValue, validateControlPin, verifyControlDeployment,
   type ControlDeploymentPin, type ForwardConsent,
 } from './authorization.ts';
@@ -207,7 +207,7 @@ export class ResponsibilityControlClient {
     const simulated = await controlRpc(this.#provider, 'eth_call', [tx, 'latest']);
     requireValue(controlHex(simulated), 'CONTROL_PREFLIGHT_RESPONSE_REFUSED');
     await verifyControlDeployment(this.#provider, this.deployment); await accounts();
-    const nonce = quantity(await controlRpc(this.#provider, 'eth_getTransactionCount', [actor, 'pending']));
+    const nonce = controlPendingNonce(await controlRpc(this.#provider, 'eth_getTransactionCount', [actor, 'pending']));
     const template: ControlSubmission = { schema: '8415-control-submission/1', deployment: { ...this.deployment }, kind: fixed.kind,
       transactionHash: `0x${'0'.repeat(64)}`, actor: actor.toLowerCase(), nonce, calldataHash: hashControlBytes(data),
       sequenceId: fixed.kind === 'forward' ? fixed.consent.sequenceId : 'sequenceId' in fixed ? fixed.sequenceId : null,

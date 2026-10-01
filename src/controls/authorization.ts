@@ -60,6 +60,15 @@ export function controlHex(value: unknown, bytes?: number): value is string {
   return typeof value === 'string' && /^0x(?:[0-9a-fA-F]{2})*$/.test(value) &&
     (bytes === undefined || value.length === 2 + bytes * 2);
 }
+/** Some genuine EIP-1193 wallets return a number for the pending nonce only. */
+export function controlPendingNonce(value: unknown): bigint {
+  if (typeof value === 'number') {
+    requireControlAdapter(Number.isSafeInteger(value) && value >= 0 && !Object.is(value, -0), 'CONTROL_RPC_QUANTITY_REFUSED');
+    return BigInt(value);
+  }
+  requireControlAdapter(typeof value === 'string' && /^0x(?:0|[1-9a-f][0-9a-f]*)$/i.test(value), 'CONTROL_RPC_QUANTITY_REFUSED');
+  return BigInt(value);
+}
 export function hashControlBytes(value: string): Bytes32 {
   requireControlAdapter(controlHex(value), 'CONTROL_HEX_REFUSED');
   const bytes = Uint8Array.from(value.slice(2).match(/../g) ?? [], pair => Number.parseInt(pair, 16));
