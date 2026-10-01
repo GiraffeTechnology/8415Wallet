@@ -48,3 +48,15 @@ jobs:
       # this catches a renderer or CLI wiring break that leaves them passing.
       - name: Reference client
         run: npm run wallet > /dev/null
+
+      - name: V2 package
+        run: npm run pack:v2
+
+      - name: V2 external install
+        run: npm run pack:v2:verify
+
+      - name: V3 package
+        run: npm run pack:v3
+
+      - name: V3 external install
+        run: npm run pack:v3:verify
