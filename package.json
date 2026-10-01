@@ -33,6 +33,15 @@
     "solc": "^0.8.37",
     "typescript": "^5.9.0"
   },
+  "overrides": {
+    "adm-zip": "0.6.1",
+    "tmp": "0.2.7",
+    "serialize-javascript": "7.1.2",
+    "undici": "6.29.0",
+    "diff": "8.0.3",
+    "cookie": "0.7.2",
+    "uuid": "11.1.1"
+  },
   "exports": {
     ".": "./src/index.ts",
     "./controls": "./src/controls/index.ts",
