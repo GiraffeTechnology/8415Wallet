@@ -113,7 +113,7 @@ export class WalletSession {
    * and says so.
    */
   collisions(tokenIds: readonly TokenId[]): Promise<CollisionReport> {
-    return detectCollisions(this.reader, tokenIds);
+    return detectCollisions(this.reader, tokenIds, { identityPin: this.identity });
   }
 
   /** Re-derive a built request and report what moved underneath it. */

@@ -1,10 +1,15 @@
 # 8415Wallet
 
-Current Stage 5F repair baseline (2026-09-26): **656/656 Node, 49/49 local EVM**,
-typecheck and browser emit pass, at code head `bf9ff8451b2d5d5f37c0109ab821467df5782e5a`.
-The 651-case figures below are the pre-repair batch, not the latest result.
-These are local development results, not CI, independent audit, public-testnet
-or genuine desktop/mobile acceptance. CI and merging remain with the release owner.
+## Current source closure (2026-10-01)
+
+Status: **SOURCE_SCOPE_CLOSED_PENDING_CI_REVIEW / NOT_RELEASE_ACCEPTED**.
+The integrated development candidate contains the Stage 0–5 standalone and
+linked implementation plus the source repairs from PRs #30–#34. See the
+[source-closure matrix and CI handoff](docs/V3-DEVELOPMENT-CLOSURE.md).
+This is a development handoff, not a new test result or security approval.
+The final integrated tree has not been built or tested by the development task.
+CI and merge belong to the release owner; functional deployment and testing
+belong to the test owner on managed CTYun/SIN Linux, never Windows.
 
 
 A reference wallet and client for [ERC-8415 — Asynchronous Register Projection for NFTs](https://github.com/GiraffeTechnology/ERC-8415).
@@ -26,7 +31,12 @@ ERC-8415 separates:
 
 8415Wallet keeps these sequences separate and never substitutes one for the other.
 
-## Current implementation status (2026-09-25)
+## Historical implementation checkpoint (2026-09-25)
+
+The following checkpoint describes its dated source and environment, not the
+current candidate. Later implementations and results are recorded separately;
+old missing-capability, browser and test claims do not apply automatically to
+the integrated tree.
 
 PR [#2](https://github.com/GiraffeTechnology/8415Wallet/pull/2) is merged at
 `438dd8ecc468d5d7af7f4fe3e19f92be5b887892`. The repository contains the
@@ -254,17 +264,19 @@ It does not:
 
 It reports protocol facts. Applications and users decide how those facts are used.
 
-## Known development gaps
+## Release integration and acceptance gates
 
-1. Error classification and network failure handling hardening.
-2. Security review of transaction and identity boundaries.
-3. Production-grade Kit integration verification.
-4. Browser/mobile wallet UX.
-5. Institutional registrar and source integration.
-6. Production execution of the independent responsibility controls: verified
-   consent, protected recipient/account enforcement, monotonic detachment,
-   callback recovery and optional per-leg payment adapters. The local kernel
-   and legacy escrow tests alone do not establish these features.
+1. CI/review of the exact integrated tree, including failure-handling regressions.
+2. Independent security review of transaction, identity and control boundaries.
+3. Verification of the selected external Kit, registrar and source profiles;
+   external institutional integrations are not prerequisites for standalone use.
+4. Genuine functional browser/mobile wallet journeys. Visual redevelopment is
+   deferred until functional acceptance, not a source-closure prerequisite.
+5. Fresh public-testnet and W-01–W-24 evidence for the final deployed candidate.
+   Historical real-chain activity is retained but cannot certify newer changes.
+6. Built/installed package and operational recovery verification. The control
+   implementation exists; source presence and legacy escrow tests cannot prove
+   release acceptance of it.
 
 These are delivery items. They do not change ERC-8415 semantics.
 

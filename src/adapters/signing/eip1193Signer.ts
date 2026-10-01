@@ -109,6 +109,10 @@ export class Eip1193Signer implements TransactionSigner {
    * would make every contract without a settlement interface unusable.
    */
   async sendTransaction(request: TransactionRequest): Promise<string> {
+    // Keep the reviewed wire fields stable across asynchronous provider reads.
+    // TypeScript readonly is not a runtime boundary for JavaScript callers.
+    const wire = { from: request.from, to: request.to, data: request.data,
+      value: request.value, chainId: request.chainId };
     const blocking = request.preflight.blocking;
     if (blocking.length > 0) {
       throw new RefusedFailingPreflightError(
@@ -118,25 +122,39 @@ export class Eip1193Signer implements TransactionSigner {
     }
 
     const chainId = await this.#chainId();
-    if (chainId !== request.chainId) {
-      throw new ChainMismatchError(request.chainId, chainId);
+    if (chainId !== wire.chainId) {
+      throw new ChainMismatchError(wire.chainId, chainId);
     }
 
-    if (request.from.toLowerCase() !== this.account) {
-      throw new AccountMismatchError(request.from.toLowerCase(), this.account);
+    if (wire.from.toLowerCase() !== this.account) {
+      throw new AccountMismatchError(wire.from.toLowerCase(), this.account);
     }
 
-    // Passed through exactly as built. No gas estimate is added and no field
-    // is rewritten: what the user was shown is what is sent, and the provider
-    // is free to fill what it fills.
+    // A connected signer is not a permanent grant. Re-read the selected
+    // account immediately before sending; retaining it elsewhere in the
+    // exposed account list is not permission to act as the selected account.
+    const selected = await Eip1193Signer.connect(this.#provider);
+    if (selected.account !== this.account) {
+      throw new AccountMismatchError(this.account, selected.account);
+    }
+    // Account discovery is asynchronous too. Detect a network change during
+    // that read, and also bind the eventual provider prompt to the chain.
+    const currentChainId = await this.#chainId();
+    if (currentChainId !== wire.chainId) {
+      throw new ChainMismatchError(wire.chainId, currentChainId);
+    }
+
+    // Preserve the captured intent and explicitly bind the chain. Gas/fee
+    // fields remain the provider's responsibility and approval surface.
     const hash = await this.#provider.request({
       method: 'eth_sendTransaction',
       params: [
         {
-          from: request.from,
-          to: request.to,
-          data: request.data,
-          value: request.value,
+          from: wire.from,
+          to: wire.to,
+          data: wire.data,
+          value: wire.value,
+          chainId: `0x${wire.chainId.toString(16)}`,
         },
       ],
     });

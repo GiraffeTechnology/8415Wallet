@@ -1,24 +1,37 @@
 import { ResponsibilityWalletSession, DetachedResponsibilityHistoryClient, ControlAdapterError, WalletSession, RpcErc8415Reader, Eip1193ReadTransport,
   renderAssetView, renderTemporalQuery, renderHistory, renderRegistration, renderAcquisitionDisclosure,
-  renderRiskSurfaces, renderPosture, renderSettlementLog, renderOwnershipHistory, verifyControlDeployment, controlRpc } from '../dist/browser/browser.js';
+  renderRiskSurfaces, renderPosture, renderSettlementLog, renderOwnershipHistory, renderCollisions, CollisionScanError, verifyControlDeployment, controlRpc } from '../dist/browser/browser.js';
 import { BrowserPublicOperationStore } from './public-store.mjs';
 
 const el = id => document.getElementById(id);
-const display = value => { el('result').textContent = typeof value === 'string' ? value : JSON.stringify(value, (_k, v) => typeof v === 'bigint' ? v.toString() : v, 2); };
+const renderResult = value => { el('result').textContent = typeof value === 'string' ? value : JSON.stringify(value, (_k, v) => typeof v === 'bigint' ? v.toString() : v, 2); };
+const display = value => { requireCurrentConnection(); renderResult(value); };
 const value = id => el(id).value.trim();
 const fail = code => { throw new ControlAdapterError(code); };
 const integer = text => { if (!/^(0|[1-9][0-9]{0,77})$/.test(text) || BigInt(text) >= 1n << 256n) fail('CONTROL_INTEGER_REFUSED'); return BigInt(text); };
 const number = id => integer(value(id));
 const bytes = (text, size) => { if (!new RegExp(`^0x[0-9a-fA-F]{${size * 2}}$`).test(text)) fail('CONTROL_HEX_REFUSED'); return text.toLowerCase(); };
 let deployment = null, provider = null, session = null, plainWallet = null, actor = null, review = null, signed = null, busy = false;
+let connectionRevision = 0n, operationRevision = 0n;
+function requireCurrentConnection() {
+  if (operationRevision !== connectionRevision) fail('CONTROL_CONNECTION_CHANGED');
+}
 const selected = () => { if (!session || !deployment || !actor) fail('CONTROL_CONNECTION_REQUIRED'); return session; };
-function clearConnection() { session = null; plainWallet = null; actor = null; review = null; el('acknowledge').checked = false; el('identity').textContent = 'Connection changed; reconnect and re-read before acting'; }
-async function run(fn) {
+function clearConnection() {
+  connectionRevision++; session = null; plainWallet = null; actor = null; review = null;
+  el('acknowledge').checked = false; el('terms').textContent = 'No review prepared';
+  el('identity').textContent = 'Connection changed; reconnect and re-read before acting';
+  renderResult('Connection changed. Reconnect to reconcile any submitted or unknown operation; do not automatically repeat it.');
+}
+async function run(fn, reconnect = false) {
   if (busy) return;
+  if (reconnect) clearConnection();
+  operationRevision = connectionRevision;
   busy = true; document.querySelectorAll('button,input').forEach(n => { n.disabled = true; });
   try { await fn(); } catch (e) {
     // Provider, RPC and DOM exception text is never rendered, logged or persisted.
-    display(e instanceof ControlAdapterError ? e.code : 'CONTROL_UI_OPERATION_REFUSED');
+    renderResult(operationRevision !== connectionRevision ? 'CONTROL_CONNECTION_CHANGED' :
+      e instanceof ControlAdapterError ? e.code : 'CONTROL_UI_OPERATION_REFUSED');
   } finally { busy = false; document.querySelectorAll('button,input').forEach(n => { n.disabled = false; }); }
 }
 async function jsonFile(id, maximum) {
@@ -30,15 +43,16 @@ function pin(raw, chainId) {
   return { chainId, controller: bytes(raw.address, 20), runtimeCodeHash: bytes(raw.runtimeCodeHash, 32) };
 }
 el('deployment').addEventListener('change', () => run(async () => {
-  clearConnection(); signed = null; deployment = null;
+  signed = null; deployment = null;
   const d = await jsonFile('deployment', 8192);
+  requireCurrentConnection();
   if (!d || Object.keys(d).sort().join(',') !== 'chainId,controller,payment,schema,token' || d.schema !== '8415-controls-testnet/1') fail('CONTROL_DEPLOYMENT_SCHEMA_REFUSED');
   const chainId = integer(d.chainId);
   if (![560048n, 11155111n].includes(chainId)) fail('CONTROL_TESTNET_REQUIRED');
   if (d.controller === null && d.payment !== null) fail('CONTROL_DEPLOYMENT_SCHEMA_REFUSED');
   deployment = { chainId, controller: d.controller === null ? null : pin(d.controller, chainId), token: pin(d.token, chainId), payment: d.payment === null ? null : pin(d.payment, chainId) };
   display({ deploymentLoaded: true, chainId, executionPerformed: false });
-}));
+}, true));
 el('connect').addEventListener('click', () => run(async () => {
   if (!deployment) fail('CONTROL_DEPLOYMENT_REQUIRED');
   if (!provider) {
@@ -46,26 +60,47 @@ el('connect').addEventListener('click', () => run(async () => {
     if (!provider || typeof provider.request !== 'function') fail('CONTROL_GENUINE_WALLET_PROVIDER_REQUIRED');
     provider.on?.('accountsChanged', clearConnection);
     provider.on?.('chainChanged', () => { signed = null; clearConnection(); });
+    provider.on?.('disconnect', () => { signed = null; clearConnection(); });
   }
   const accounts = await controlRpc(provider, 'eth_requestAccounts', []);
+  requireCurrentConnection();
   if (!Array.isArray(accounts) || !accounts[0]) fail('CONTROL_SIGNER_REFUSED');
   const connected = bytes(accounts[0], 20);
   const chain = await controlRpc(provider, 'eth_chainId', []);
+  requireCurrentConnection();
   if (typeof chain !== 'string' || !/^0x[0-9a-f]+$/i.test(chain) || BigInt(chain) !== deployment.chainId) fail('CONTROL_CHAIN_MISMATCH');
-  actor = connected;
   await verifyControlDeployment(provider, deployment.token);
-  plainWallet = new WalletSession(new RpcErc8415Reader(new Eip1193ReadTransport(provider, deployment.chainId),
-    deployment.chainId, deployment.token.controller), { account: actor });
-  session = deployment.controller === null ? null : new ResponsibilityWalletSession(provider, deployment.controller, actor,
-    new BrowserPublicOperationStore(deployment.chainId, deployment.controller.controller, actor), deployment.payment);
+  requireCurrentConnection();
+  const nextWallet = new WalletSession(new RpcErc8415Reader(new Eip1193ReadTransport(provider, deployment.chainId),
+    deployment.chainId, deployment.token.controller), { account: connected });
+  const nextSession = deployment.controller === null ? null : new ResponsibilityWalletSession(provider, deployment.controller, connected,
+    new BrowserPublicOperationStore(deployment.chainId, deployment.controller.controller, connected), deployment.payment);
+  const state = nextSession ? await nextSession.status() : 'Standalone wallet connected; no responsibility or payment module required.';
+  requireCurrentConnection();
+  actor = connected; plainWallet = nextWallet; session = nextSession;
   el('identity').textContent = `Chain ${deployment.chainId} · selected account ${actor}`;
-  display(session ? await session.status() : 'Standalone wallet connected; no responsibility or payment module required.');
-}));
+  display(state);
+}, true));
 document.querySelectorAll('[data-read]').forEach(button => button.addEventListener('click', () => run(async () => {
   if (!plainWallet || !deployment) fail('CONTROL_CONNECTION_REQUIRED');
   const wallet = plainWallet; await verifyControlDeployment(provider, deployment.token);
-  const tokenId = number('tokenId'); let output;
+  requireCurrentConnection();
+  const tokenId = button.dataset.read === 'collisions' ? 0n : number('tokenId'); let output;
   switch (button.dataset.read) {
+    case 'collisions': {
+      const input = value('collision-token-ids');
+      if (input.length === 0 || input.length > 2560) fail('COLLISION_TOKEN_INPUT_REFUSED');
+      const parts = input.split(',');
+      if (parts.length > 32) fail('COLLISION_TOKEN_BUDGET_REFUSED');
+      const ids = parts.map(part => integer(part.trim()));
+      if (new Set(ids).size !== ids.length) fail('COLLISION_DUPLICATE_TOKEN_REFUSED');
+      try { output = renderCollisions(await wallet.collisions(ids)); }
+      catch (error) {
+        if (error instanceof CollisionScanError) fail(error.code);
+        throw error;
+      }
+      break;
+    }
     case 'asset': output = renderAssetView(await wallet.assetView(tokenId)); break;
     case 'temporal': output = renderTemporalQuery(await wallet.temporalQuery(tokenId, number('instant'))); break;
     case 'history': output = renderHistory(await wallet.history(tokenId)); break;
@@ -88,6 +123,7 @@ document.querySelectorAll('[data-action]').forEach(button => button.addEventList
     const archive = new DetachedResponsibilityHistoryClient(provider, deployment.controller);
     const sequenceId = bytes(value('sequenceId'), 32);
     const document = await jsonFile('detached-history-file', 4 * 1024 * 1024);
+    requireCurrentConnection();
     const observation = await archive.observe(sequenceId, document);
     if (s !== session) fail('CONTROL_CONNECTION_CHANGED');
     display({ ...observation, disclosure: 'Public control history checked against a canonical chain commitment. Not legal identity, not ERC temporal finality, and not authority to send a transaction.' }); return;
@@ -135,10 +171,12 @@ document.querySelectorAll('[data-action]').forEach(button => button.addEventList
 el('review').addEventListener('click', () => run(async () => {
   const s = selected(); review = null; signed = null; el('acknowledge').checked = false;
   const input = await jsonFile('consent-file', 2300000);
+  requireCurrentConnection();
   if (!input || Object.keys(input).sort().join(',') !== 'consent,documents') fail('CONTROL_PUBLIC_DOCUMENT_REFUSED');
   for (const k of ['expectedRevision', 'tokenId', 'deadline', 'recipientNonce', 'paymentAmount']) input.consent[k] = integer(input.consent[k]);
   for (const d of [input.documents.incoming, ...input.documents.inherited]) if (d.terms.scheme === 'native-payment-v1') d.terms.amount = integer(d.terms.amount);
-  review = await s.consent.prepare(input.consent, actor, input.documents);
+  const prepared = await s.consent.prepare(input.consent, actor, input.documents);
+  requireCurrentConnection(); review = prepared;
   el('terms').textContent = JSON.stringify(review, (_k, v) => typeof v === 'bigint' ? v.toString() : v, 2);
   display('Review ready. No signature or transaction requested.');
 }));
@@ -146,6 +184,7 @@ el('accept').addEventListener('click', () => run(async () => {
   const s = selected(); if (!review || !el('acknowledge').checked) fail('CONTROL_REVIEW_ACKNOWLEDGEMENT_REFUSED');
   const r = review; review = null; el('acknowledge').checked = false;
   const signature = await s.consent.accept(r, r.digest);
+  requireCurrentConnection();
   signed = { consent: r.consent, recipientSignature: signature };
   display({ acceptedDigest: r.digest, signatureStored: false, transactionSent: false });
 }));

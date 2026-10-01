@@ -1,4 +1,7 @@
 import type { Erc8415Reader } from '../sdk/port.ts';
+import { detectConformance } from '../sdk/conformance.ts';
+import { ContractIdentityPin } from '../sdk/identity.ts';
+import { ProjectionNotInitialized } from '../sdk/errors.ts';
 import type { Bytes32, TokenId, Version } from '../sdk/types.ts';
 
 /**
@@ -45,7 +48,21 @@ const SCOPE_NOTE =
   'This compares only the tokens it was given. Finding no collision here is not ' +
   'evidence that none exists — the protocol enforces uniqueness per token only, ' +
   'and a register entry reused on a token outside this set would be invisible to ' +
-  'a single-token audit and to this one.';
+  'a single-token audit and to this one. These are sequential live reads, not ' +
+  'an atomic snapshot, proof of legal identity or authority to send a transaction.';
+
+/** Work limits for one interactive scan, not protocol or chain-lifetime limits. */
+export const COLLISION_SCAN_MAX_TOKENS = 32;
+export const COLLISION_SCAN_MAX_ENTRIES = 2048;
+
+export class CollisionScanError extends Error {
+  readonly code: string;
+  constructor(code: string) {
+    super(code);
+    this.name = 'CollisionScanError';
+    this.code = code;
+  }
+}
 
 const NOTE_COMMITMENT =
   'The same record commitment backs entries on more than one token. Under the ' +
@@ -69,13 +86,38 @@ const NOTE_REFERENCE =
 export async function detectCollisions(
   reader: Erc8415Reader,
   tokenIds: readonly TokenId[],
+  options: { readonly identityPin?: ContractIdentityPin } = {},
 ): Promise<CollisionReport> {
+  if (!Array.isArray(tokenIds) || tokenIds.length === 0 || tokenIds.length > COLLISION_SCAN_MAX_TOKENS) {
+    throw new CollisionScanError('COLLISION_TOKEN_BUDGET_REFUSED');
+  }
+  // Copy before the first await; caller mutation must not alter the review set.
+  const tokens: TokenId[] = [];
+  const unique = new Set<TokenId>();
+  for (let index = 0; index < tokenIds.length; index++) {
+    const id = tokenIds[index];
+    if (typeof id !== 'bigint' || id < 0n || id >= 1n << 256n) {
+      throw new CollisionScanError('COLLISION_TOKEN_ID_REFUSED');
+    }
+    if (unique.has(id)) throw new CollisionScanError('COLLISION_DUPLICATE_TOKEN_REFUSED');
+    unique.add(id); tokens.push(id);
+  }
+  const identity = options.identityPin ?? new ContractIdentityPin(reader);
+  const conformance = await detectConformance(reader);
+  await identity.read(conformance);
   const commitments = new Map<Bytes32, CollisionOccurrence[]>();
   const references = new Map<Bytes32, CollisionOccurrence[]>();
   let entriesExamined = 0;
 
-  for (const tokenId of tokenIds) {
+  for (const tokenId of tokens) {
     const count = await reader.entryCount(tokenId);
+    if (typeof count !== 'bigint' || count < 0n || count >= 1n << 64n) {
+      throw new CollisionScanError('COLLISION_ENTRY_COUNT_REFUSED');
+    }
+    if (count === 0n) throw new ProjectionNotInitialized(tokenId);
+    if (count > BigInt(COLLISION_SCAN_MAX_ENTRIES - entriesExamined)) {
+      throw new CollisionScanError('COLLISION_ENTRY_BUDGET_REFUSED');
+    }
     for (let version = 1n; version <= count; version += 1n) {
       const entry = await reader.entryAt(tokenId, version);
       entriesExamined += 1;
@@ -84,8 +126,10 @@ export async function detectCollisions(
     }
   }
 
+  await identity.read(await detectConformance(reader));
+
   return {
-    tokensExamined: [...tokenIds],
+    tokensExamined: tokens,
     entriesExamined,
     collisions: [
       ...gather(commitments, 'recordCommitment', NOTE_COMMITMENT),

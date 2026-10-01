@@ -1,5 +1,11 @@
 # V3 review and unified validation handoff
 
+Current source handoff: [V3 development closure](V3-DEVELOPMENT-CLOSURE.md),
+2026-10-01. Its integrated source is NOT_TESTED. The dated batches below are
+not cumulative acceptance of that tree. Source implementation and independent
+security/testnet/UI approval remain distinct. All new deployment and test
+execution must use managed CTYun/SIN Linux; Windows is development only.
+
 Source closure is not release acceptance. Source was UNTESTED at initial freeze;
 pre-repair Stage 5F local validation passed 651 Node and 49 EVM cases after earlier review repairs
 and read-only detached/reserved payment observation. No new authority is added.
