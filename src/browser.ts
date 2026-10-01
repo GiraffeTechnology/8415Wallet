@@ -8,3 +8,5 @@ export { renderTemporalQuery, renderHistory } from './wallet/renderTemporalQuery
 export { renderRiskSurfaces, renderSettlementLog } from './wallet/renderGapView.ts';
 export { renderRegistration, renderAcquisitionDisclosure, renderOwnershipHistory, renderPosture } from './wallet/renderHolderViews.ts';
 export { verifyControlDeployment, controlRpc } from './controls/authorization.ts';
+export { renderCollisions } from './wallet/renderHolderViews.ts';
+export { CollisionScanError } from './wallet/collisions.ts';

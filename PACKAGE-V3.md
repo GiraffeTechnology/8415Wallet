@@ -25,23 +25,24 @@ Node 22.18 or newer. No runtime dependencies.
 - **Not audited.** No independent security review has been performed on the
   kernel, the adapters, the verifiers, the deployed contracts, recovery or the
   optional payment integration. Local suites are preparation, never an audit.
-- **Not proven on a public chain.** The public journey runner has executed end
-  to end only against a loopback rehearsal chain. W-20 — one deployed
-  same-token multi-wallet journey — is not met.
+- **Not full public-chain acceptance.** Historical real Sepolia deployments
+  and transactions exist. They do not establish a complete, source-bound
+  W-01–W-24 result for every new package. A rehearsal is not a public-chain run.
 - **Not a mandate to hold value.** Use test networks. The kernel is an
-  uncommitted proposal generator; AGENTS.md forbids wiring it to signing or
-  execution before authenticated atomic adapters, alternate-path protection
-  and an independent audit are complete, and this package does not change that.
+  uncommitted proposal generator, not execution authority. Authenticated atomic
+  adapters and alternate-path protection exist as development source; their
+  exact integration still requires independent review and release acceptance.
 
 ## What has been established
 
-Locally, at the commit this package was built from: the full TypeScript suite,
-the EVM suite against the real reference projection, a typecheck, a browser
-emit, and a browser journey driving the served UI in a real Chromium at a
-desktop and an emulated phone viewport. The exact figures live in
+Historical development batches include TypeScript and EVM regressions,
+typechecking, browser compilation and a Chromium journey at desktop and
+emulated phone viewports. Building this package does not rerun those batches
+or bind their outcomes to its new source commit. The historical figures live in
 `docs/V3-REVIEW-AND-VALIDATION.md` and
 `docs/stages/STAGE-5J-PUBLIC-PATH-AND-UI.md`, which travel in this tarball.
 
-`AGENTS.md` ships here too, because the boundaries it states — what the wallet
-may infer, what it must never collapse into one badge, and where remedy lives —
-are part of what you are integrating against.
+`docs/INTEGRATION-BOUNDARIES.md` ships the consumer contract: forbidden
+inferences, responsibility/payment separation, execution recovery and release
+limitations. Development instructions and coordination records do not ship.
+Deployment and tests use CTYun/SIN Linux environments, not Windows hosts.

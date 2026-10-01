@@ -9,10 +9,9 @@ works from outside this repository, and that it tells the truth about itself.
 
 V2 shipped as a product because its surface — the standalone reading client —
 is what the repository can stand behind. V3 adds the responsibility control
-kernel, and AGENTS.md is explicit that the kernel must not be connected to
-signing or execution before authenticated atomic adapters, alternate-path
-protection and an independent security audit are complete. None of that is
-done. Publishing V3 as a release would contradict the repository's own rule,
+kernel. Authenticated atomic adapters and alternate-path protection exist as
+development source, but the exact integration has not completed independent
+security and release acceptance. Publishing V3 as a release would overstate it,
 so it is published as a candidate instead: installable, integrable and
 reviewable, with its status carried in the artifact name, the package
 metadata, and a notice the build refuses to omit.
@@ -26,15 +25,14 @@ package is audited, security-approved, production-ready or release-accepted.
 | Measure | Value |
 | --- | --- |
 | Artifact | `8415wallet-0.1.0-v3-candidate.tgz` |
-| Entries | 159 |
-| Unpacked | ~676 KB |
-| Source modules compiled | 75 (13 control) |
+| Entries / unpacked bytes | Measured in `dist/v3-package-manifest.json` per build |
+| Source modules compiled | Derived from the entry-point import graph per build |
 | Runtime dependencies | 0 |
 | Node | >= 22.18.0 |
 
 Four entry points: the root reading client plus linked chain views,
 `/controls`, `/controls/node-store`, and `/browser`. Plus the CLI reference
-client as a bin. `AGENTS.md`, the PRD, the integration guide, the controls
+client as a bin. The consumer integration-boundary contract, PRD, integration guide, controls
 security note, the V3 review record and the Stage 5J report travel inside the
 tarball, because the boundaries they state are part of what an integrator is
 building against.
@@ -54,11 +52,17 @@ tarball installed as a dependency:
 7. the CLI runs from the installed package;
 8. it presents itself as a candidate: the version ends `-v3-candidate`, the
    description says it is not independently audited, and the notice ships;
-9. `AGENTS.md` ships with its forbidden-inference boundaries intact.
+9. the consumer boundary contract ships with all required sections, while
+   development instructions and coordination records are absent.
+
+The build validates the actual `npm pack` file inventory; the install verifier
+independently checks installed paths. A missing required document or included
+development-instruction file refuses verification. This is a packaging boundary,
+not a substitute for security review or a test result.
 
 ## Gates this package does not close
 
-- public-testnet execution with funded accounts;
+- complete exact-candidate public-testnet evidence (historical real runs remain valid history);
 - W-20, one deployed same-token multi-wallet journey;
 - independent security review of the exact tree, now including the loopback
   signer added in Stage 5J;

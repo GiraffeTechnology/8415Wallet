@@ -47,7 +47,7 @@ export { describeAcquisition } from './wallet/acquisition.ts';
 export type * from './wallet/acquisition.ts';
 export { describePosture } from './wallet/posture.ts';
 export type * from './wallet/posture.ts';
-export { detectCollisions } from './wallet/collisions.ts';
+export { detectCollisions, CollisionScanError, COLLISION_SCAN_MAX_TOKENS, COLLISION_SCAN_MAX_ENTRIES } from './wallet/collisions.ts';
 export { discoverHeldTokens } from './wallet/discovery.ts';
 export type * from './wallet/discovery.ts';
 export type * from './wallet/collisions.ts';

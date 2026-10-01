@@ -51,6 +51,24 @@ async function aRequest(): Promise<TransactionRequest> {
 }
 
 describe('sending a transaction the wallet built', () => {
+  test('caller mutation during provider discovery cannot replace the captured wire intent', async () => {
+    const request = { ...await aRequest() };
+    const expected = { from: request.from, to: request.to, data: request.data, value: request.value, chainId: '0x1' };
+    const calls: Call[] = [];
+    const provider: Eip1193Provider = { async request(args) {
+      calls.push(args);
+      if (args.method === 'eth_chainId') {
+        request.to = DAVE; request.from = DAVE; request.data = '0x1234'; request.chainId = 11155111n;
+        return '0x1';
+      }
+      if (args.method === 'eth_accounts') return [REGISTRAR];
+      if (args.method === 'eth_sendTransaction') return HASH;
+      throw new Error('unexpected request');
+    } };
+    assert.equal(await new Eip1193Signer(provider, REGISTRAR).sendTransaction(request), HASH);
+    assert.deepEqual(calls.find(call => call.method === 'eth_sendTransaction')?.params, [expected]);
+  });
+
   test('passes it through exactly as built', async () => {
     const request = await aRequest();
     const { provider, calls } = fakeProvider();
@@ -60,7 +78,7 @@ describe('sending a transaction the wallet built', () => {
 
     const sent = calls.find((call) => call.method === 'eth_sendTransaction');
     assert.deepEqual(sent?.params, [
-      { from: request.from, to: request.to, data: request.data, value: '0x0' },
+      { from: request.from, to: request.to, data: request.data, value: '0x0', chainId: '0x1' },
     ]);
   });
 
@@ -77,7 +95,7 @@ describe('sending a transaction the wallet built', () => {
     }
     assert.deepEqual(
       calls.map((call) => call.method),
-      ['eth_chainId', 'eth_sendTransaction'],
+      ['eth_chainId', 'eth_accounts', 'eth_chainId', 'eth_sendTransaction'],
     );
   });
 });
@@ -143,6 +161,58 @@ describe('the three refusals', () => {
 });
 
 describe('connecting', () => {
+  test('refuses an account switched after connect, even if the old account stays exposed', async () => {
+    const aBuilt = await aRequest();
+    const state = { accounts: [REGISTRAR] };
+    const { provider, calls } = fakeProvider(state);
+    const signer = await Eip1193Signer.connect(provider);
+    state.accounts = [DAVE, REGISTRAR];
+    await assert.rejects(() => signer.sendTransaction(aBuilt), AccountMismatchError);
+    assert.ok(!calls.some(call => call.method === 'eth_sendTransaction'));
+  });
+
+  test('refuses revoked or malformed account access without a signing prompt', async () => {
+    const request = await aRequest();
+    for (const accounts of [[], ['not-an-address']]) {
+      const { provider, calls } = fakeProvider({ accounts });
+      await assert.rejects(() => new Eip1193Signer(provider, REGISTRAR).sendTransaction(request));
+      assert.ok(!calls.some(call => call.method === 'eth_sendTransaction'));
+      assert.ok(!calls.some(call => call.method === 'eth_requestAccounts'));
+    }
+  });
+
+  test('refuses a chain switch while the live account read is pending', async () => {
+    const request = await aRequest();
+    const calls: string[] = [];
+    let reads = 0;
+    const provider: Eip1193Provider = { async request({ method }) {
+      calls.push(method);
+      if (method === 'eth_chainId') return ++reads === 1 ? '0x1' : '0xaa36a7';
+      if (method === 'eth_accounts') return [REGISTRAR];
+      throw new Error('unexpected send');
+    } };
+    await assert.rejects(() => new Eip1193Signer(provider, REGISTRAR).sendTransaction(request), ChainMismatchError);
+    assert.ok(!calls.includes('eth_sendTransaction'));
+  });
+
+  test('accepts a case-only account representation change', async () => {
+    const request = await aRequest();
+    const { provider } = fakeProvider({ accounts: [REGISTRAR.toUpperCase().replace('0X', '0x')] });
+    assert.equal(await new Eip1193Signer(provider, REGISTRAR).sendTransaction(request), HASH);
+  });
+
+  test('does not send if the provider cannot establish the selected account', async () => {
+    const request = await aRequest();
+    const calls: string[] = [];
+    const provider: Eip1193Provider = { async request({ method }) {
+      calls.push(method);
+      if (method === 'eth_chainId') return '0x1';
+      throw new Error('account discovery unavailable');
+    } };
+    await assert.rejects(() => new Eip1193Signer(provider, REGISTRAR).sendTransaction(request));
+    assert.deepEqual(calls, ['eth_chainId', 'eth_accounts']);
+  });
+
   test('takes the account the provider already offers, and prompts for none', async () => {
     const { provider, calls } = fakeProvider({ accounts: [REGISTRAR.toUpperCase().replace('0X', '0x')] });
     const signer = await Eip1193Signer.connect(provider);

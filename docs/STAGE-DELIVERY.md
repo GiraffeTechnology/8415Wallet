@@ -1,5 +1,12 @@
 # 8415Wallet — Stage Delivery
 
+Current integrated source status (2026-10-01):
+**SOURCE_SCOPE_CLOSED_PENDING_CI_REVIEW / NOT_RELEASE_ACCEPTED**. Use
+[the current matrix](V3-DEVELOPMENT-CLOSURE.md) for source coverage and the exact
+CI handoff. All results below remain historical, with their original environment.
+In particular, the original model-only missing implementation list is not a
+claim that later authenticated contracts and adapters are still absent.
+
 Delivery evidence per AGENTS.md: every stage requires implementation, tests,
 documentation and evidence. Stages are defined in
 [ERC-8415-Wallet-PRD.md](ERC-8415-Wallet-PRD.md) §7.

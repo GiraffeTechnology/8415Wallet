@@ -1,8 +1,10 @@
 # Stage 5B — additive wallet workflows
 
-Historical source freeze was UNTESTED. After all stages completed, unified local
-validation and review repairs ran; see the dated V3 validation report. This draft
-remains unmerged, and genuine UI/public-testnet acceptance is still required.
+Historical source freeze was UNTESTED. After the initial stages, separate local
+validation and repair batches ran; see their dated reports. Current integration
+is recorded in ../V3-DEVELOPMENT-CLOSURE.md; the original draft/merge status is
+not the current release state. Genuine UI/public-testnet acceptance remains
+required for the final version.
 
 ## Implemented source
 
@@ -46,9 +48,9 @@ DOM output, console or the public journal. They are held in page memory only.
 ## Explicit remaining gates and limitations
 
 - Local source compilation and unified regression passed; UI and testnet remain open.
-- UI styling currently uses a clearly identified neutral fallback. Supplied
-  Giraffe VI/font assets must be located and integrated before visual acceptance;
-  this is not a claim of approved branding or completed desktop/mobile evidence.
+- UI styling uses a neutral functional fallback. Visual redevelopment follows
+  functional acceptance and does not block this source handoff. This does not
+  claim approved branding or completed desktop/mobile evidence.
 - A wallet prompt can outlive a timeout. Unknown submissions remain blocked;
   the user supplies the public transaction hash from wallet activity, not a key.
   If no transaction exists, do not invent non-execution from a missing receipt.
