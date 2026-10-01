@@ -1,6 +1,6 @@
 import type { Eip1193Provider } from '../adapters/signing/eip1193Signer.ts';
 import { keccak256Utf8 } from '../codec/keccak.ts';
-import { controlHex, controlRpc, hashControlBytes, requireControlAdapter as check, validateControlPin, verifyControlDeployment,
+import { controlHex, controlRpc, controlPendingNonce, hashControlBytes, requireControlAdapter as check, validateControlPin, verifyControlDeployment,
   type ControlDeploymentPin } from './authorization.ts';
 
 /** Internal transport shared by fixed account/payment adapters; not a generic wallet API. */
@@ -66,7 +66,7 @@ export async function submitFixed(provider: Eip1193Provider, input: FixedCall,
     data: c.data, value: `0x${c.value.toString(16)}` };
   check(controlHex(await controlRpc(provider, 'eth_call', [tx, 'latest'])), 'CONTROL_PREFLIGHT_RESPONSE_REFUSED');
   await verify();
-  const nonce = rpcQuantity(await controlRpc(provider, 'eth_getTransactionCount', [c.actor, 'pending']));
+  const nonce = controlPendingNonce(await controlRpc(provider, 'eth_getTransactionCount', [c.actor, 'pending']));
   const template: FixedSubmission = { schema: '8415-fixed-submission/1', pin: c.pin, guards: c.guards, actor: c.actor.toLowerCase(),
     value: c.value, nonce, transactionHash: `0x${'0'.repeat(64)}`, calldataHash: hashControlBytes(c.data), event: c.event };
   if (beforeSend) await beforeSend(structuredClone(template));
