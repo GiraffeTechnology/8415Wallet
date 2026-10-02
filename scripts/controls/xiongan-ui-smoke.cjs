@@ -88,7 +88,11 @@ let browser;
     await page.fill('#asset-recovery-hash', `0x${'5'.repeat(64)}`); await page.click('#asset-recover'); await idle();
     assert.match(await page.locator('#asset-result').textContent(), /confirmed/);
     await page.screenshot({ path: path.join(out, `xiongan-${viewport.width}.png`), fullPage: true });
-    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+    const fits = await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth);
+    if (!fits) console.error('OVERFLOW_DIAGNOSTICS', JSON.stringify(await page.evaluate(() => [...document.querySelectorAll('body *')]
+      .filter(node => node.getBoundingClientRect().right > window.innerWidth || node.scrollWidth > node.clientWidth + 1)
+      .map(node => ({ tag: node.tagName, id: node.id, width: node.clientWidth, scrollWidth: node.scrollWidth, right: node.getBoundingClientRect().right })) )));
+    assert.equal(fits, true, `viewport ${viewport.width} must not overflow horizontally`);
     assert.deepEqual(errors, []); assert.deepEqual(externalRequests, []);
     evidence.push({ viewport, provider: 'synthetic-no-signing-no-rpc', journeys: ['prepare-no-send', 'A-B-A-revocation', 'cross-panel-lock', 'submit-reload-reconcile', 'unknown-restart-no-resend-recover'], sends: 2, errors, externalRequests });
     await context.close();

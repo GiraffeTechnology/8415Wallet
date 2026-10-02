@@ -50,6 +50,15 @@ jobs:
       # The escrow holds value, so it is executed rather than only compiled:
       # hardhat runs it against the ERC-8415 reference implementation on a real
       # EVM, admitting entries through the real settlement path.
+      - name: Xiongan synthetic browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xiongan-synthetic-browser-node-${{ matrix.node-version }}
+          path: /tmp/xiongan-ui-evidence
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Contracts
         run: npm run test:evm
 

@@ -4,3 +4,5 @@
 .eyebrow{font-size:.75rem;font-weight:700;letter-spacing:.12em;color:var(--accent)}.release-notice{border-left:4px solid #b98424;background:#fff7e3;padding:.8rem 1rem;border-radius:0 6px 6px 0}
 
 select{font:inherit;padding:.65rem;border:1px solid var(--line);border-radius:5px;background:white;width:100%;margin-top:.3rem}
+/* Full account identities must remain readable on phone-width layouts. */
+#identity,#asset-identity{overflow-wrap:anywhere;word-break:break-word}
