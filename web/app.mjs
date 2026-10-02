@@ -1,6 +1,8 @@
+import { acquireWalletUi, releaseWalletUi } from './ui-lock.mjs';
 import { ResponsibilityWalletSession, DetachedResponsibilityHistoryClient, ControlAdapterError, WalletSession, RpcErc8415Reader, Eip1193ReadTransport,
   renderAssetView, renderTemporalQuery, renderHistory, renderRegistration, renderAcquisitionDisclosure,
   renderRiskSurfaces, renderPosture, renderSettlementLog, renderOwnershipHistory, renderCollisions, CollisionScanError, verifyControlDeployment, controlRpc } from '../dist/browser/browser.js';
+import { reviewAgentRequest, recoveryGuidance } from '../dist/browser/browser.js';
 import { BrowserPublicOperationStore } from './public-store.mjs';
 
 const el = id => document.getElementById(id);
@@ -12,12 +14,18 @@ const integer = text => { if (!/^(0|[1-9][0-9]{0,77})$/.test(text) || BigInt(tex
 const number = id => integer(value(id));
 const bytes = (text, size) => { if (!new RegExp(`^0x[0-9a-fA-F]{${size * 2}}$`).test(text)) fail('CONTROL_HEX_REFUSED'); return text.toLowerCase(); };
 let deployment = null, provider = null, session = null, plainWallet = null, actor = null, review = null, signed = null, busy = false;
+let agentRequestText = null, agentReview = null;
 let connectionRevision = 0n, operationRevision = 0n;
 function requireCurrentConnection() {
   if (operationRevision !== connectionRevision) fail('CONTROL_CONNECTION_CHANGED');
 }
 const selected = () => { if (!session || !deployment || !actor) fail('CONTROL_CONNECTION_REQUIRED'); return session; };
+function clearAgentReview() {
+  agentRequestText = null; agentReview = null;
+  el('agent-acknowledge').checked = false; el('agent-terms').textContent = 'No agent request reviewed';
+}
 function clearConnection() {
+  clearAgentReview(); el('recovery-guidance').textContent = recoveryGuidance(null);
   connectionRevision++; session = null; plainWallet = null; actor = null; review = null;
   el('acknowledge').checked = false; el('terms').textContent = 'No review prepared';
   el('identity').textContent = 'Connection changed; reconnect and re-read before acting';
@@ -25,14 +33,24 @@ function clearConnection() {
 }
 async function run(fn, reconnect = false) {
   if (busy) return;
+  const uiLock = acquireWalletUi(); if (uiLock === null) return;
   if (reconnect) clearConnection();
   operationRevision = connectionRevision;
-  busy = true; document.querySelectorAll('button,input').forEach(n => { n.disabled = true; });
+  busy = true; document.querySelectorAll('button,input,select').forEach(n => { n.disabled = true; });
   try { await fn(); } catch (e) {
     // Provider, RPC and DOM exception text is never rendered, logged or persisted.
     renderResult(operationRevision !== connectionRevision ? 'CONTROL_CONNECTION_CHANGED' :
       e instanceof ControlAdapterError ? e.code : 'CONTROL_UI_OPERATION_REFUSED');
-  } finally { busy = false; document.querySelectorAll('button,input').forEach(n => { n.disabled = false; }); }
+  } finally {
+    if (session && operationRevision === connectionRevision) {
+      const current = session;
+      try {
+        const state = await current.status();
+        if (current === session && operationRevision === connectionRevision) el('recovery-guidance').textContent = recoveryGuidance(state);
+      } catch { el('recovery-guidance').textContent = 'Saved state unavailable. Do not resend or clear browser storage. Reconnect the same account and deployment.'; }
+    }
+    busy = false; releaseWalletUi(uiLock); document.querySelectorAll('button,input,select').forEach(n => { n.disabled = false; });
+  }
 }
 async function jsonFile(id, maximum) {
   const file = el(id).files?.[0]; if (!file || file.size > maximum) fail('CONTROL_PUBLIC_DOCUMENT_REFUSED');
@@ -71,9 +89,14 @@ el('connect').addEventListener('click', () => run(async () => {
   if (typeof chain !== 'string' || !/^0x[0-9a-f]+$/i.test(chain) || BigInt(chain) !== deployment.chainId) fail('CONTROL_CHAIN_MISMATCH');
   await verifyControlDeployment(provider, deployment.token);
   requireCurrentConnection();
-  const nextWallet = new WalletSession(new RpcErc8415Reader(new Eip1193ReadTransport(provider, deployment.chainId),
+  const capturedRevision = connectionRevision;
+  const connectedProvider = { request: args => {
+    if (capturedRevision !== connectionRevision) fail('CONTROL_CONNECTION_CHANGED');
+    return provider.request(args);
+  } };
+  const nextWallet = new WalletSession(new RpcErc8415Reader(new Eip1193ReadTransport(connectedProvider, deployment.chainId),
     deployment.chainId, deployment.token.controller), { account: connected });
-  const nextSession = deployment.controller === null ? null : new ResponsibilityWalletSession(provider, deployment.controller, connected,
+  const nextSession = deployment.controller === null ? null : new ResponsibilityWalletSession(connectedProvider, deployment.controller, connected,
     new BrowserPublicOperationStore(deployment.chainId, deployment.controller.controller, connected), deployment.payment);
   const state = nextSession ? await nextSession.status() : 'Standalone wallet connected; no responsibility or payment module required.';
   requireCurrentConnection();
@@ -207,4 +230,35 @@ el('ack-terminal').addEventListener('click', () => run(async () => {
   const s = selected(); const state = await s.status();
   if (!state.submission) fail('CONTROL_KNOWN_SUBMISSION_REQUIRED');
   await s.acknowledgeTerminal(state.submission.transactionHash); display(await s.status());
+}));
+
+// Public file input only: no ambient message listener, HTTP write endpoint or agent credential.
+async function agentContext() {
+  selected();
+  const header = await controlRpc(provider, 'eth_getBlockByNumber', ['latest', false]);
+  requireCurrentConnection();
+  if (!header || typeof header.timestamp !== 'string' || !/^0x(?:0|[1-9a-f][0-9a-f]*)$/i.test(header.timestamp)) fail('AGENT_CHAIN_TIME_UNAVAILABLE');
+  return { actor, controller: deployment.controller, token: deployment.token, now: BigInt(header.timestamp) };
+}
+el('agent-file').addEventListener('change', clearAgentReview);
+el('agent-dismiss').addEventListener('click', clearAgentReview);
+el('agent-review').addEventListener('click', () => run(async () => {
+  clearAgentReview();
+  const file = el('agent-file').files?.[0];
+  if (!file || file.size > 8192) fail('AGENT_REQUEST_SIZE_REFUSED');
+  const text = await file.text(); requireCurrentConnection();
+  const prepared = reviewAgentRequest(text, await agentContext());
+  requireCurrentConnection(); agentRequestText = text; agentReview = prepared;
+  el('agent-terms').textContent = JSON.stringify(prepared, (_k, v) => typeof v === 'bigint' ? v.toString() : v, 2);
+  display('Agent request reviewed. No signature or transaction requested. The claimed agent name is unverified.');
+}));
+el('agent-execute').addEventListener('click', () => run(async () => {
+  const s = selected();
+  if (!agentReview || !agentRequestText || !el('agent-acknowledge').checked) fail('AGENT_OWNER_REVIEW_REQUIRED');
+  const prior = agentReview, text = agentRequestText;
+  // Consume review before any asynchronous work. Repeated clicks cannot reuse it.
+  clearAgentReview();
+  const fresh = reviewAgentRequest(text, await agentContext());
+  if (s !== session || fresh.digest !== prior.digest) fail('AGENT_REVIEW_CHANGED');
+  display(await s.execute(fresh.operation));
 }));

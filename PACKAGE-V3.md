@@ -4,7 +4,7 @@ Status: **NOT_INDEPENDENTLY_AUDITED** · testnet use only · not a release.
 
 This tarball ships the surface the V2 package deliberately leaves out: the
 responsibility control kernel, its adapters and readers, the linked chain
-views, and the browser entry. It is published as a candidate so the work can
+views, and the browser entry. It is prepared as a candidate so the work can
 be installed, integrated against and reviewed — not because it has passed the
 gates a release needs.
 
@@ -46,3 +46,13 @@ or bind their outcomes to its new source commit. The historical figures live in
 inferences, responsibility/payment separation, execution recovery and release
 limitations. Development instructions and coordination records do not ship.
 Deployment and tests use CTYun/SIN Linux environments, not Windows hosts.
+
+## Xiongan external-account companion
+
+The browser entry additionally exports the Xiongan external-EOA companion. It
+recognizes Ethereum/Base and their selected testnets for ETH and standard NFTs;
+this source capability does not change the control package's testnet acceptance
+boundary. Do not treat mainnet recognition as authorization to fund an unreviewed
+client. The owner remains responsible for each genuine-wallet signing/submission
+decision. No agent key, standing grant or autonomous signer is included. Read
+`docs/XIONGAN-WALLET.md` for its separate custody, recovery and open gates.

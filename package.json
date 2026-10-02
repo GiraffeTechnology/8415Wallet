@@ -22,7 +22,8 @@
     "pack:v2": "node scripts/package/build-v2.mjs",
     "pack:v2:verify": "node scripts/package/verify-install.mjs",
     "pack:v3": "node scripts/package/build-v3.mjs",
-    "pack:v3:verify": "node scripts/package/verify-install-v3.mjs"
+    "pack:v3:verify": "node scripts/package/verify-install-v3.mjs",
+    "wallet:xiongan:smoke": "node scripts/controls/xiongan-ui-smoke.cjs"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^3.1.3",
