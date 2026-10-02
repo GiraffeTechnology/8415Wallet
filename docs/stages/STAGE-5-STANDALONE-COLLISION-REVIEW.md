@@ -28,7 +28,7 @@ depend on the independent signer or package-delivery branches.
 ## Linux validation handoff — NOT RUN
 
 The development task added ten SDK boundary cases and four UI-handler cases;
-none was executed in this slice. Artfi总控 owns execution on managed CTYun/SIN
+none was executed in this slice. Artfi control owns execution on managed CTYun/SIN
 Linux. Bind results to the delivered commit/tree and report actual Node,
 TypeScript, browser and provider versions. Do not disclose infrastructure names,
 addresses or credentials. No Windows runtime is permitted.
