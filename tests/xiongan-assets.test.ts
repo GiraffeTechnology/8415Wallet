@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ExternalAssetSession, parseAssetState, type AssetState, type AssetStore } from '../src/xiongan/externalAssets.ts';
+import { ExternalAssetSession, parseAssetState, formatWeiAsEth, type AssetState, type AssetStore } from '../src/xiongan/externalAssets.ts';
 import { encodeCall } from '../src/codec/abi.ts';
 import { keccak256Utf8 } from '../src/codec/keccak.ts';
 const actor = `0x${'1'.repeat(40)}`, recipient = `0x${'2'.repeat(40)}`, nft = `0x${'3'.repeat(40)}`;
@@ -161,4 +161,11 @@ test('canonical same-nonce cancellation unlocks but never claims original succes
   } }, s = new ExternalAssetSession(provider, '1', actor, f.store), r = await s.prepare(f.request());
   await s.submit(r, r.digest); assert.equal((await s.acknowledgeReplacement(`0x${'6'.repeat(64)}`)).originalOutcome, 'superseded-not-successful');
   assert.equal((await s.status()).status, 'idle'); assert.equal(f.sends(), 1);
+});
+
+test('ETH display is lossless, always labelled by the UI, and never uses floating-point', () => {
+  for (const [wei, eth] of [['0', '0'], ['1', '0.000000000000000001'], ['1000', '0.000000000000001'],
+    ['1000000000000000', '0.001'], ['1000000000000000000', '1'], ['1234567890123456789', '1.234567890123456789'],
+    ['9007199254740993000000000000000001', '9007199254740993.000000000000000001']]) assert.equal(formatWeiAsEth(wei!), eth);
+  for (const invalid of ['1.5', '-1', '1e18', '01']) assert.throws(() => formatWeiAsEth(invalid));
 });

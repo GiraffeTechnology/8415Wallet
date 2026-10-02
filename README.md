@@ -2,7 +2,7 @@
 
 ## Xiongan Wallet candidate
 
-The requested **熊安的钱包 (Xiongan Wallet)** profile adds a separate external-EOA
+The requested **Xiongan Wallet** profile adds a separate external-EOA
 ETH / ERC-721 / ERC-1155 UI for Ethereum and Base, with owner-reviewed agent
 requests. Existing ERC-8415 controls remain testnet-only. This is unaccepted
 development source, not an independent audit or real-asset deployment. See

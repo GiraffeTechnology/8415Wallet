@@ -12,4 +12,4 @@ export { renderCollisions } from './wallet/renderHolderViews.ts';
 export { CollisionScanError } from './wallet/collisions.ts';
 export { reviewAgentRequest, XIONGAN_PROFILE } from './xiongan/agentRequest.ts';
 export { recoveryGuidance } from './xiongan/recoveryView.ts';
-export { ExternalAssetSession, ASSET_CHAINS, parseAssetState } from './xiongan/externalAssets.ts';
+export { ExternalAssetSession, ASSET_CHAINS, parseAssetState, formatWeiAsEth } from './xiongan/externalAssets.ts';

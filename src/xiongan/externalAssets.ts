@@ -20,6 +20,12 @@ function obj(v: unknown, keys?: string[]): PublicObject {
 }
 function addr(v: unknown): string { check(controlHex(v, 20) && !/^0x0+$/i.test(v), 'ASSET_ADDRESS_REFUSED'); return v.toLowerCase(); }
 function uint(v: unknown): bigint { check(typeof v === 'string' && /^(0|[1-9][0-9]{0,77})$/.test(v) && BigInt(v) < 1n << 256n, 'ASSET_INTEGER_REFUSED'); return BigInt(v); }
+/** Exact display conversion only; transaction inputs remain explicit integer wei. */
+export function formatWeiAsEth(valueWei: string): string {
+  const value = uint(valueWei), unit = 10n ** 18n;
+  const fraction = (value % unit).toString().padStart(18, '0').replace(/0+$/, '');
+  return `${value / unit}${fraction ? `.${fraction}` : ''}`;
+}
 function quantity(v: unknown): bigint { check(typeof v === 'string' && /^0x(?:0|[1-9a-f][0-9a-f]*)$/i.test(v) && v.length <= 66, 'ASSET_QUANTITY_REFUSED'); return BigInt(v); }
 const hex = (v: bigint) => `0x${v.toString(16)}`;
 function chain(v: unknown): string { const n = uint(v).toString(); check(Object.hasOwn(ASSET_CHAINS, n), 'ASSET_CHAIN_UNSUPPORTED'); return n; }

@@ -1,6 +1,6 @@
 # Xiongan Wallet development candidate
 
-User-facing name: **熊安的钱包 (Xiongan Wallet)**. Built on 8415Wallet, with
+User-facing name: **Xiongan Wallet**. Built on 8415Wallet, with
 two distinct custody boundaries. Status: **NOT_INDEPENDENTLY_AUDITED**.
 This source is not release acceptance and is not a recommendation to fund it.
 

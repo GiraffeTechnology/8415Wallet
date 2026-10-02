@@ -3,7 +3,7 @@ import { controlHex, requireControlAdapter as check, validateControlPin, type Co
 import type { WalletOperation } from '../controls/session.ts';
 
 export const XIONGAN_PROFILE = Object.freeze({
-  name: 'Xiongan Wallet', displayName: '熊安的钱包',
+  name: 'Xiongan Wallet', displayName: 'Xiongan Wallet',
   controlsExecution: 'testnet-owner-confirmed', custody: 'external-wallet-provider',
   independentAudit: 'NOT_INDEPENDENTLY_AUDITED',
 } as const);

@@ -1,5 +1,5 @@
 import { acquireWalletUi, releaseWalletUi, walletUiBusy } from './ui-lock.mjs';
-import { ExternalAssetSession, ASSET_CHAINS, ControlAdapterError, controlRpc } from '../dist/browser/browser.js';
+import { ExternalAssetSession, ASSET_CHAINS, ControlAdapterError, controlRpc, formatWeiAsEth } from '../dist/browser/browser.js';
 import { BrowserExternalAssetStore } from './external-store.mjs';
 const el = id => document.getElementById(id);
 const format = value => JSON.stringify(value, null, 2);
@@ -44,15 +44,15 @@ el('asset-connect').addEventListener('click', () => {
     const balance = await next.balance(); await next.status(); checkCurrent(g);
     session = next; el('asset-identity').textContent = `${ASSET_CHAINS[chainId]} · EOA ${actor}`;
     el('asset-receive').textContent = `Receive only on ${ASSET_CHAINS[chainId]} (chain ${chainId}): ${actor}`;
-    output({ ...balance, custody: 'Your external wallet account. Never an 8415 controlled-contract deposit address.' });
+    output({ ...balance, balanceETH: formatWeiAsEth(balance.balanceWei), custody: 'Your external wallet account. Never an 8415 controlled-contract deposit address.' });
   });
 });
-el('asset-balance').addEventListener('click', () => run(async g => { const result = await selected().balance(); checkCurrent(g); output(result); }));
+el('asset-balance').addEventListener('click', () => run(async g => { const result = await selected().balance(); checkCurrent(g); output({ ...result, balanceETH: formatWeiAsEth(result.balanceWei) }); }));
 for (const id of ['asset-kind', 'asset-recipient', 'asset-amount', 'asset-contract', 'asset-token-id', 'asset-request-file']) el(id).addEventListener('change', dismiss);
 el('asset-dismiss').addEventListener('click', dismiss);
 async function prepare(text, g) {
   dismiss(); const prepared = await selected().prepare(text); checkCurrent(g); review = prepared;
-  el('asset-review-text').textContent = format({ ...prepared, requestText: undefined, amountUnit: prepared.asset === 'ETH' ? 'wei (1 ETH = 1000000000000000000 wei)' : 'NFT units', gas: 'Review exact gas fees in your wallet. Fees are not included in the amount.',
+  el('asset-review-text').textContent = format({ ...prepared, requestText: undefined, humanAmount: prepared.asset === 'ETH' ? `${formatWeiAsEth(prepared.amount)} ETH` : `${prepared.amount} NFT unit(s)`, amountUnit: prepared.asset === 'ETH' ? 'wei (1 ETH = 1000000000000000000 wei)' : 'NFT units', gas: 'Review exact gas fees in your wallet. Fees are not included in the amount.',
     custody: 'External EOA only. The claimed agent name is not authenticated.', acceptance: 'Development candidate; no independent audit or real-asset/device acceptance claimed.' });
   output('Prepared and simulated only. No signature or transaction requested.');
 }
