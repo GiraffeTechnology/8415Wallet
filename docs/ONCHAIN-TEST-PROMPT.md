@@ -5,8 +5,7 @@ it has so far been verified against an in-memory contract model, a fake
 JSON-RPC node, and a local hardhat EVM. **No byte of it has ever touched a real
 network.** Your job is to find out what breaks.
 
-Repository: `GiraffeTechnology/8415Wallet`, branch
-`claude/agents-md-execution-46epwt`.
+Repository: `GiraffeTechnology/8415Wallet`, branch `main`.
 Local sandbox baseline, for comparison: `npm run verify` → 492 tests / 95
 suites pass, 14 contract tests pass, typecheck clean.
 
