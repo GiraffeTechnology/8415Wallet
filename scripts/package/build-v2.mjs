@@ -7,11 +7,12 @@
  * v3.0 control kernel is not in it. That is asserted here rather than trusted,
  * and the build fails if the graph ever reaches it.
  */
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, join, relative, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { importGraph } from './shared.mjs';
+import { V2_DOCUMENTS, verifyV2DocumentEntries } from './v3-document-contract.mjs';
 
 const root = process.cwd();
 const stage = join(root, 'dist', 'package');
@@ -28,8 +29,7 @@ if (leaked.length > 0) {
   process.exit(1);
 }
 
-const DOCS = ['LICENSE', 'docs/V2-CLOSEOUT.md', 'docs/INTEGRATION.md',
-  'docs/ERC-8415-Wallet-PRD.md', 'docs/STAGE-DELIVERY.md', 'AGENTS.md'];
+const DOCS = V2_DOCUMENTS;
 for (const d of DOCS) if (!existsSync(d)) { console.error('MISSING_REQUIRED_DOC', d); process.exit(1); }
 
 rmSync(stage, { recursive: true, force: true });
@@ -67,6 +67,10 @@ writeFileSync(join(stage, 'package.json'), `${JSON.stringify({
   bin: { '8415wallet': './cli/main.js' },
 }, null, 2)}\n`);
 copyFileSync(join(root, 'PACKAGE.md'), join(stage, 'PACKAGE.md'));
+// npm renders README.md and nothing else, so the package carries its own.
+copyFileSync(join(root, 'README-package.md'), join(stage, 'README.md'));
+// What instructs development never ships; the consumer documents all do.
+verifyV2DocumentEntries(readdirSync(stage, { recursive: true }).map((p) => String(p).replaceAll('\\', '/')));
 
 const out = execFileSync('npm', ['pack', '--json'], { cwd: stage, encoding: 'utf8' });
 const packed = JSON.parse(out)[0];

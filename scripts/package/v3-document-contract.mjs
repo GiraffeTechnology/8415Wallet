@@ -17,12 +17,31 @@ export function verifyBoundaryDocument(text) {
     throw new Error('PACKAGE_V3_BOUNDARY_DOCUMENT_REFUSED');
   }
 }
-export function verifyDocumentEntries(paths) {
+/** Consumer-facing documents for the V2 product package. */
+export const V2_DOCUMENTS = Object.freeze([
+  'LICENSE', 'README.md', 'docs/INTEGRATION.md', 'docs/INTEGRATION-BOUNDARIES.md',
+  'docs/ERC-8415-Wallet-PRD.md', 'docs/V2-CLOSEOUT.md',
+]);
+/** How this repository instructs itself. None of it belongs in a package. */
+const DEVELOPMENT_ONLY = Object.freeze(['agents.md', 'control-development-status.md', '.codex', '.agents']);
+
+/** Shared by both packages: nothing that instructs development may ship. */
+export function verifyNoDevelopmentInstructions(paths, code) {
   if (!Array.isArray(paths) || !paths.every(p => typeof p === 'string') ||
       new Set(paths).size !== paths.length ||
-      paths.some(p => p.split(/[\\/]/).some(part =>
-        ['agents.md', 'control-development-status.md', '.codex', '.agents'].includes(part.toLowerCase()))) ||
-      ![...V3_DOCUMENTS, 'PACKAGE-V3.md'].every(p => paths.includes(p))) {
+      paths.some(p => p.split(/[\\/]/).some(part => DEVELOPMENT_ONLY.includes(part.toLowerCase())))) {
+    throw new Error(code);
+  }
+}
+export function verifyDocumentEntries(paths) {
+  verifyNoDevelopmentInstructions(paths, 'PACKAGE_V3_DOCUMENT_ENTRIES_REFUSED');
+  if (![...V3_DOCUMENTS, 'PACKAGE-V3.md'].every(p => paths.includes(p))) {
     throw new Error('PACKAGE_V3_DOCUMENT_ENTRIES_REFUSED');
+  }
+}
+export function verifyV2DocumentEntries(paths) {
+  verifyNoDevelopmentInstructions(paths, 'PACKAGE_V2_DOCUMENT_ENTRIES_REFUSED');
+  if (![...V2_DOCUMENTS, 'PACKAGE.md'].every(p => paths.includes(p))) {
+    throw new Error('PACKAGE_V2_DOCUMENT_ENTRIES_REFUSED');
   }
 }
