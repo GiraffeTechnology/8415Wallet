@@ -1,6 +1,6 @@
 # 8415Wallet integration boundaries v1
 
-Status: **NOT_INDEPENDENTLY_AUDITED**. Candidate integrations are testnet-only.
+Status: **NOT_INDEPENDENTLY_AUDITED**. ERC-8415 candidate control integrations are testnet-only.
 This contract describes product behavior, not a release certificate.
 
 ## Protocol observations
@@ -60,3 +60,14 @@ exist; they do not validate every new candidate or close all W-01–W-24 cases.
 The package's own build/install checks do not establish release acceptance.
 Independent review of the exact contracts, adapters, evidence and signature
 verification, recovery and optional payments remains required before release.
+
+## Xiongan external-account companion
+
+Xiongan's additive EOA interface recognizes Ethereum/Base and their selected
+testnets for ETH and standard ERC-721/ERC-1155. This does not enable mainnet
+responsibility controls or turn a controlled-account contract into a general
+asset vault. Real assets stay in the user's external EOA; each prepared action
+requires a new owner review and genuine-wallet signing/submission. No agent has
+keys, a session grant, token approval or an autonomous send route. This companion
+is a development candidate with its own uncompleted genuine-provider/device
+and independent-security gates; chain support is not production acceptance.

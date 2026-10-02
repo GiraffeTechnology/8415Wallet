@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { recoveryGuidance } from '../src/xiongan/recoveryView.ts';
+import { reviewAgentRequest } from '../src/xiongan/agentRequest.ts';
 
 // Executes the actual UI handlers with deterministic provider/DOM boundaries.
 // This is a connection-lifecycle regression, not genuine wallet/UI acceptance.
@@ -46,7 +48,7 @@ function fixture() {
     return selector === '[data-action]' ? actions : selector === '[data-read]' ? reads : [...elements.values()];
   } };
   const sdk = {
-    ResponsibilityWalletSession: Session, ControlAdapterError,
+    ResponsibilityWalletSession: Session, ControlAdapterError, recoveryGuidance, reviewAgentRequest, acquireWalletUi: () => Symbol(), releaseWalletUi: () => {},
     WalletSession: class {
       assetView() { return hooks.read(); }
       collisions(ids: bigint[]) { collisionIds = ids; return hooks.collisions(); }

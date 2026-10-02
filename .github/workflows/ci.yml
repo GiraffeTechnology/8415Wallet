@@ -38,6 +38,15 @@ jobs:
       - name: Browser entry
         run: npm run wallet:browser:build
 
+      # No real wallet, RPC, keys or signatures. Reuse the existing hosted runner;
+      # this step does not provision infrastructure or establish device acceptance.
+      - name: Xiongan synthetic browser recovery
+        shell: bash
+        run: |
+          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          test -n "$WALLET_BROWSER_CHROMIUM"
+          npm run wallet:xiongan:smoke
+
       # The escrow holds value, so it is executed rather than only compiled:
       # hardhat runs it against the ERC-8415 reference implementation on a real
       # EVM, admitting entries through the real settlement path.

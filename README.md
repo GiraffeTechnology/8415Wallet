@@ -1,5 +1,14 @@
 # 8415Wallet
 
+## Xiongan Wallet candidate
+
+The requested **熊安的钱包 (Xiongan Wallet)** profile adds a separate external-EOA
+ETH / ERC-721 / ERC-1155 UI for Ethereum and Base, with owner-reviewed agent
+requests. Existing ERC-8415 controls remain testnet-only. This is unaccepted
+development source, not an independent audit or real-asset deployment. See
+[setup and exact boundaries](docs/XIONGAN-WALLET.md) and
+[version-bound development evidence](docs/reports/XIONGAN-CANDIDATE-20261002.md).
+
 ## Current source closure (2026-10-01)
 
 Status: **SOURCE_SCOPE_CLOSED_PENDING_CI_REVIEW / NOT_RELEASE_ACCEPTED**.
