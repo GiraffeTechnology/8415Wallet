@@ -1,8 +1,7 @@
 # Issue 001 — An asynchronous registrar, on chain
 
 **For:** Codex (has signing keys and can deploy)
-**Repository:** `GiraffeTechnology/8415Wallet`, branch
-`claude/agents-md-execution-46epwt`
+**Repository:** `GiraffeTechnology/8415Wallet`, branch `main`
 **Status:** open
 **Depends on:** the Sepolia deployment of 2026-09-19 (below), and
 `src/adapters/memory/registrar.ts`, which is merged and tested.

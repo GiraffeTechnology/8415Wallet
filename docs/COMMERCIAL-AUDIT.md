@@ -3,7 +3,7 @@
 Against the Commercial Direction Briefing (P0). Audit only; no refactor was
 performed, per §11.
 
-Repository at `0190dc7`, branch `claude/agents-md-execution-46epwt`.
+Repository at `0190dc7`.
 
 ---
 
