@@ -26,13 +26,15 @@ git clone --depth 1 --branch deploy/xiongan-sin \
 | | |
 |---|---|
 | Branch | `deploy/xiongan-sin` |
-| Commit | `c0593dbce6dff4a4663ffd73eefc639f94141862` |
-| Served files | 61 (1 html, 1 css, 5 mjs, 54 js), plus `SHA256SUMS` and `DEPLOY.md` |
+| Commit | see the branch head; rebuilt whenever `main` changes the browser bundle |
+| Served files | 62 (1 html, 1 css, 5 mjs, 55 js), plus `SHA256SUMS`, `DEPLOY.md` and `DOMAIN.md` |
 | Unpacked size | 532 KB |
-| Built from | `93934f9bc5524b3989e2f10f0dc35d86b5b2835b` (tree `8fcb1624c98afb3e9e69a8d19d4a9fbdf65f7d71`) |
+| Built from | `18499967348a` (tree `ea180768fa69dfefdc36c22cf53ef2fa1e97e00b`) |
 | Build command | `npm run wallet:browser:build` on Node 22 |
 
-The build is byte-identical to the previously verified handoff package.
+This branch tracks `main`. When `main` changes anything that compiles into
+the browser bundle, the branch is rebuilt and the deployed tree must be
+refreshed with it; a `git pull` in the document root is the whole update.
 
 The repository is private, so the clone needs a credential with read access to
 it. Do not make the repository public to simplify this.
@@ -43,7 +45,7 @@ Layout, which must be preserved exactly:
 <docroot>/
   web/index.html          <- the page
   web/*.mjs  web/wallet.css
-  dist/browser/**/*.js    <- 54 compiled modules
+  dist/browser/**/*.js    <- 55 compiled modules
   SHA256SUMS
   DEPLOY.md               <- this document; serve it or delete it, either is fine
 ```
@@ -62,7 +64,7 @@ Verify after unpacking, from the document root:
 sha256sum -c SHA256SUMS
 ```
 
-All 61 lines must report `OK`. Do not deploy a tree that does not.
+All 62 lines must report `OK`. Do not deploy a tree that does not.
 
 ---
 
@@ -315,7 +317,7 @@ without the output that shows it.
 **Integrity**
 
 1. `git -C /srv/xiongan rev-parse HEAD` equals the commit in section 1.
-2. `sha256sum -c SHA256SUMS` from the document root: 61 x `OK`, 0 failures.
+2. `sha256sum -c SHA256SUMS` from the document root: 62 x `OK`, 0 failures.
 2a. `curl -sSI https://xiongan.8415wallet.com/.git/config` returns 404.
 
 **Transport**
