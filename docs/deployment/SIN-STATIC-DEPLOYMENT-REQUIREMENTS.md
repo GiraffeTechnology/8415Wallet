@@ -137,6 +137,65 @@ work.
 
 ---
 
+## 2.2 Port 443 is reserved for SSH on every server
+
+**Owner instruction, 2026-10-03, applying to all servers including SIN.** This
+supersedes the CTYun-only scoping recorded in `AGENTS.md`; that section notes
+the restriction may be extended by explicit instruction, and this is it.
+
+- No HTTP, HTTPS, web server, reverse proxy or TLS listener may bind TCP 443.
+- Do not stop, rebind or otherwise disturb SSH to free the port.
+
+**The current deployment violates this.** Measured 2026-10-03 from outside the
+host:
+
+```
+https://xiongan.8415wallet.com/web/index.html   200   (served on 443)
+http://xiongan.8415wallet.com/web/index.html    308 -> https://...  (i.e. 443)
+```
+
+Both the TLS listener and the target of the port-80 redirect must move.
+
+### The replacement port is not to be guessed
+
+Take it from the confirmed operations allocation for this host. If no
+allocation is recorded, **report that rather than picking one** — the same rule
+`AGENTS.md` already states for CTYun. This document deliberately does not name
+a port.
+
+Below, `<web-port>` is that allocated port.
+
+### Consequences to accept before moving
+
+**The web origin changes, and that is irreversible for stored state.** A web
+origin is scheme, host **and port**. `https://xiongan.8415wallet.com` and
+`https://xiongan.8415wallet.com:<web-port>` are different origins, so every
+IndexedDB operation journal written under the current origin is stranded by the
+move — including any operation left in `outcome-unknown`, which is the record
+the recovery path exists to find.
+
+At the time of writing nothing has been written: the site has served no
+genuine wallet transaction. **That makes now the only cheap moment to move.**
+After the first real use it stops being a configuration change.
+
+**The bare hostname stops working, permanently.** A user who types
+`xiongan.8415wallet.com` reaches port 443, which is SSH, and gets a TLS
+protocol error rather than the wallet. Every link, bookmark and QR code must
+carry `:<web-port>`, and the port becomes part of what a user verifies in the
+address bar. This weakens the one anti-phishing control the application has,
+and it is a direct cost of the port policy, not something the configuration can
+mitigate.
+
+`Strict-Transport-Security` does not help here: HSTS upgrades the scheme, not
+the port, so it still sends a portless request to 443.
+
+**Certificate issuance must use HTTP-01 over port 80**, which is unaffected.
+Do not use TLS-ALPN-01, which validates on 443.
+
+**The security group must open `<web-port>`** in addition to 80.
+
+---
+
 ## 3. Serving rules
 
 ### 3.1 MIME types
@@ -197,9 +256,10 @@ types { text/javascript mjs; }
 
 # The Xiongan tenant origin. Serves the application and nothing else.
 server {
-    listen 443 ssl;
-    listen [::]:443 ssl;   # omit only if no AAAA record is published; see the
-                           # domain requirements document
+    # <web-port> is the allocated web port. TCP 443 is reserved for SSH on
+    # every server; see section 2.2. Do not substitute 443 here.
+    listen <web-port> ssl;
+    listen [::]:<web-port> ssl;   # omit only if no AAAA record is published
     http2 on;
     server_name xiongan.8415wallet.com;
 
@@ -240,15 +300,16 @@ server {
     # listener) and then fails every unattended renewal about 90 days later.
     location ^~ /.well-known/acme-challenge/ { root /var/www/certbot; }
 
-    location / { return 301 https://xiongan.8415wallet.com$request_uri; }
+    # Must carry the port, or this redirects users to SSH on 443.
+    location / { return 301 https://xiongan.8415wallet.com:<web-port>$request_uri; }
 }
 
 # Refuse any name that is not an approved tenant, so an unconfigured or
 # attacker-chosen hostname pointed at this address gets nothing rather than a
 # copy of the wallet under a name nobody approved.
 server {
-    listen 443 ssl default_server;
-    listen [::]:443 ssl default_server;
+    listen <web-port> ssl default_server;
+    listen [::]:<web-port> ssl default_server;
     listen 80 default_server;
     listen [::]:80 default_server;
     server_name _;
