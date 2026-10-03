@@ -1,5 +1,6 @@
 import { encodeCall, encodeCallWithTail } from "../codec/abi.js";
 import { keccak256Utf8 } from "../codec/keccak.js";
+import { isAddressInput } from "./address.js";
 import { controlHex, controlRpc, controlPendingNonce, hashControlBytes, requireControlAdapter as check } from "../controls/authorization.js";
 export const ASSET_CHAINS = Object.freeze({ '1': 'Ethereum', '8453': 'Base', '11155111': 'Sepolia', '84532': 'Base Sepolia' });
 function obj(v, keys) {
@@ -9,6 +10,7 @@ function obj(v, keys) {
     return v;
 }
 function addr(v) { check(controlHex(v, 20) && !/^0x0+$/i.test(v), 'ASSET_ADDRESS_REFUSED'); return v.toLowerCase(); }
+function inputAddr(v) { check(isAddressInput(v), 'ASSET_ADDRESS_REFUSED'); return v.toLowerCase(); }
 function uint(v) { check(typeof v === 'string' && /^(0|[1-9][0-9]{0,77})$/.test(v) && BigInt(v) < 1n << 256n, 'ASSET_INTEGER_REFUSED'); return BigInt(v); }
 /** Exact display conversion only; transaction inputs remain explicit integer wei. */
 export function formatWeiAsEth(valueWei) {
@@ -59,7 +61,7 @@ function parseRequest(text) {
     check(r.schema === 'xiongan-asset-request/1', 'ASSET_REQUEST_SCHEMA_REFUSED');
     check(typeof r.requestId === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(r.requestId), 'ASSET_REQUEST_ID_REFUSED');
     check(typeof r.agent === 'string' && /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$/.test(r.agent), 'ASSET_REQUEST_AGENT_REFUSED');
-    return { r, chainId: chain(r.chainId), actor: addr(r.actor), expiresAt: uint(r.expiresAt), action: obj(r.action) };
+    return { r, chainId: chain(r.chainId), actor: inputAddr(r.actor), expiresAt: uint(r.expiresAt), action: obj(r.action) };
 }
 /** External EOA custody only. No private keys, token allowances, delegated/session
  * authority, swaps, bridging or connection to the 8415 controlled account. */
@@ -113,7 +115,7 @@ export class ExternalAssetSession {
         const now = quantity(header.timestamp), block = hex(quantity(header.number)), blockHash = hash(header.hash);
         check(expiresAt > now && expiresAt - now <= 900n, 'ASSET_REQUEST_EXPIRED');
         const nonce = controlPendingNonce(await this.#rpc('eth_getTransactionCount', [actor, 'pending']));
-        const recipient = addr(action.recipient);
+        const recipient = inputAddr(action.recipient);
         check(recipient !== actor, 'ASSET_SELF_TRANSFER_REFUSED');
         let to = recipient, value = 0n, data = '0x', codeHash = null, asset = 'ETH', amount, tokenId = null;
         if (action.kind === 'native-transfer') {
@@ -128,7 +130,7 @@ export class ExternalAssetSession {
         else {
             check(action.kind === 'erc721-transfer' || action.kind === 'erc1155-transfer', 'ASSET_ACTION_UNSUPPORTED');
             obj(action, action.kind === 'erc721-transfer' ? ['kind', 'recipient', 'contract', 'tokenId'] : ['kind', 'recipient', 'contract', 'tokenId', 'amount']);
-            to = addr(action.contract);
+            to = inputAddr(action.contract);
             const id = uint(action.tokenId);
             tokenId = id.toString();
             const code = await this.#rpc('eth_getCode', [to, block]);
