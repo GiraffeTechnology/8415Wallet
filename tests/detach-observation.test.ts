@@ -15,6 +15,30 @@ test('public-chain gap leaves inclusion headroom without using local clock trans
 test('local automining stays explicit, not inferred from a quiet public chain', () => {
   assert.deepEqual(gapTiming(31337n, 100n, 3n), {deadline:103n, windowSeconds:3n, localAutomine:true});
 });
+test('a rehearsal drives its own clock, and only on its exact opt-in', () => {
+  // A rehearsal must claim a public chain id for the runner to accept it at
+  // all, so the id cannot distinguish it. The opt-in does, and nothing else
+  // does: no near-miss value enables clock transactions.
+  const rehearsed = gapTiming(11155111n, 100n, 86400n, 'LOOPBACK_REHEARSAL_NOT_PUBLIC_CHAIN');
+  assert.deepEqual(rehearsed, { deadline: 103n, windowSeconds: 3n, localAutomine: true });
+
+  for (const near of ['', 'loopback_rehearsal_not_public_chain', 'LOOPBACK_REHEARSAL', '1', 'true',
+    ' LOOPBACK_REHEARSAL_NOT_PUBLIC_CHAIN', undefined]) {
+    const timing = gapTiming(11155111n, 100n, 86400n, near);
+    assert.equal(timing.localAutomine, false, `${String(near)} must not enable clock transactions`);
+    assert.equal(timing.windowSeconds, 120n, 'a public run keeps its inclusion headroom');
+  }
+});
+
+test('the local chain needs no opt-in, and a rehearsal never shortens a public window', () => {
+  assert.equal(gapTiming(31337n, 100n, 3n, undefined).localAutomine, true);
+  // Hoodi with the opt-in absent behaves exactly as Sepolia does.
+  for (const id of [11155111n, 560048n]) {
+    assert.deepEqual(gapTiming(id, 100n, 86400n, undefined),
+      { deadline: 220n, windowSeconds: 120n, localAutomine: false });
+  }
+});
+
 test('unknown/mainnet chains and coercible chain IDs are refused', () => {
   for (const id of [1n, 10n, 0n, 11155111, '11155111', null]) {
     assert.throws(() => gapTiming(id, 100n, 86400n), /DETACH_CHAIN_REFUSED/);
