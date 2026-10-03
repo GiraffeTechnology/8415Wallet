@@ -32,7 +32,16 @@ http://xiongan.8415wallet.com/web/index.html    308 -> https
 The served tree was compared file by file against a local build of `main` at
 `18499967348a`: **62 of 62 files byte-identical, 0 differing, 0 missing.**
 
-Two items remain open; both are in section 11.
+A port policy change lands on top of this: **TCP 443 is reserved for SSH on
+every server**, by owner instruction of 2026-10-03, which supersedes the
+CTYun-only scoping in `AGENTS.md`. The live listener above is therefore on a
+port it may no longer use, and both it and the port-80 redirect have to move to
+an allocated web port. The deployment document's section 2.2 carries the
+requirement and the consequences; the one that matters most here is that the
+move **changes the web origin**, since an origin is scheme, host and port. Do
+it before the site carries any genuine wallet use, not after.
+
+Three items remain open; all are in section 11.
 
 - `Strict-Transport-Security` is absent. Section 6 defers it until HTTPS works,
   and HTTPS now works, so it is due.
@@ -457,20 +466,25 @@ acceptance item.
 
 **Open now, in priority order.**
 
-1. **Add `Strict-Transport-Security`.** Absent on the live origin. HTTPS is
+1. **Move the web listener off TCP 443**, and retarget the port-80 redirect to
+   the allocated port. Report which port the allocation names; do not guess
+   one. This is first because it changes the web origin, and doing it after the
+   first genuine wallet use strands stored state rather than merely moving a
+   listener. See the deployment document's section 2.2.
+2. **Add `Strict-Transport-Security`.** Absent on the live origin. HTTPS is
    working, which was the condition section 6 set for adding it.
-2. **Resolve the apex.** It resolves to the host but serves a certificate that
+3. **Resolve the apex.** It resolves to the host but serves a certificate that
    does not name it, so `https://8415wallet.com/` is a validation failure on
    the brand domain. Give it its own certificate and a plain page, or withdraw
    its `A` record. Report which.
-3. `dig +short CAA 8415wallet.com` — report the records, or that none exist.
+4. `dig +short CAA 8415wallet.com` — report the records, or that none exist.
    Section 4 requires them and they were not part of bringing the site up.
-4. Real-name verification status at Xinnet (5.1). Delegation resolves, which
+5. Real-name verification status at Xinnet (5.1). Delegation resolves, which
    suggests it passed; confirm rather than infer, because the hold can be
    applied later.
-5. Whether DNS stays at Xinnet. It is currently on `ns11/ns12.xincache.com`;
+6. Whether DNS stays at Xinnet. It is currently on `ns11/ns12.xincache.com`;
    5.5 recommends moving it, which is a judgement for the owner, not a defect.
-6. `dig +short AAAA xiongan.8415wallet.com`. None is published, which is a
+7. `dig +short AAAA xiongan.8415wallet.com`. None is published, which is a
    valid choice under 4.1 provided nginx is not listening on `[::]:443`.
    Confirm the two agree.
 
