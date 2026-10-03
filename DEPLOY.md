@@ -89,9 +89,10 @@ domain, not a bare IP. IP-address certificates exist only under limited,
 short-lived profiles with uneven client support, and mobile wallet in-app
 browsers are the least predictable clients there.
 
-Therefore: point a hostname at `8.219.77.22` and issue the certificate for that
-hostname. Report the hostname back; the rest of this document calls it
-`<host>`.
+The hostname is **`8415wallet.com`**, registered at Xinnet. The apex is the
+canonical origin that serves the application; `www.8415wallet.com` resolves and
+redirects to it, serving nothing of its own. Where this document writes
+`<host>`, read `8415wallet.com`.
 
 How that hostname is chosen, delegated, hardened and renewed is specified in
 `SIN-DOMAIN-REQUIREMENTS.md`, which is a blocking prerequisite for everything
@@ -162,15 +163,16 @@ server and leave the rest to the page.
 # start with `duplicate extension`.
 types { text/javascript mjs; }
 
+# Canonical origin. Serves the application.
 server {
     listen 443 ssl;
     listen [::]:443 ssl;   # omit only if no AAAA record is published; see the
                            # domain requirements document
     http2 on;
-    server_name <host>;
+    server_name 8415wallet.com;
 
-    ssl_certificate     /etc/letsencrypt/live/<host>/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/<host>/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/8415wallet.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/8415wallet.com/privkey.pem;
     ssl_protocols TLSv1.2 TLSv1.3;
 
     root /srv/xiongan;
@@ -186,23 +188,40 @@ server {
 
     location = / { return 302 /web/index.html; }
 
-    location ~* /\.    { return 404; }        # no dotfiles
+    location ~* /\.    { return 404; }        # no dotfiles, including .git
     location ~* \.(ts|json|map|md)$ { return 404; }
 
     gzip on;
     gzip_types text/javascript text/css text/html;
 }
 
+# www redirects to the canonical origin and serves nothing. It needs TLS of its
+# own, because a user typing https://www... reaches this block before any
+# redirect can apply. Same certificate; both names are SANs on it.
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name www.8415wallet.com;
+
+    ssl_certificate     /etc/letsencrypt/live/8415wallet.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/8415wallet.com/privkey.pem;
+    ssl_protocols TLSv1.2 TLSv1.3;
+
+    return 301 https://8415wallet.com$request_uri;
+}
+
 server {
     listen 80;
-    server_name <host>;
+    listen [::]:80;
+    server_name 8415wallet.com www.8415wallet.com;
 
     # The ACME challenge must be reachable on port 80, ahead of the redirect.
     # A bare `return 301` here passes the first issuance (certbot opens its own
     # listener) and then fails every unattended renewal about 90 days later.
     location ^~ /.well-known/acme-challenge/ { root /var/www/certbot; }
 
-    location / { return 301 https://$host$request_uri; }
+    location / { return 301 https://8415wallet.com$request_uri; }
 }
 ```
 
@@ -287,30 +306,30 @@ without the output that shows it.
 
 1. `git -C /srv/xiongan rev-parse HEAD` equals the commit in section 1.
 2. `sha256sum -c SHA256SUMS` from the document root: 61 x `OK`, 0 failures.
-2a. `curl -sSI https://<host>/.git/config` returns 404.
+2a. `curl -sSI https://8415wallet.com/.git/config` returns 404.
 
 **Transport**
 
-3. `curl -sSI https://<host>/web/index.html` — status, and the full header
+3. `curl -sSI https://8415wallet.com/web/index.html` — status, and the full header
    block showing every header in section 3.2.
-4. `curl -sSI https://<host>/web/app.mjs | grep -i content-type` — must be
+4. `curl -sSI https://8415wallet.com/web/app.mjs | grep -i content-type` — must be
    `text/javascript`.
-5. `curl -sSI https://<host>/dist/browser/browser.js | grep -i content-type` —
+5. `curl -sSI https://8415wallet.com/dist/browser/browser.js | grep -i content-type` —
    must be `text/javascript`.
-6. `curl -sSI http://<host>/` — must be a 301 to `https://`.
+6. `curl -sSI http://8415wallet.com/` — must be a 301 to `https://`.
 7. Certificate chain: issuer, subject, and notAfter.
 
 **Application, from a desktop browser first**
 
-8. Load `https://<host>/web/index.html`. Report the browser console contents.
+8. Load `https://8415wallet.com/web/index.html`. Report the browser console contents.
    A clean load has no errors. A `CONTROL_BROWSER_DURABILITY_REQUIRED` here
    means the secure-context requirement in section 2 is not satisfied.
-9. Confirm the page makes no request to any origin other than `<host>`
+9. Confirm the page makes no request to any origin other than `8415wallet.com`
    (DevTools network tab, or equivalent).
 
 **Application, from the iPhone — this is the part that matters**
 
-10. Open `https://<host>/web/index.html` in a wallet application's in-app
+10. Open `https://8415wallet.com/web/index.html` in a wallet application's in-app
     browser, with the wallet set to Sepolia.
 11. Screenshot the loaded page at device width.
 12. Press "Connect by external wallet" and report the result. On success the
