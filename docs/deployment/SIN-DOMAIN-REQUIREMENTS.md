@@ -279,36 +279,130 @@ it. A tenant list that exists only as DNS records is not a record of approval.
 
 ## 8. Per-tenant deployment configuration
 
-Each tenant subdomain is the same application build. The only per-tenant
-difference is which ERC-8415 deployment it is configured against — chain id,
-token, controller and optional payment contract.
+Each tenant subdomain serves the same application build. The only per-tenant
+difference is which ERC-8415 deployment the control panel is configured
+against.
 
-Today the application has no auto-load path: `web/app.mjs` requires the user to
-pick a deployment JSON file by hand before the control panel is usable. Serving
-a per-tenant configuration from the tenant's own origin removes that step.
+### 8.1 Read this before placing the file
 
-**This part is an application change, not a server configuration, and is not
-Codex's to implement.** It is recorded here so the hosting layout anticipates
-it:
+**The application cannot load this file yet.** `web/app.mjs` obtains the
+deployment only from a file-picker element:
 
-- each tenant origin serves one additional file at a fixed path, alongside the
-  existing tree;
-- it is same-origin, so the page's existing `connect-src 'self'` policy already
-  permits reading it, and it adds no external request;
-- it shifts no trust boundary. The host already serves every byte of the
-  application's code, so a compromised host could already substitute contract
-  addresses; reading them from a file it also serves grants it nothing new;
-- the deployment document's nginx sample currently returns 404 for `.json`,
-  which is correct while no such file exists. When the change ships, that
-  tenant's configuration path needs an explicit allow placed above that rule.
-  The blanket `.json` refusal stays, so that only the one intended file is
-  reachable.
+```js
+el('deployment').addEventListener('change', ...)   // web/app.mjs
+```
 
-Until that change ships, a tenant deployment is usable with the existing
-manual file-selection flow. Do not work around its absence by modifying any
-shipped file — see the deployment document's section 4.
+There is no `fetch` anywhere in the shipped tree. A `deployment.json` placed on
+the server today is therefore **inert**: the control panel still requires the
+operator to choose the file by hand, exactly as before.
 
----
+Consequences for this deployment:
+
+- placing the file is **not required** for acceptance, and its absence is not a
+  defect;
+- placing it is harmless and may be done now so the format is settled;
+- making it load is an application change, owned by whoever develops the wallet,
+  not by the deploying operator. Do not work around its absence by editing any
+  shipped file — see the deployment document's section 4.
+
+The rest of this section is the specification that change will target, so that
+a file written now stays valid.
+
+### 8.2 Exact schema
+
+The application already validates this shape strictly; the spec below is read
+off that validation rather than invented.
+
+```json
+{
+  "schema": "8415-controls-testnet/1",
+  "chainId": 11155111,
+  "token":      { "address": "0x...", "runtimeCodeHash": "0x..." },
+  "controller": { "address": "0x...", "runtimeCodeHash": "0x..." },
+  "payment":    null
+}
+```
+
+Rules, each enforced in code today:
+
+| Rule | Failure |
+|---|---|
+| Exactly these five keys, no more, no fewer: `chainId`, `controller`, `payment`, `schema`, `token` | `CONTROL_DEPLOYMENT_SCHEMA_REFUSED` |
+| `schema` is exactly `8415-controls-testnet/1` | `CONTROL_DEPLOYMENT_SCHEMA_REFUSED` |
+| `chainId` is `11155111` (Sepolia) or `560048` (Hoodi) | `CONTROL_TESTNET_REQUIRED` |
+| `token` is always an object; `controller` and `payment` may be `null` | `CONTROL_DEPLOYMENT_PIN_REFUSED` |
+| if `controller` is `null`, `payment` must also be `null` | `CONTROL_DEPLOYMENT_SCHEMA_REFUSED` |
+| each object has exactly `address` and `runtimeCodeHash`, nothing else | `CONTROL_DEPLOYMENT_PIN_REFUSED` |
+| `address` is 20 bytes hex, `runtimeCodeHash` is 32 bytes hex | `CONTROL_DEPLOYMENT_PIN_REFUSED` |
+| the whole file is at most 8192 bytes | `CONTROL_PUBLIC_DOCUMENT_REFUSED` |
+
+**The control panel is testnet-only.** A mainnet `chainId` is refused outright.
+This matches the page banner and is not something the configuration can widen.
+It does not affect the external-asset panel, which is separate.
+
+### 8.3 Producing runtimeCodeHash
+
+The pin is checked against the chain at connect time:
+
+```js
+hashControlBytes(await eth_getCode(address, 'latest')) === runtimeCodeHash   // CONTROL_RUNTIME_PIN_MISMATCH
+```
+
+So `runtimeCodeHash` is the keccak-256 of the deployed runtime bytecode as
+returned by `eth_getCode`, hashed over the raw bytes, not over the hex string.
+Compute it against the same chain named in `chainId`, for example:
+
+```
+cast keccak $(cast code <address> --rpc-url <endpoint>)
+```
+
+Produce it from the live chain, never by hand and never copied from another
+deployment. A wrong hash does not fail quietly at load time — it fails at
+connect, after the user has already been asked to connect a wallet.
+
+### 8.4 Where the file lives
+
+Keep it **outside the git clone**, and serve it into place. The document root
+is a clone of `deploy/xiongan-sin` and must stay updatable with `git pull`; a
+tenant-specific file committed into it or dropped in untracked invites a
+conflict or a `git clean` that silently removes the tenant's configuration.
+
+```
+/srv/tenant/xiongan/deployment.json        <- tenant configuration, managed separately
+/srv/xiongan/                              <- the clone, never edited
+```
+
+Served at `/web/deployment.json` on the tenant origin, which is the path a
+relative load from `web/app.mjs` resolves to:
+
+```nginx
+# Must appear ABOVE the blanket .json refusal in the deployment document's
+# sample, which would otherwise 404 it. The blanket refusal stays, so this is
+# the only reachable .json on the origin.
+location = /web/deployment.json {
+    alias /srv/tenant/xiongan/deployment.json;
+    add_header Cache-Control "no-store" always;
+}
+```
+
+`no-store` matters: a stale cached configuration would point a tenant at an
+address that is no longer current, and the mismatch would surface as a connect
+failure rather than as an obviously out-of-date file.
+
+Do **not** add this file to `SHA256SUMS`. That manifest covers the published
+tree and is verified with `sha256sum -c` before serving; a tenant file in it
+would make the integrity check fail on every other tenant.
+
+### 8.5 What to report for this file
+
+If the file is placed now:
+
+1. the file's content, verbatim;
+2. for each pinned address, the `eth_getCode` result's keccak-256, and the
+   command used, showing it was computed from the live chain;
+3. `curl -sS https://xiongan.8415wallet.com/web/deployment.json` output and its
+   `Content-Type` and `Cache-Control` headers;
+4. confirmation that some other `.json` path on the origin still returns 404.
 
 ## 9. Aliyun host items
 
