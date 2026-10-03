@@ -93,6 +93,10 @@ Therefore: point a hostname at `8.219.77.22` and issue the certificate for that
 hostname. Report the hostname back; the rest of this document calls it
 `<host>`.
 
+How that hostname is chosen, delegated, hardened and renewed is specified in
+`SIN-DOMAIN-REQUIREMENTS.md`, which is a blocking prerequisite for everything
+below.
+
 A self-signed certificate is not acceptable. Mobile wallet in-app browsers
 generally offer no trust-override UI, and training an operator to accept
 certificate warnings on a wallet origin is the exact habit that makes phishing
@@ -160,6 +164,8 @@ types { text/javascript mjs; }
 
 server {
     listen 443 ssl;
+    listen [::]:443 ssl;   # omit only if no AAAA record is published; see the
+                           # domain requirements document
     http2 on;
     server_name <host>;
 
@@ -190,7 +196,13 @@ server {
 server {
     listen 80;
     server_name <host>;
-    return 301 https://$host$request_uri;
+
+    # The ACME challenge must be reachable on port 80, ahead of the redirect.
+    # A bare `return 301` here passes the first issuance (certbot opens its own
+    # listener) and then fails every unattended renewal about 90 days later.
+    location ^~ /.well-known/acme-challenge/ { root /var/www/certbot; }
+
+    location / { return 301 https://$host$request_uri; }
 }
 ```
 
