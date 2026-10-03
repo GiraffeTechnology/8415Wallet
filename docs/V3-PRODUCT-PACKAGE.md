@@ -1,6 +1,14 @@
-# V3 delivery candidate package
+# V3 beta package
 
-Date: 2026-09-26. Status: **CANDIDATE_NOT_INDEPENDENTLY_AUDITED_TESTNET_ONLY**.
+Date: 2026-10-03. Status: **BETA_FUNCTIONAL_TESTING_NOT_INDEPENDENTLY_AUDITED**.
+
+Public-chain execution, physical device journeys and W-20 are what this build
+exists to collect, not preconditions for publishing it. Independent security
+review bounds what the build may be used for rather than blocking it: the
+surface that most needs that review, the control kernel, already cannot reach
+mainnet, because a non-testnet deployment is refused in code with
+`CONTROL_TESTNET_REQUIRED` and a non-testnet agent request with
+`AGENT_TESTNET_REQUIRED`.
 
 `npm run pack:v3` builds it; `npm run pack:v3:verify` proves it installs and
 works from outside this repository, and that it tells the truth about itself.
@@ -24,7 +32,7 @@ package is audited, security-approved, production-ready or release-accepted.
 
 | Measure | Value |
 | --- | --- |
-| Artifact | `8415wallet-0.1.0-v3-candidate.tgz` |
+| Artifact | `8415wallet-3.0.0-beta.tgz` |
 | Entries / unpacked bytes | Measured in `dist/v3-package-manifest.json` per build |
 | Source modules compiled | Derived from the entry-point import graph per build |
 | Runtime dependencies | 0 |
@@ -50,8 +58,10 @@ tarball installed as a dependency:
 5. the browser entry ships;
 6. the Node operation store ships;
 7. the CLI runs from the installed package;
-8. it presents itself as a candidate: the version ends `-v3-candidate`, the
-   description says it is not independently audited, and the notice ships;
+8. it presents itself as a pre-release: the version carries a pre-release tag,
+   the description says it is not independently audited, and the notice ships.
+   The check tests the claim rather than a spelling, so a bare release version
+   such as `3.0.0` fails it;
 9. the consumer boundary contract ships with all required sections, while
    development instructions and coordination records are absent.
 

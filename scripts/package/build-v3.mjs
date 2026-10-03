@@ -59,11 +59,17 @@ for (const f of [...DOCS, 'PACKAGE-V3.md']) {
 }
 
 const dev = JSON.parse(readFileSync('package.json', 'utf8'));
-const version = `${dev.version}-v3-candidate`;
+/**
+ * The product version is explicit, not derived from the repository's own
+ * package.json: that value also drives V2, which is a deliberately narrower
+ * surface and must not inherit this one's number. The pre-release tag is what
+ * carries the claim, and verify-install-v3 enforces that it is present.
+ */
+const version = '3.0.0-beta';
 writeFileSync(join(stage, 'package.json'), `${JSON.stringify({
   name: '8415wallet',
   version,
-  description: 'ERC-8415 temporal asset wallet — V3 candidate: standalone reading plus linked responsibility controls. Not independently audited; testnet use only.',
+  description: 'ERC-8415 temporal asset wallet — V3 beta: standalone reading plus linked responsibility controls. Not independently audited; control kernel is testnet only.',
   license: dev.license,
   type: 'module',
   engines: dev.engines,
@@ -85,7 +91,7 @@ const sha = createHash('sha256').update(readFileSync(join(stage, packed.filename
 
 writeFileSync(join(root, 'dist', 'v3-package-manifest.json'), `${JSON.stringify({
   artifact: packed.filename,
-  status: 'CANDIDATE_NOT_INDEPENDENTLY_AUDITED_TESTNET_ONLY',
+  status: 'BETA_FUNCTIONAL_TESTING_NOT_INDEPENDENTLY_AUDITED',
   sha256: sha,
   entries: packed.entryCount,
   unpackedBytes: packed.unpackedSize,
@@ -94,10 +100,19 @@ writeFileSync(join(root, 'dist', 'v3-package-manifest.json'), `${JSON.stringify(
   entries_compiled: ENTRIES,
   sourceModules: sources.length,
   controlModules: controls.length,
-  openGates: ['public-testnet execution', 'W-20 deployed same-token multi-wallet journey',
-    'independent security review', 'physical device journeys'],
+  // A beta's gates are not a release's gates. Execution, device journeys and
+  // W-20 are what this build exists to collect, not what blocks it; listing
+  // them as blockers would describe the beta as waiting for its own purpose.
+  betaCollects: ['public-chain execution with a genuine wallet',
+    'physical device journeys in a wallet application in-app browser',
+    'W-20 deployed same-token multi-wallet journey'],
+  // Independent review bounds what the build may be used for rather than
+  // blocking its publication. The surface that most needs it already cannot
+  // reach mainnet: a non-testnet deployment is refused in code.
+  beforeGeneralRelease: ['independent security review of the control kernel, adapters, verifiers, deployed contracts, recovery and optional payment integration'],
+  controlKernelScope: 'testnet only, enforced in code (CONTROL_TESTNET_REQUIRED, AGENT_TESTNET_REQUIRED)',
 }, null, 2)}\n`);
 console.log(`${packed.filename}  ${packed.entryCount} entries  ${Math.round(packed.unpackedSize / 1024)} KB`);
 console.log(`sha256 ${sha}`);
 console.log(`${sources.length} source modules (${controls.length} control), 0 runtime dependencies`);
-console.log('status CANDIDATE_NOT_INDEPENDENTLY_AUDITED_TESTNET_ONLY');
+console.log('status BETA_FUNCTIONAL_TESTING_NOT_INDEPENDENTLY_AUDITED');

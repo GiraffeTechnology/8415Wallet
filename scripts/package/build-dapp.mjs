@@ -20,9 +20,28 @@ import { dirname, join, relative, resolve } from 'node:path';
 
 const root = process.cwd();
 const VERSION = '3.0.0-beta';
-const STATUS = 'BETA_FUNCTIONAL_TESTING_ONLY_NOT_INDEPENDENTLY_AUDITED';
-const OPEN_GATES = ['public-chain execution with a genuine wallet', 'physical device journeys',
-  'W-20 deployed same-token multi-wallet journey', 'independent security review'];
+const STATUS = 'BETA_FUNCTIONAL_TESTING_NOT_INDEPENDENTLY_AUDITED';
+/**
+ * A beta's gates are not a release's gates. Public-chain execution, device
+ * journeys and W-20 are what this build exists to collect; listing them as
+ * blockers would describe the beta as waiting for its own purpose, and nothing
+ * would ever ship. They are stated as what the beta produces.
+ *
+ * Independent review is different in kind: it protects whoever uses the build,
+ * not the release process. It does not block publishing a beta, so it is not a
+ * blocker either -- it bounds what the build may be used for. What makes that
+ * bound tolerable is where the mainnet reach actually is, which SCOPE records
+ * rather than leaves to a reader's assumption.
+ */
+const BETA_COLLECTS = ['public-chain execution with a genuine wallet',
+  'physical device journeys in a wallet application in-app browser',
+  'W-20 deployed same-token multi-wallet journey'];
+const BEFORE_GENERAL_RELEASE = ['independent security review of the control kernel, adapters, verifiers, deployed contracts, recovery and optional payment integration'];
+const SCOPE = {
+  controlKernel: 'testnet only, enforced in code: a non-testnet deployment is refused with CONTROL_TESTNET_REQUIRED and a non-testnet agent request with AGENT_TESTNET_REQUIRED. The unaudited V3 surface cannot reach mainnet.',
+  assetTransfers: 'Ethereum mainnet, Base, Sepolia and Base Sepolia. This layer holds no key and sets no amount ceiling; the final authority is the confirmation dialog of the user own wallet.',
+  recommendation: 'For functional testing set the wallet to Sepolia before connecting.',
+};
 /**
  * A beta ships the surface; what it must never ship is a claim. The phrases
  * below are claims only when asserted: the page's own banner says "Not
@@ -102,7 +121,8 @@ const release = {
   name: '8415wallet-dapp', version: VERSION, status: STATUS,
   description: 'ERC-8415 temporal asset wallet - deployable dApp bundle. Beta: UI sufficient for functional testing. Not independently audited.',
   source, files: files.length, relativeImports, pageAssets, externalRequests: 0,
-  entry: 'web/index.html', openGates: OPEN_GATES,
+  entry: 'web/index.html',
+  scope: SCOPE, betaCollects: BETA_COLLECTS, beforeGeneralRelease: BEFORE_GENERAL_RELEASE,
   notes: ['Serve over HTTPS: the operation journal refuses to start outside a secure context.',
     'Serve .mjs as text/javascript; most servers do not map it by default.',
     'Send frame-ancestors as a response header; the page meta CSP cannot carry it.',
