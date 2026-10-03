@@ -14,19 +14,34 @@ Companion to `SIN-STATIC-DEPLOYMENT-REQUIREMENTS.md`.
 smoke-tested from a phone, until the name resolves and carries a publicly
 trusted certificate.
 
-## Observed state at time of writing
+## Observed state
 
-Queried over DNS-over-HTTPS on 2026-10-03:
+Delegation and the tenant are live. Measured 2026-10-03 over DNS-over-HTTPS and
+HTTPS from outside the host:
 
 ```
-8415wallet.com  NS / A / SOA  ->  NXDOMAIN (Status 3)
+8415wallet.com          NS  ns11.xincache.com, ns12.xincache.com
+8415wallet.com          A   8.219.77.22
+xiongan.8415wallet.com  A   8.219.77.22
+www.8415wallet.com          NXDOMAIN
+
+https://xiongan.8415wallet.com/web/index.html   200
+http://xiongan.8415wallet.com/web/index.html    308 -> https
 ```
 
-The authority section came from `a.gtld-servers.net`, so the `.com` zone
-carries **no delegation** for this name. Nothing resolves yet. That is normal
-shortly after registration, but a registrar hold pending real-name verification
-looks identical — see section 5.1, and rule the hold out before debugging
-propagation.
+The served tree was compared file by file against a local build of `main` at
+`18499967348a`: **62 of 62 files byte-identical, 0 differing, 0 missing.**
+
+Two items remain open; both are in section 11.
+
+- `Strict-Transport-Security` is absent. Section 6 defers it until HTTPS works,
+  and HTTPS now works, so it is due.
+- The apex has an `A` record but presents a certificate that does not cover
+  `8415wallet.com`, so `https://8415wallet.com/` fails to validate. See 2.1:
+  either give the apex its own certificate and a plain page, or withdraw its
+  `A` record. A certificate warning on the brand domain is worse than a name
+  that does not resolve, because it teaches the one habit section 1 exists to
+  prevent.
 
 ---
 
@@ -440,22 +455,41 @@ acceptance item.
 
 ## 11. Report back
 
-**Unblocks deployment:**
+**Open now, in priority order.**
 
-1. Real-name verification status at Xinnet (5.1).
-2. Whether DNS stays at Xinnet or moves, and to where (5.2, 5.5).
-3. `dig +short NS 8415wallet.com`
-4. `dig +short A xiongan.8415wallet.com`
-5. `dig +short AAAA xiongan.8415wallet.com`, if published.
-6. `dig +short CAA 8415wallet.com`
-7. Whether the apex serves a page or nothing (2.1).
+1. **Add `Strict-Transport-Security`.** Absent on the live origin. HTTPS is
+   working, which was the condition section 6 set for adding it.
+2. **Resolve the apex.** It resolves to the host but serves a certificate that
+   does not name it, so `https://8415wallet.com/` is a validation failure on
+   the brand domain. Give it its own certificate and a plain page, or withdraw
+   its `A` record. Report which.
+3. `dig +short CAA 8415wallet.com` — report the records, or that none exist.
+   Section 4 requires them and they were not part of bringing the site up.
+4. Real-name verification status at Xinnet (5.1). Delegation resolves, which
+   suggests it passed; confirm rather than infer, because the hold can be
+   applied later.
+5. Whether DNS stays at Xinnet. It is currently on `ns11/ns12.xincache.com`;
+   5.5 recommends moving it, which is a judgement for the owner, not a defect.
+6. `dig +short AAAA xiongan.8415wallet.com`. None is published, which is a
+   valid choice under 4.1 provided nginx is not listening on `[::]:443`.
+   Confirm the two agree.
 
-**May follow with the deployment report:**
+**Also report:**
 
-8. DNSSEC, transfer lock and account 2FA status (5.3, 5.4).
-9. Certificate issuer, subject, SANs and `notAfter` for the tenant.
-10. Which ACME challenge type was used.
-11. `certbot renew --dry-run` output.
-12. Aliyun security group rules covering 80 and 443.
-13. Confirmation that `xiongan.8415wallet.com` serves this application only.
-14. Confirmation that no wildcard DNS record and no wildcard certificate exist.
+7. DNSSEC, transfer lock and account 2FA status (5.3, 5.4).
+8. Certificate issuer, subject, SANs and `notAfter` for the tenant. This could
+   not be checked from outside: the checking environment re-terminates TLS, so
+   it can confirm that validation succeeds but cannot see the real chain.
+9. Which ACME challenge type was used.
+10. `certbot renew --dry-run` output. Still outstanding and still the item most
+    likely to fail silently, roughly 90 days after first issuance.
+11. Aliyun security group rules covering 80 and 443.
+12. Confirmation that `xiongan.8415wallet.com` serves this application only.
+13. Confirmation that no wildcard DNS record and no wildcard certificate exist.
+
+**Verified already, no action needed.** Recorded so they are not re-tested:
+`.mjs` and `.js` both serve as `text/javascript`; `frame-ancestors 'none'`,
+`X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Cross-Origin-Opener-Policy`
+and `Permissions-Policy` are present; `/.git/config`, `SHA256SUMS`, `DEPLOY.md`
+and `web/deployment.json` all return 404; port 80 redirects to HTTPS; and the
+served tree matches `main`'s build exactly.
