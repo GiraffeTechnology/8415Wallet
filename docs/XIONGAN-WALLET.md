@@ -101,6 +101,14 @@ review to match, not just its displayed digest. A shared page lock prevents both
 UI surfaces from prompting concurrently. Each account/chain journal uses strict
 IndexedDB durability and compare-and-swap before a single wallet send.
 
+Manual and agent-JSON address inputs validate ERC-55 mixed-case checksums before
+normalization, including ETH/NFT recipients, NFT contracts and agent withdrawal
+destinations. Invalid checksums are refused without a wallet send. All-lowercase
+and all-uppercase address bodies remain accepted without checksum protection;
+format and zero-address rejection remain in place. RPC addresses remain
+byte-oriented and do not gain a checksum-casing requirement. A valid checksum
+does not verify who controls the address or make a transfer safe.
+
 A provably unsent failure before the send boundary may clear only that reserved
 intent. Once the provider send is invoked, rejection, timeout, malformed response
 or persistence failure remains uncertain; no automatic retry or clearing occurs.

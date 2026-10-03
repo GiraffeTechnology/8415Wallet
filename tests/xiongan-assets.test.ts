@@ -6,6 +6,8 @@ import { keccak256Utf8 } from '../src/codec/keccak.ts';
 const actor = `0x${'1'.repeat(40)}`, recipient = `0x${'2'.repeat(40)}`, nft = `0x${'3'.repeat(40)}`;
 const blockHash = `0x${'4'.repeat(64)}`, transactionHash = `0x${'5'.repeat(64)}`;
 const word = (n: bigint) => `0x${n.toString(16).padStart(64, '0')}`;
+const checksummed = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed';
+const badChecksum = [checksummed.slice(0, -1) + 'c', checksummed.replace('aA', 'AA')];
 function fixture(chainId = '1', guard: () => void = () => {}) {
   let record: AssetState | null = null, sends = 0, nonce = 0n, failSend = false, pending = false, wrongTx = false, reorg = false, omitEffect = false, account = actor;
   let sent: Record<string, string> | null = null;
@@ -168,4 +170,59 @@ test('ETH display is lossless, always labelled by the UI, and never uses floatin
     ['1000000000000000', '0.001'], ['1000000000000000000', '1'], ['1234567890123456789', '1.234567890123456789'],
     ['9007199254740993000000000000000001', '9007199254740993.000000000000000001']]) assert.equal(formatWeiAsEth(wei!), eth);
   for (const invalid of ['1.5', '-1', '1e18', '01']) assert.throws(() => formatWeiAsEth(invalid));
+});
+
+for (const kind of ['native-transfer', 'erc721-transfer', 'erc1155-transfer']) {
+  test(`${kind} rejects bad recipient checksum before review or any send`, async () => {
+    const f = fixture(), s = f.session();
+    for (const recipient of [...badChecksum, `0x${'0'.repeat(40)}`, '0x1234']) {
+      const action = kind === 'native-transfer' ? { kind, recipient, valueWei: '1' } :
+        { kind, recipient, contract: nft, tokenId: '7', ...(kind === 'erc1155-transfer' ? { amount: '1' } : {}) };
+      await assert.rejects(s.prepare(f.request(action)), /ASSET_ADDRESS_REFUSED/);
+    }
+    assert.equal(f.sends(), 0); assert.equal((await s.status()).status, 'idle');
+  });
+  test(`${kind} accepts valid mixed, lower and upper-case recipients before normalization`, async () => {
+    const f = fixture(), s = f.session();
+    for (const recipient of [checksummed, checksummed.toLowerCase(), `0x${checksummed.slice(2).toUpperCase()}`]) {
+      const action = kind === 'native-transfer' ? { kind, recipient, valueWei: '1' } :
+        { kind, recipient, contract: nft, tokenId: '7', ...(kind === 'erc1155-transfer' ? { amount: '1' } : {}) };
+      assert.equal((await s.prepare(f.request(action))).recipient, checksummed.toLowerCase());
+    }
+    assert.equal(f.sends(), 0);
+  });
+}
+for (const kind of ['erc721-transfer', 'erc1155-transfer']) test(`${kind} validates contract checksum`, async () => {
+  const f = fixture(), s = f.session();
+  const action = { kind, recipient, contract: nft, tokenId: '7', ...(kind === 'erc1155-transfer' ? { amount: '1' } : {}) };
+  for (const contract of [...badChecksum, `0x${'0'.repeat(40)}`, '0x1234'])
+    await assert.rejects(s.prepare(f.request({ ...action, contract })), /ASSET_ADDRESS_REFUSED/);
+  const provider = { request: async (args: { method: string; params?: readonly unknown[] }) =>
+    args.method === 'eth_getCode' && args.params?.[0] === checksummed.toLowerCase() ? '0x6000' : f.provider.request(args) };
+  const validSession = new ExternalAssetSession(provider, '1', actor, f.store);
+  for (const contract of [checksummed, checksummed.toLowerCase(), `0x${checksummed.slice(2).toUpperCase()}`])
+    assert.equal((await validSession.prepare(f.request({ ...action, contract }))).transaction.to, checksummed.toLowerCase());
+  assert.equal(f.sends(), 0);
+});
+test('asset JSON actor checksum and submit-time revalidation reject before any send', async () => {
+  const f = fixture(), s = f.session();
+  for (const actor of badChecksum) await assert.rejects(s.prepare(f.request(undefined, { actor })), /ASSET_ADDRESS_REFUSED/);
+  const valid = await s.prepare(f.request({ kind: 'native-transfer', recipient: checksummed, valueWei: '1' }));
+  const tampered = { ...valid, requestText: f.request({ kind: 'native-transfer', recipient: badChecksum[0], valueWei: '1' }) };
+  await assert.rejects(s.submit(tampered, tampered.digest), /ASSET_ADDRESS_REFUSED/);
+  assert.equal(f.sends(), 0); assert.equal((await s.status()).status, 'idle');
+});
+test('RPC account and receipt address casing stays byte-oriented, without a new checksum requirement', async () => {
+  const f = fixture(), providerActor = badChecksum[1]!;
+  const provider = { async request(args: { method: string; params?: readonly unknown[] }) {
+    if (args.method === 'eth_accounts') return [providerActor];
+    const result = await f.provider.request(args);
+    if (args.method === 'eth_getTransactionReceipt' || args.method === 'eth_getTransactionByHash')
+      return { ...(result as object), from: providerActor };
+    return result;
+  } };
+  const s = new ExternalAssetSession(provider, '1', providerActor, f.store);
+  const review = await s.prepare(f.request(undefined, { actor: providerActor.toLowerCase() }));
+  await s.submit(review, review.digest);
+  assert.equal((await s.reconcile()).state, 'confirmed'); assert.equal(f.sends(), 1);
 });

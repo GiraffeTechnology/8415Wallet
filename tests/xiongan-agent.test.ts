@@ -28,3 +28,23 @@ test('unknown-outcome guidance never treats missing hash or unchanged nonce as c
   assert.match(recoveryGuidance({ status: 'outcome-unknown', submission: null } as OperationState), /unprepared intent/);
   assert.match(recoveryGuidance({ status: 'submitted' } as OperationState), /hash alone is not success/);
 });
+
+test('agent withdrawal validates ERC-55 destinations before lowercasing', () => {
+  const valid = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed';
+  const review = (destination: unknown) => reviewAgentRequest(JSON.stringify({ ...request,
+    operation: { kind: 'standalone-withdraw', tokenId: '7', destination } }), context);
+  for (const destination of [valid, valid.toLowerCase(), `0x${valid.slice(2).toUpperCase()}`]) {
+    const result = review(destination);
+    assert.equal(result.operation.kind === 'standalone-withdraw' && result.operation.destination, valid.toLowerCase());
+  }
+  for (const invalid of [valid.slice(0, -1) + 'c', valid.replace('aA', 'AA'), `0x${'0'.repeat(40)}`, '0x1234', null])
+    assert.throws(() => review(invalid), /AGENT_REQUEST_ADDRESS_REFUSED/);
+});
+test('agent JSON actor/controller checksums are checked, while provider context stays byte-oriented', () => {
+  const valid = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed', bad = valid.replace('aA', 'AA');
+  const bound = { ...context, actor: bad, controller: { ...controller, controller: bad } };
+  const payload = { ...request, actor: valid, controller: valid };
+  assert.equal(reviewAgentRequest(JSON.stringify(payload), bound).actor, valid.toLowerCase());
+  for (const field of ['actor', 'controller'])
+    assert.throws(() => reviewAgentRequest(JSON.stringify({ ...payload, [field]: bad }), bound), /AGENT_REQUEST_ADDRESS_REFUSED/);
+});

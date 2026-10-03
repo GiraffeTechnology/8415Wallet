@@ -1,6 +1,7 @@
 import type { Eip1193Provider } from '../adapters/signing/eip1193Signer.ts';
 import { encodeCall, encodeCallWithTail } from '../codec/abi.ts';
 import { keccak256Utf8 } from '../codec/keccak.ts';
+import { isAddressInput } from './address.ts';
 import { controlHex, controlRpc, controlPendingNonce, hashControlBytes, requireControlAdapter as check } from '../controls/authorization.ts';
 
 export const ASSET_CHAINS = Object.freeze({ '1': 'Ethereum', '8453': 'Base', '11155111': 'Sepolia', '84532': 'Base Sepolia' });
@@ -19,6 +20,7 @@ function obj(v: unknown, keys?: string[]): PublicObject {
   return v as PublicObject;
 }
 function addr(v: unknown): string { check(controlHex(v, 20) && !/^0x0+$/i.test(v), 'ASSET_ADDRESS_REFUSED'); return v.toLowerCase(); }
+function inputAddr(v: unknown): string { check(isAddressInput(v), 'ASSET_ADDRESS_REFUSED'); return v.toLowerCase(); }
 function uint(v: unknown): bigint { check(typeof v === 'string' && /^(0|[1-9][0-9]{0,77})$/.test(v) && BigInt(v) < 1n << 256n, 'ASSET_INTEGER_REFUSED'); return BigInt(v); }
 /** Exact display conversion only; transaction inputs remain explicit integer wei. */
 export function formatWeiAsEth(valueWei: string): string {
@@ -57,7 +59,7 @@ function parseRequest(text: string) {
   check(r.schema === 'xiongan-asset-request/1', 'ASSET_REQUEST_SCHEMA_REFUSED');
   check(typeof r.requestId === 'string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(r.requestId), 'ASSET_REQUEST_ID_REFUSED');
   check(typeof r.agent === 'string' && /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$/.test(r.agent), 'ASSET_REQUEST_AGENT_REFUSED');
-  return { r, chainId: chain(r.chainId), actor: addr(r.actor), expiresAt: uint(r.expiresAt), action: obj(r.action) };
+  return { r, chainId: chain(r.chainId), actor: inputAddr(r.actor), expiresAt: uint(r.expiresAt), action: obj(r.action) };
 }
 /** External EOA custody only. No private keys, token allowances, delegated/session
  * authority, swaps, bridging or connection to the 8415 controlled account. */
@@ -99,7 +101,7 @@ export class ExternalAssetSession {
     const now = quantity(header.timestamp), block = hex(quantity(header.number)), blockHash = hash(header.hash);
     check(expiresAt > now && expiresAt - now <= 900n, 'ASSET_REQUEST_EXPIRED');
     const nonce = controlPendingNonce(await this.#rpc('eth_getTransactionCount', [actor, 'pending']));
-    const recipient = addr(action.recipient); check(recipient !== actor, 'ASSET_SELF_TRANSFER_REFUSED');
+    const recipient = inputAddr(action.recipient); check(recipient !== actor, 'ASSET_SELF_TRANSFER_REFUSED');
     let to = recipient, value = 0n, data = '0x', codeHash: string | null = null, asset = 'ETH', amount: string, tokenId: string | null = null;
     if (action.kind === 'native-transfer') {
       obj(action, ['kind', 'recipient', 'valueWei']); value = uint(action.valueWei); check(value > 0n, 'ASSET_AMOUNT_REFUSED');
@@ -109,7 +111,7 @@ export class ExternalAssetSession {
     } else {
       check(action.kind === 'erc721-transfer' || action.kind === 'erc1155-transfer', 'ASSET_ACTION_UNSUPPORTED');
       obj(action, action.kind === 'erc721-transfer' ? ['kind', 'recipient', 'contract', 'tokenId'] : ['kind', 'recipient', 'contract', 'tokenId', 'amount']);
-      to = addr(action.contract); const id = uint(action.tokenId); tokenId = id.toString();
+      to = inputAddr(action.contract); const id = uint(action.tokenId); tokenId = id.toString();
       const code = await this.#rpc('eth_getCode', [to, block]); check(controlHex(code) && code.length > 2, 'ASSET_TOKEN_CODE_REQUIRED'); codeHash = hashControlBytes(code);
       const call = (input: string) => this.#rpc('eth_call', [{ to, data: input }, block]);
       // ERC-165 discovery includes its invalid-interface negative probe.
