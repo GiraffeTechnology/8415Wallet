@@ -15,8 +15,9 @@ acceptance.
 ## 1. Artifact
 
 The deployable site is published on the branch `deploy/xiongan-sin` of
-`GiraffeTechnology/8415Wallet`. That branch carries only the served tree, so a
-shallow clone of it **is** the document root:
+`GiraffeTechnology/8415Wallet`. That branch carries the served `web/` and `dist/browser/` trees plus
+operator/integrity documents and hidden `.github/` CI metadata. A shallow clone
+can be the document root under the existing metadata/dotfile refusals below:
 
 ```
 git clone --depth 1 --branch deploy/xiongan-sin \
@@ -26,15 +27,36 @@ git clone --depth 1 --branch deploy/xiongan-sin \
 | | |
 |---|---|
 | Branch | `deploy/xiongan-sin` |
-| Commit | see the branch head; rebuilt whenever `main` changes the browser bundle |
-| Served files | 62 (1 html, 1 css, 5 mjs, 55 js), plus `SHA256SUMS`, `DEPLOY.md` and `DOMAIN.md` |
-| Unpacked size | 532 KB |
-| Built from | `18499967348a` (tree `ea180768fa69dfefdc36c22cf53ef2fa1e97e00b`) |
-| Build command | `npm run wallet:browser:build` on Node 22 |
+| Release checkout | Record the merged `deploy/xiongan-sin` commit whose **Static artifact CI** passed; do not use an unverified branch tip |
+| Served files | 62 (1 html, 1 css, 5 mjs, 55 js); documents, checksums and `.github/` are not application assets |
+| Public payload size | 351,600 bytes |
+| Built from | Merged source `763b00670752db7ed97525fca356729bbe8221d5` (tree `14abc51f3d882b4c882b162753fc279efcf01707`), checksum repair PR #44 |
+| Build command | `npm run wallet:browser:build`, Node 24.19.0 and TypeScript 5.9.3; this branch reuses the verified output without recompiling |
 
-This branch tracks `main`. When `main` changes anything that compiles into
-the browser bundle, the branch is rebuilt and the deployed tree must be
-refreshed with it; a `git pull` in the document root is the whole update.
+The 62 public files are byte-identical to `xiongan-wallet-static-763b0067.tar.gz`
+in the verified handoff ZIP. Archive SHA-256:
+`bb66593b3f1e81ec4a319b724014bd6362d2e202a640287bedc842228b3a3187`.
+The corresponding `SHA256SUMS` digest is
+`b39e63497220bd0357d4bbaa0b817587b0ddd695da46ca38977fe281cf4e0607`.
+The earlier 61-file `93934f9` payload is superseded: only `agentRequest.js`,
+`externalAssets.js` and the added `address.js` differ; the other 59 files are
+unchanged. The repair checks mixed-case ERC-55 addresses before normalization.
+All-lowercase/all-uppercase inputs remain compatible, and a valid checksum
+does not establish the recipient's identity or make a transaction safe.
+
+Source validation: PR #44 exact-head CI
+https://github.com/GiraffeTechnology/8415Wallet/actions/runs/37098073411
+and source-main CI
+https://github.com/GiraffeTechnology/8415Wallet/actions/runs/37098334390
+passed on Node 22/24, including 812 Node tests, 59 local EVM tests and actual
+Chromium with a synthetic provider. This static branch has its own **Static
+artifact CI** on pull requests and pushes: Node 22/24 verifies the pinned
+62-file checksum manifest, all 151 relative module imports, and actual shipped
+checksum/request modules with deterministic providers and zero sends. Its
+exact release-commit result must pass before delivery; source-main CI alone
+cannot substitute for that check. No package install, credential, server
+connection or deployment step is part of the static check. These checks are
+not genuine-wallet, physical-device or external security-audit acceptance.
 
 The repository is private, so the clone needs a credential with read access to
 it. Do not make the repository public to simplify this.
@@ -47,14 +69,15 @@ Layout, which must be preserved exactly:
   web/*.mjs  web/wallet.css
   dist/browser/**/*.js    <- 55 compiled modules
   SHA256SUMS
-  DEPLOY.md               <- this document; serve it or delete it, either is fine
+  DEPLOY.md  DOMAIN.md     <- operator documents, not served application assets
+  .github/                <- static CI only; must not be served
 ```
 
 `web/app.mjs` imports `../dist/browser/browser.js` by relative path. The
 `web/` and `dist/` directories must stay siblings. Do not flatten, rename or
 rewrite any path.
 
-`.git/` must not be served. The nginx dotfile rule in section 3.3 covers this,
+Neither `.git/` nor `.github/` may be served. The nginx dotfile rule in section 3.3 covers this,
 but confirm it: an exposed `.git` directory on a public host leaks the whole
 branch history.
 
@@ -245,10 +268,11 @@ repeated inside it.
 
 ## 4. What the server must not do
 
-- **No RPC proxy, and no server-side chain access.** The bundle issues zero
-  outbound requests of its own (verified: the synthetic browser run recorded
-  `externalRequests: []` at both viewports). All chain traffic goes through the
-  provider injected by the user's wallet application. Introducing a server-side
+- **No RPC proxy, and no server-side chain access.** The shipped browser entry points route chain traffic through the
+  provider injected by the user's wallet application. The source CI synthetic
+  browser run recorded `externalRequests: []` at both viewports. This is a
+  result for that exercised path, not a claim that the whole tree lacks
+  `fetch`: the bundled generic RPC transport contains it. Introducing a server-side
   RPC endpoint would insert a party able to observe and rewrite transaction
   parameters, and would break the `connect-src 'self'` policy.
 - **No key material, signer, or custody component on the host.** The server is
@@ -260,7 +284,7 @@ repeated inside it.
   HTML rewriting or CSP relaxation. Any change invalidates `SHA256SUMS` and the
   build's correspondence to the reviewed commit.
 - **No directory listing and no exposure of anything outside the document
-  root.** The source repository is private; only the 61 files above are to be
+  root.** The source repository is private; only the 62 files above are to be
   served.
 
 ---
@@ -316,7 +340,7 @@ without the output that shows it.
 
 **Integrity**
 
-1. `git -C /srv/xiongan rev-parse HEAD` equals the commit in section 1.
+1. Record `git -C /srv/xiongan rev-parse HEAD` and its completed **Static artifact CI** run; verify it is the approved merged release commit and its payload matches section 1.
 2. `sha256sum -c SHA256SUMS` from the document root: 62 x `OK`, 0 failures.
 2a. `curl -sSI https://xiongan.8415wallet.com/.git/config` returns 404.
 
