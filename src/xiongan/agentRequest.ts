@@ -1,4 +1,5 @@
 import { keccak256Utf8 } from '../codec/keccak.ts';
+import { isAddressInput } from './address.ts';
 import { controlHex, requireControlAdapter as check, validateControlPin, type ControlDeploymentPin } from '../controls/authorization.ts';
 import type { WalletOperation } from '../controls/session.ts';
 
@@ -30,7 +31,7 @@ function integer(value: unknown, bits = 256): bigint {
   const n = BigInt(value); check(n < 1n << BigInt(bits), 'AGENT_REQUEST_INTEGER_REFUSED'); return n;
 }
 function address(value: unknown): string {
-  check(controlHex(value, 20) && !/^0x0+$/i.test(value), 'AGENT_REQUEST_ADDRESS_REFUSED'); return value.toLowerCase();
+  check(isAddressInput(value), 'AGENT_REQUEST_ADDRESS_REFUSED'); return value.toLowerCase();
 }
 function digest(value: unknown): string {
   check(controlHex(value, 32) && !/^0x0+$/i.test(value), 'AGENT_REQUEST_HASH_REFUSED'); return value.toLowerCase();
@@ -51,7 +52,7 @@ export function reviewAgentRequest(text: string, context: AgentRequestContext): 
   const chainId = integer(r.chainId);
   check([11155111n, 560048n].includes(chainId), 'AGENT_TESTNET_REQUIRED');
   check(chainId === context.controller.chainId && chainId === context.token.chainId, 'AGENT_REQUEST_CHAIN_MISMATCH');
-  check(address(r.actor) === address(context.actor), 'AGENT_REQUEST_ACTOR_MISMATCH');
+  check(controlHex(context.actor, 20) && address(r.actor) === context.actor.toLowerCase(), 'AGENT_REQUEST_ACTOR_MISMATCH');
   check(address(r.controller) === context.controller.controller.toLowerCase(), 'AGENT_REQUEST_DEPLOYMENT_MISMATCH');
   const expiresAt = integer(r.expiresAt, 64);
   check(typeof context.now === 'bigint' && context.now >= 0n && expiresAt > context.now && expiresAt - context.now <= 900n,
