@@ -14,17 +14,30 @@ acceptance.
 
 ## 1. Artifact
 
+The deployable site is published on the branch `deploy/xiongan-sin` of
+`GiraffeTechnology/8415Wallet`. That branch carries only the served tree, so a
+shallow clone of it **is** the document root:
+
+```
+git clone --depth 1 --branch deploy/xiongan-sin \
+    https://github.com/GiraffeTechnology/8415Wallet.git /srv/xiongan
+```
+
 | | |
 |---|---|
-| Archive | `xiongan-wallet-site.tar.gz` |
-| Archive sha256 | `deb0599d3e22b607f2a4a543cb4ac05c6b980d81feab9dda74ccf4404a6ac73b` |
-| Contents | 61 files (1 html, 1 css, 5 mjs, 54 js) + `SHA256SUMS` |
+| Branch | `deploy/xiongan-sin` |
+| Commit | `c0593dbce6dff4a4663ffd73eefc639f94141862` |
+| Served files | 61 (1 html, 1 css, 5 mjs, 54 js), plus `SHA256SUMS` and `DEPLOY.md` |
 | Unpacked size | 532 KB |
-| Source commit | `93934f9bc5524b3989e2f10f0dc35d86b5b2835b` (tree `8fcb1624c98afb3e9e69a8d19d4a9fbdf65f7d71`) |
-| Build | `npm run wallet:browser:build` on Node 22; output is byte-identical to the previously verified handoff package |
+| Built from | `93934f9bc5524b3989e2f10f0dc35d86b5b2835b` (tree `8fcb1624c98afb3e9e69a8d19d4a9fbdf65f7d71`) |
+| Build command | `npm run wallet:browser:build` on Node 22 |
 
-Unpack so that the document root contains exactly `index.html` is reachable at
-`/`, with this layout preserved:
+The build is byte-identical to the previously verified handoff package.
+
+The repository is private, so the clone needs a credential with read access to
+it. Do not make the repository public to simplify this.
+
+Layout, which must be preserved exactly:
 
 ```
 <docroot>/
@@ -32,11 +45,16 @@ Unpack so that the document root contains exactly `index.html` is reachable at
   web/*.mjs  web/wallet.css
   dist/browser/**/*.js    <- 54 compiled modules
   SHA256SUMS
+  DEPLOY.md               <- this document; serve it or delete it, either is fine
 ```
 
 `web/app.mjs` imports `../dist/browser/browser.js` by relative path. The
 `web/` and `dist/` directories must stay siblings. Do not flatten, rename or
 rewrite any path.
+
+`.git/` must not be served. The nginx dotfile rule in section 3.3 covers this,
+but confirm it: an exposed `.git` directory on a public host leaks the whole
+branch history.
 
 Verify after unpacking, from the document root:
 
@@ -255,8 +273,9 @@ without the output that shows it.
 
 **Integrity**
 
-1. `sha256sum xiongan-wallet-site.tar.gz` equals the value in section 1.
+1. `git -C /srv/xiongan rev-parse HEAD` equals the commit in section 1.
 2. `sha256sum -c SHA256SUMS` from the document root: 61 x `OK`, 0 failures.
+2a. `curl -sSI https://<host>/.git/config` returns 404.
 
 **Transport**
 
