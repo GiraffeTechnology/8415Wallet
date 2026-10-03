@@ -62,6 +62,41 @@ let browser;
       await page.waitForFunction(() => document.getElementById('asset-review-text').textContent.includes('digest')); await idle();
     };
     await connect(); await prepare(); assert.equal(await page.evaluate(() => __xionganTest.sends), 0);
+    // Exercise the actual form and file-import handlers. An invalid checksum
+    // must clear an earlier review and cannot reach a wallet send, even on click.
+    const validAddress = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed';
+    const invalidAddresses = [validAddress.slice(0, -1) + 'c', validAddress.replace('aA', 'AA')];
+    for (const kind of ['native-transfer', 'erc721-transfer', 'erc1155-transfer']) {
+      for (const field of kind === 'native-transfer' ? ['recipient'] : ['recipient', 'contract']) {
+        for (const invalid of invalidAddresses) {
+          const action = kind === 'native-transfer' ? { kind, recipient: invalid, valueWei: '1000' } :
+            { kind, recipient: `0x${'2'.repeat(40)}`, contract: `0x${'3'.repeat(40)}`, tokenId: '7',
+              ...(kind === 'erc1155-transfer' ? { amount: '1' } : {}), [field]: invalid };
+          for (const input of ['form', 'file']) {
+            if (input === 'form') {
+              await page.selectOption('#asset-kind', kind); await page.fill('#asset-recipient', action.recipient);
+              if (kind !== 'native-transfer') { await page.fill('#asset-contract', action.contract); await page.fill('#asset-token-id', action.tokenId); }
+              await page.fill('#asset-amount', '1000'); await page.click('#asset-prepare');
+            } else {
+              const payload = { schema: 'xiongan-asset-request/1', requestId: 'checksum-ui', agent: 'Synthetic regression',
+                chainId: '1', actor: `0x${'1'.repeat(40)}`, expiresAt: String(Math.floor(Date.now() / 1000) + 600), action };
+              await page.setInputFiles('#asset-request-file', { name: 'checksum-request.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(payload)) });
+              await page.click('#asset-review-file');
+            }
+            await idle(); assert.equal(await page.locator('#asset-result').textContent(), 'ASSET_ADDRESS_REFUSED');
+            assert.equal(await page.locator('#asset-review-text').textContent(), 'No transfer reviewed');
+            await page.check('#asset-ack'); await page.click('#asset-send'); await idle();
+            assert.equal(await page.locator('#asset-result').textContent(), 'ASSET_OWNER_REVIEW_REQUIRED');
+            assert.equal(await page.evaluate(() => __xionganTest.sends), 0);
+          }
+        }
+      }
+    }
+    await page.selectOption('#asset-kind', 'native-transfer'); await page.fill('#asset-recipient', validAddress);
+    await page.click('#asset-prepare'); await idle();
+    assert.match(await page.locator('#asset-review-text').textContent(), new RegExp(validAddress.toLowerCase()));
+    assert.equal(await page.evaluate(() => __xionganTest.sends), 0);
+    await prepare();
     // A -> B -> A revokes the pending generation even if the final account matches.
     await page.evaluate(() => { __xionganTest.holdEstimate = true; }); await page.check('#asset-ack'); await page.click('#asset-send');
     await page.waitForFunction(() => __xionganTest.gate === 'estimate');
@@ -94,7 +129,7 @@ let browser;
       .map(node => ({ tag: node.tagName, id: node.id, width: node.clientWidth, scrollWidth: node.scrollWidth, right: node.getBoundingClientRect().right })) )));
     assert.equal(fits, true, `viewport ${viewport.width} must not overflow horizontally`);
     assert.deepEqual(errors, []); assert.deepEqual(externalRequests, []);
-    evidence.push({ viewport, provider: 'synthetic-no-signing-no-rpc', journeys: ['prepare-no-send', 'A-B-A-revocation', 'cross-panel-lock', 'submit-reload-reconcile', 'unknown-restart-no-resend-recover'], sends: 2, errors, externalRequests });
+    evidence.push({ viewport, provider: 'synthetic-no-signing-no-rpc', journeys: ['prepare-no-send', 'checksum-form-and-agent-json-refusal', 'A-B-A-revocation', 'cross-panel-lock', 'submit-reload-reconcile', 'unknown-restart-no-resend-recover'], sends: 2, errors, externalRequests });
     await context.close();
   }
   fs.writeFileSync(path.join(out, 'result.json'), JSON.stringify({ verdict: 'SYNTHETIC_BROWSER_REGRESSION_PASSED_NOT_REAL_WALLET_ACCEPTANCE', evidence }, null, 2));
