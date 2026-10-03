@@ -155,7 +155,7 @@ Consequences:
 | `A` | `xiongan.8415wallet.com` | `8.219.77.22` | required — the wallet |
 | `A` | `8415wallet.com` | `8.219.77.22` | optional; apex page only, never a wallet |
 | `A` | `www.8415wallet.com` | `8.219.77.22` | optional; 301 to apex if the apex page exists |
-| `AAAA` | the same names | the host's IPv6 address | **only if** nginx listens on `[::]:443`; see 4.1 |
+| `AAAA` | the same names | the host's IPv6 address | **only if** nginx listens on `[::]:<web-port>`; see 4.1 |
 | `CAA` | `8415wallet.com` | `0 issue "letsencrypt.org"` | required; inherited by all tenants |
 | `CAA` | `8415wallet.com` | `0 iodef "mailto:<security contact>"` | recommended |
 
@@ -171,7 +171,8 @@ Set `A` record TTLs to 300 seconds until acceptance is complete, then raise to
 
 The acceptance target is an iPhone, and mobile carriers increasingly run
 IPv6-only access networks with NAT64. Two configurations are correct: publish
-`AAAA` **and** have nginx `listen [::]:443 ssl;`, or publish no `AAAA` at all.
+`AAAA` **and** have nginx `listen [::]:<web-port> ssl;`, or publish no `AAAA`
+at all.
 
 Publishing `AAAA` while nginx listens only on IPv4 makes the phone prefer IPv6,
 connect to a closed port, and the page appears broken on cellular while working
@@ -435,9 +436,13 @@ filing (ICP beian) applies to mainland China regions. Do not let a filing
 requirement be assumed into the timeline. This changes if the domain is ever
 pointed at a mainland server.
 
-**Security group.** Inbound TCP 80 and 443 open to `0.0.0.0/0`, and `::/0` if
-IPv6 is published. Port 80 is needed for the ACME challenge and the HTTPS
+**Security group.** Inbound TCP 80 and `<web-port>` open to `0.0.0.0/0`, and
+`::/0` if IPv6 is published. Port 80 is needed for the ACME challenge and the
 redirect; it is not optional even though no content is served on it.
+
+Do not open TCP 443 for the web server. It is reserved for SSH on every server
+(deployment document, section 2.2), so whether it is reachable at all is an SSH
+access decision, not a web one.
 
 ---
 
@@ -452,8 +457,12 @@ For a pre-DNS functional check use SSH port-forwarding to `localhost`, which
 **is** a secure context and so satisfies section 1:
 
 ```
-ssh -L 8443:127.0.0.1:443 <user>@8.219.77.22
+ssh -p <ssh-port> -L 8443:127.0.0.1:<web-port> <user>@8.219.77.22
 ```
+
+`<ssh-port>` is wherever SSH actually listens; TCP 443 is the port the
+reservation holds for it. The forward targets `<web-port>` on the host, not
+443, which under the reservation reaches SSH rather than nginx.
 
 then open `https://localhost:8443/web/index.html` on the forwarding machine.
 This validates serving, MIME types and headers. It does not validate the
@@ -485,7 +494,7 @@ acceptance item.
 6. Whether DNS stays at Xinnet. It is currently on `ns11/ns12.xincache.com`;
    5.5 recommends moving it, which is a judgement for the owner, not a defect.
 7. `dig +short AAAA xiongan.8415wallet.com`. None is published, which is a
-   valid choice under 4.1 provided nginx is not listening on `[::]:443`.
+   valid choice under 4.1 provided nginx is not listening on `[::]:<web-port>`.
    Confirm the two agree.
 
 **Also report:**
@@ -497,7 +506,8 @@ acceptance item.
 9. Which ACME challenge type was used.
 10. `certbot renew --dry-run` output. Still outstanding and still the item most
     likely to fail silently, roughly 90 days after first issuance.
-11. Aliyun security group rules covering 80 and 443.
+11. Aliyun security group rules covering 80 and `<web-port>`, and confirmation
+    that 443 is not open for the web server.
 12. Confirmation that `xiongan.8415wallet.com` serves this application only.
 13. Confirmation that no wildcard DNS record and no wildcard certificate exist.
 
