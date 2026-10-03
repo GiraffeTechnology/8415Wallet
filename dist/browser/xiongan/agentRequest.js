@@ -1,4 +1,5 @@
 import { keccak256Utf8 } from "../codec/keccak.js";
+import { isAddressInput } from "./address.js";
 import { controlHex, requireControlAdapter as check, validateControlPin } from "../controls/authorization.js";
 export const XIONGAN_PROFILE = Object.freeze({
     name: 'Xiongan Wallet', displayName: 'Xiongan Wallet',
@@ -18,7 +19,7 @@ function integer(value, bits = 256) {
     return n;
 }
 function address(value) {
-    check(controlHex(value, 20) && !/^0x0+$/i.test(value), 'AGENT_REQUEST_ADDRESS_REFUSED');
+    check(isAddressInput(value), 'AGENT_REQUEST_ADDRESS_REFUSED');
     return value.toLowerCase();
 }
 function digest(value) {
@@ -47,7 +48,7 @@ export function reviewAgentRequest(text, context) {
     const chainId = integer(r.chainId);
     check([11155111n, 560048n].includes(chainId), 'AGENT_TESTNET_REQUIRED');
     check(chainId === context.controller.chainId && chainId === context.token.chainId, 'AGENT_REQUEST_CHAIN_MISMATCH');
-    check(address(r.actor) === address(context.actor), 'AGENT_REQUEST_ACTOR_MISMATCH');
+    check(controlHex(context.actor, 20) && address(r.actor) === context.actor.toLowerCase(), 'AGENT_REQUEST_ACTOR_MISMATCH');
     check(address(r.controller) === context.controller.controller.toLowerCase(), 'AGENT_REQUEST_DEPLOYMENT_MISMATCH');
     const expiresAt = integer(r.expiresAt, 64);
     check(typeof context.now === 'bigint' && context.now >= 0n && expiresAt > context.now && expiresAt - context.now <= 900n, 'AGENT_REQUEST_EXPIRY_REFUSED');
