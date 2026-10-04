@@ -1,5 +1,25 @@
 # 8415wallet AGENTS.md
 
+## Current client-directed installation and joint testing (2026-10-05)
+
+ArtFi control owns the client-requested ArtFi iteration, installation and joint
+testing using the Beta package on branch `delivery/install-handoff-20261004`.
+The exact source is `1f4a9ae6dd5b8b062ab4f903920cf4b39d158e36`; the archive SHA256
+is `df5058bec9d5c12cffb9ca10cd7ea991e46696207a50f3d2ccf47ac375681838`.
+Preserve the immutable supplied archive and verify its nested manifests before
+installation. This client instruction, rather than artifact publication alone,
+authorizes production-like Beta installation and joint testing in the approved
+CTYun/SIN Linux environment. Windows is a source/report workstation only.
+
+Historical Charity completion, full V3 acceptance and independent general-release
+audit are not prerequisites for this Beta installation and testing. Remaining
+genuine-wallet, public-testnet, device and W-20 observations are collected and
+reported separately; no old result is inherited by a changed source or origin.
+Public entry navigation may skip login, but protected assets/history still require
+verified login. Mainnet/real-value testing, credential disclosure, unknown-outcome
+replay and changes to shared or other-task services remain outside this authority.
+GitHub writes remain English only.
+
 ## Product Boundary
 
 8415wallet is a general-purpose application-layer wallet compatible with
@@ -410,11 +430,11 @@ satisfied by a merge:
 - **W-20**, which asks for one deployed same-token multi-wallet journey and
   cannot be satisfied locally by construction.
 
-GitHub Actions has not run on any of this. Every run in this repository since
-2026-09-19 fails in seconds with no step started and no runner assigned,
-including pushes to `main`, so it is not a property of any branch. Until that
-is resolved, "CI is green" is not a claim this repository can make, and the
-local pipeline tables stand in its place — clearly labelled as local.
+The September 25 batch had no executed GitHub Actions evidence at that time.
+That historical runner blockage is superseded by the exact-source October 4
+merged-main run `37209416014`, with successful Node 22 and Node 24 jobs.
+Future changes require their own exact-head result; retain the old local tables
+as historical local evidence, not a current repository-wide CI prohibition.
 
 Do not describe the new source as never tested, and do not describe it as
 released. Do not invent results, and do not infer that development is complete
@@ -501,10 +521,12 @@ not configure HTTP, HTTPS, web servers, reverse proxies or TLS listeners to
 bind TCP port 443, and do not stop, rebind, replace or otherwise disrupt SSH to
 free it.
 
-Before selecting a web or bridge port, inspect the existing deployment and
-operations configuration and reuse an explicitly confirmed allocation. Do not
-guess a replacement port. If the allocation is unclear, report the missing
-configuration rather than changing a service binding.
+Before selecting a web or bridge port, inspect current listeners and operations
+configuration. Reuse a suitable existing allocation or select an actually free
+non-443 port within the client's approved deployment scope. Occupied ports,
+SSH, shared bridges and other-task services remain protected. Do not invent a
+separate per-port client approval requirement; actual public-ingress authority
+still applies to its target rule. Complete configured URLs determine the origin.
 
 A web origin is scheme, host and port, so the port a wallet is served on is
 part of its origin. Moving a served wallet to a different port strands every
@@ -519,8 +541,9 @@ part of what a user verifies in the address bar. That is a cost of this
 reservation, not a defect to work around. HSTS does not mitigate it, because it
 upgrades the scheme and not the port.
 
-Certificate issuance must use the HTTP-01 challenge over port 80. TLS-ALPN-01
-validates on TCP 443 and is unavailable under this reservation.
+Use a supported certificate-validation method within existing operations authority,
+such as available HTTP-01 or authorized DNS-01. HTTP-01 is not the sole permitted
+method. Do not consume reserved TCP 443 for TLS-ALPN-01.
 
 Recording this rule does not authorize server access or changes to SSH,
 firewalls, credentials, network settings or security settings.
