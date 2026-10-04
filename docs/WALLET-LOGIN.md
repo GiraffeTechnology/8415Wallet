@@ -6,13 +6,24 @@ hidden and inert until a wallet login proof is verified. Merely connecting a
 provider or obtaining an address is insufficient. Xiongan remains a V2 tenant
 of the general-purpose 8415wallet product.
 
+## Additional account login methods
+
+The local-wallet route described below is preserved. The account service adds
+password, RFC 6238 authenticator TOTP (Google Authenticator/FreeOTP), registered
+EOA challenge-signature and hardware CA certificate-proof methods. Email OTP
+was explicitly cancelled by the owner. These routes use real server verification,
+fixed tenant/account/wallet bindings, HttpOnly sessions and live revocation
+checks. See [Account authentication](ACCOUNT-AUTHENTICATION.md) for implementation,
+enrollment/recovery, operational constraints and the hardware bridge boundary.
+No method imports a private key or replaces per-transaction approval.
+
 ## Static-DApp trust boundary
 
 This is a local display-privacy gate, not server authorization or blockchain
 confidentiality. Public chain records can still be read outside the DApp.
 A person controlling the browser, extension, page source or device can inspect
-public records and browser storage. No private API or entitled register-record
-endpoint is introduced. A future private endpoint must independently verify a
+public records and browser storage. No entitled register-record endpoint is introduced. The companion account
+authentication service is not an entitlement API. A future private endpoint must independently verify a
 server-issued nonce, audience, proof, expiration and entitlement and maintain a
 revocable server session. A client boolean, this in-memory session or a hidden
 panel must never authorize such an endpoint.

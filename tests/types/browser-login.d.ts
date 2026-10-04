@@ -9,7 +9,7 @@ declare module '*login-core.mjs' {
     assert(binding?: any): any;
     capture(): any;
     check(): Promise<any>;
-    signIn(provider: any): Promise<any>;
+    signIn(provider: any, server?: any): Promise<any>;
     logout(reason?: string): void;
     provider(): { request(args: any): Promise<any> };
     subscribe(listener: (session: any, reason: string) => void): () => void;

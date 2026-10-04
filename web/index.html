@@ -8,10 +8,36 @@
 <body><header><p class="eyebrow">8415wallet.com</p><h1>8415wallet</h1><p id="release-profile" role="status">Loading verified release profile…</p><p>General-purpose wallet · Native ERC-8415 support · Owner-reviewed requests</p><p class="release-notice">Functional-testing Beta. Not independently audited. Native ERC-8415 protocol and responsibility controls remain testnet-only. External-account mainnet transfers require your own wallet confirmation; genuine-wallet and physical-device acceptance remains outstanding.</p></header>
 <main>
   <section aria-labelledby="login-heading"><h2 id="login-heading">Wallet login</h2>
-    <p>The public entry stays open. Assets, balances, holdings and history appear only after a verified wallet login. Sign the site-bound login message in your own wallet; it grants no transaction authority.</p>
-    <p>Login lasts 15 minutes in this tab and ends on reload, logout, account or chain changes. Public blockchain records remain public. This display lock does not protect a private server API.</p>
+    <p>The public entry stays open. Assets, balances, holdings and history appear only after a verified wallet login. Choose a login method. Login grants no transaction authority; every transfer still needs your wallet approval.</p>
+    <p>Login lasts 15 minutes in this tab and ends on reload, logout, account or chain changes. Public blockchain records remain public. Local wallet login is a display lock. Account login methods require the configured same-origin authentication service; no private register API is introduced.</p>
+    <label>Login method <select id="wallet-login-method" data-auth-control>
+      <option value="wallet-local">Token: local wallet / private-key signature</option>
+      <option value="password">Password</option>
+      <option value="totp">Authenticator code (Google Authenticator / FreeOTP)</option>
+      <option value="wallet">Token: registered wallet account</option>
+      <option value="ca">Token: hardware CA certificate</option>
+    </select></label>
+    <div id="account-login-fields" hidden>
+      <label>Account name <input id="auth-username" data-auth-control autocomplete="username" maxlength="64" spellcheck="false"></label>
+      <label id="auth-password-label">Password <input id="auth-password" data-auth-control type="password" autocomplete="current-password" maxlength="1024"></label>
+      <label id="auth-code-label" hidden>Authenticator or recovery code <input id="auth-code" data-auth-control autocomplete="one-time-code" maxlength="64" spellcheck="false"></label>
+      <label id="auth-recovery-label" hidden><input id="auth-recovery" data-auth-control type="checkbox">Use one saved recovery code</label>
+    </div>
+    <p id="auth-method-help">Your private key stays in your wallet. Never paste a seed phrase or private key into this page.</p>
     <button id="wallet-login" data-auth-control type="button">Log in with my wallet</button>
     <button id="wallet-logout" data-auth-control type="button" hidden>Log out / cancel login</button>
+    <section id="auth-enrollment" hidden aria-labelledby="auth-enrollment-title">
+      <h3 id="auth-enrollment-title">Set up an authenticator</h3>
+      <p>Requires a password, registered-wallet or hardware-CA login within five minutes. A replacement also needs the current authenticator code or a saved recovery code. This is an alternative login method, not mandatory two-factor authentication.</p>
+      <label>Current code (only when replacing) <input id="auth-existing-code" data-auth-control autocomplete="one-time-code" maxlength="64"></label>
+      <label><input id="auth-existing-recovery" data-auth-control type="checkbox">Current code is a recovery code</label>
+      <button id="auth-enroll-start" data-auth-control type="button">Start authenticator setup</button>
+      <pre id="auth-enroll-secret"></pre>
+      <label>New authenticator's six-digit code <input id="auth-enroll-code" data-auth-control inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label>
+      <button id="auth-enroll-confirm" data-auth-control type="button">Verify and enable authenticator</button>
+      <button id="auth-enroll-cancel" data-auth-control type="button">Cancel setup</button>
+    </section>
+    <section id="auth-recovery-output" hidden><h3>Save your recovery codes now</h3><p>Each code works once. Store them somewhere private. Setup signed you out and revoked previous sessions. These codes are shown only once.</p><pre id="auth-recovery-codes"></pre><button id="auth-recovery-dismiss" data-auth-control type="button">I saved them; hide codes</button></section>
     <p id="wallet-login-status" role="status">Log in to view assets and history. Connecting an account alone is not login.</p>
   </section>
   <div id="wallet-private" hidden inert>

@@ -29,12 +29,13 @@
     "pack:dapp:v3": "node scripts/package/build-dapp.mjs --profile v3",
     "pack:dapp:all": "npm run pack:dapp:v2 && npm run pack:dapp:v3",
     "pack:dapp:verify": "node scripts/package/verify-dapp.mjs",
-    "test:package:dapp": "node --test tests/dapp-release.test.mjs"
+    "test:package:dapp": "node --test tests/dapp-release.test.mjs",
+    "wallet:auth:serve": "node server/main.mjs",
+    "test:auth": "node --test tests/auth-service.test.ts tests/auth-crypto.test.ts tests/ca-verifier.test.ts tests/account-login.test.ts tests/account-login-ui.test.ts"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^3.1.3",
     "@types/node": "^22.0.0",
-    "ethers": "^6.17.0",
     "hardhat": "^2.29.0",
     "playwright-core": "^1.56.1",
     "solc": "^0.8.37",
@@ -56,5 +57,8 @@
     "./browser": "./src/browser.ts",
     "./v2": "./src/v2.ts"
   },
-  "types": "./src/index.ts"
+  "types": "./src/index.ts",
+  "dependencies": {
+    "ethers": "^6.17.0"
+  }
 }

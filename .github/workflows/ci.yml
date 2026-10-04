@@ -56,6 +56,22 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Account authentication browser journeys
+        shell: bash
+        run: |
+          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          test -n "$WALLET_BROWSER_CHROMIUM"
+          node scripts/controls/login-methods-ui-smoke.cjs
+
+      - name: Account authentication browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallet-account-auth-browser-node-${{ matrix.node-version }}
+          path: /tmp/8415-auth-methods-ui-evidence
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Xiongan synthetic browser recovery
         shell: bash
         run: |

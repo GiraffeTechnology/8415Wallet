@@ -12,6 +12,23 @@ Both DApp packages are functional-testing Betas. Genuine wallet/public-testnet, 
 
 See [DApp packaging and deployment](docs/BETA-DAPP-DELIVERY.md), [PRD coverage](docs/BETA-PRD-COVERAGE.md), and [the Xiongan tenant boundary](docs/XIONGAN-WALLET.md).
 
+## Login methods
+
+Assets and history stay hidden until login. Choose password, an authenticator
+code (Google Authenticator / FreeOTP), a local wallet/private-key signature, or
+a configured hardware CA token. OTP means RFC 6238 TOTP; email OTP is not used.
+Password, TOTP and CA methods require the same-origin authentication service and
+an independently provisioned account-to-wallet binding. Local wallet signing
+still works in a static deployment. Keys stay in the wallet or hardware device;
+login never approves a transaction.
+
+[Account authentication](docs/ACCOUNT-AUTHENTICATION.md) covers setup, encrypted
+TOTP storage, recovery codes, revocable sessions, hardware-CA adapter requirements
+and deployment inputs. The generic CA bridge is implemented and cryptographically
+tested; a specific physical device/middleware is not yet accepted. No production
+credentials or services are provisioned by the feature. The old immutable handoff
+archive is unchanged and does not contain these new login methods.
+
 ## Build and verify
 
 Use Node 22.18 or newer and the committed lockfile.
