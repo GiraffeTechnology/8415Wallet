@@ -59,6 +59,22 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: ERC20 browser recovery
+        shell: bash
+        run: |
+          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          test -n "$WALLET_BROWSER_CHROMIUM"
+          node scripts/controls/erc20-ui-smoke.cjs
+
+      - name: ERC20 browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: erc20-browser-node-${{ matrix.node-version }}
+          path: /tmp/8415-erc20-ui-evidence
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Contracts
         run: npm run test:evm
 
@@ -78,3 +94,36 @@ jobs:
 
       - name: V3 external install
         run: npm run pack:v3:verify
+
+      - name: DApp release contract
+        run: npm run test:package:dapp
+
+      - name: V2 and V3 DApp Beta artifacts
+        run: npm run pack:dapp:all
+
+      - name: DApp artifact integrity
+        run: npm run pack:dapp:verify
+
+      - name: Reproducible DApp and source archives
+        shell: bash
+        run: |
+          sha256sum dist/8415wallet-dapp-*.tar.gz dist/8415wallet-source-*.tar.gz > /tmp/dapp-archive-sha256
+          npm run pack:dapp:all
+          sha256sum --check /tmp/dapp-archive-sha256
+          npm run pack:dapp:verify
+
+      - name: Standalone settlement browser recovery
+        shell: bash
+        run: |
+          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          test -n "$WALLET_BROWSER_CHROMIUM"
+          HARDHAT_CONFIG=hardhat.rehearsal.config.cjs node scripts/controls/settlement-ui-smoke.cjs
+
+      - name: Standalone settlement browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: settlement-browser-node-${{ matrix.node-version }}
+          path: /tmp/8415-settlement-ui-evidence
+          if-no-files-found: ignore
+          retention-days: 7

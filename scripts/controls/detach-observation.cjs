@@ -14,23 +14,53 @@ const ERC=['ownerOf','holder','finalNow','entryCount','entryVersion','entryEffec
 const CHAIN=['cursor','appended','completedCount','activeLegs','detachedCount','detachedCommitment',
   'boundaryAccount','currentAccount','inheritedHash'];
 
-// Only the explicit local chain uses the short automining window. A quiet
-// public chain is never reclassified as local from a timing sample.
-function gapTiming(chainId,timestamp,maximumInterval){
+/** The exact opt-in a rehearsal must already be running under. */
+const REHEARSAL='LOOPBACK_REHEARSAL_NOT_PUBLIC_CHAIN';
+
+// A chain that only mines on demand has to be driven, and a public chain must
+// never be, however quiet it looks. Neither a timing sample nor a chain id
+// settles that: a sample misreads a quiet public chain, and a chain id is a
+// claim, which is exactly what a rehearsal has to make to exercise this path
+// at all. So it is an explicit opt-in, whose own value says what it is not,
+// and which a public run has no reason to set.
+function gapTiming(chainId,timestamp,maximumInterval,rehearsal){
   assert.ok(typeof chainId==='bigint' && [31337n,11155111n,560048n].includes(chainId),'DETACH_CHAIN_REFUSED');
   assert.ok(typeof timestamp==='bigint' && timestamp>=0n && timestamp<(1n<<64n),'DETACH_TIMESTAMP_REFUSED');
-  const windowSeconds=chainId===31337n?3n:120n;
+  const localAutomine=chainId===31337n || rehearsal===REHEARSAL;
+  const windowSeconds=localAutomine?3n:120n;
   assert.ok(typeof maximumInterval==='bigint' && maximumInterval>=windowSeconds,'DETACH_SETTLEMENT_PERIOD_REFUSED');
   assert.ok(timestamp+windowSeconds<(1n<<64n),'DETACH_DEADLINE_OVERFLOW');
-  return {deadline:timestamp+windowSeconds,windowSeconds,localAutomine:chainId===31337n};
+  return {deadline:timestamp+windowSeconds,windowSeconds,localAutomine};
 }
 
+/**
+ * The block every field of one row is read at.
+ *
+ * It must not precede the newest block this scenario has caused. A provider's
+ * view of "latest" lags a transaction it has already mined -- measured here at
+ * up to five blocks behind a receipt -- and pinning to that older block reads a
+ * chain where the sequence being observed does not exist yet, which the
+ * controller correctly refuses. Waiting for the floor keeps the one-hash view
+ * intact instead of falling back to an unpinned read.
+ */
+async function observationBlock(k){
+  const floor=Number(k.observedBlockFloor ?? 0);
+  const until=Date.now()+120000;
+  for(;;){
+    const block=await k.provider.getBlock('latest');
+    // A provider that cannot answer is refused at once. Only a well-formed
+    // block that is merely behind is worth waiting for.
+    assert.ok(block && Number.isSafeInteger(block.number) && block.number>=0 &&
+      /^0x[0-9a-fA-F]{64}$/.test(block.hash) && Number.isSafeInteger(block.timestamp) && block.timestamp>=0,
+      'DETACH_BLOCK_REFUSED');
+    if(block.number>=floor)return block;
+    assert.ok(Date.now()<until,'DETACH_OBSERVATION_BLOCK_BEHIND');
+    await new Promise(resolve=>setTimeout(resolve,250));
+  }
+}
 async function snapshot(k,s,state){
   const {projection,controller}=k;
-  const block=await k.provider.getBlock('latest');
-  assert.ok(block && Number.isSafeInteger(block.number) && block.number>=0 &&
-    /^0x[0-9a-fA-F]{64}$/.test(block.hash) && Number.isSafeInteger(block.timestamp) && block.timestamp>=0,
-    'DETACH_BLOCK_REFUSED');
+  const block=await observationBlock(k);
   // Hash-addressed reads cannot silently mix versions at one height. Refuse
   // unsupported historical reads; never fall back to latest.
   const at={blockTag:block.hash};
@@ -88,15 +118,15 @@ async function observeDetachment(k,{shape}){
     // 3-second fixture window. No timestamp warp or transaction resend.
     const {chainId}=await k.provider.getNetwork();
     const timing=gapTiming(chainId,BigInt((await k.provider.getBlock('latest')).timestamp),
-      await k.projection.settlementPeriod());
+      await k.projection.settlementPeriod(),process.env.WALLET_TESTNET_UPSTREAM_LOOPBACK_REHEARSAL);
     const {deadline}=timing;
     await k.record({kind:'detach-gap-timing',chainId:String(chainId),deadline:String(deadline),
       windowSeconds:String(timing.windowSeconds),localAutomine:timing.localAutomine});
     await k.transaction('begin-observed-gap',k.projection.connect(registrar)
       .beginSettlement(scenario.tokenId,settlementId,k.accounts[expectedIndex],k.uid('observed-snapshot'),deadline));
     const row=await at('gap-open');
-    // Never send clock-advance transactions on a public chain merely because
-    // it did not produce a block within 2.5 seconds.
+    // A public run never reaches the nudge branch: it does not set the opt-in,
+    // so it waits for blocks the chain produces by itself.
     const clock=async()=>BigInt((await k.provider.getBlock('latest')).timestamp);
     const until=Date.now()+180000;
     while(await clock()<=deadline){
@@ -197,4 +227,4 @@ async function runDetachObservations(k){
   }
   return results;
 }
-module.exports={observeDetachment,runDetachObservations,snapshot,gapTiming,ERC,CHAIN};
+module.exports={observeDetachment,runDetachObservations,snapshot,observationBlock,gapTiming,ERC,CHAIN};

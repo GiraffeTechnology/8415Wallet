@@ -1,6 +1,10 @@
-# 8415wallet — V2 standalone reading client
+# 8415wallet V2 SDK — standalone native ERC-8415 client
 
-An installable build of the wallet surface closed out in `docs/V2-CLOSEOUT.md`
+This SDK is one integration artifact of the general-purpose 8415wallet product,
+which supports existing wallet and asset standards with native ERC-8415 features.
+It is separate from the V2 DApp Beta browser deliverable.
+
+An installable build of the native wallet surface closed out in `docs/V2-CLOSEOUT.md`
 against PRD §8: the projection and temporal reads, the dual histories,
 disclosure, conformance and identity checks, the protocol transaction builders,
 and authorized signing that keeps the key on the provider's side of the call.

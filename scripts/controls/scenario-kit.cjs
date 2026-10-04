@@ -51,6 +51,7 @@ async function createScenario({ ethers, provider, signers, artifact, record = as
   const owners = await Promise.all(signers.slice(0,5).map(s => s.getAddress()));
   assert.equal(new Set(owners.map(x => x.toLowerCase())).size, 5, 'SCENARIO_DISTINCT_ROLES_REQUIRED');
   const chainId = (await provider.getNetwork()).chainId;
+  const kit = { observedBlockFloor: 0 };
   const hash = label => ethers.keccak256(ethers.toUtf8Bytes(label));
   const coder = ethers.AbiCoder.defaultAbiCoder();
   let serial = 0;
@@ -65,6 +66,9 @@ async function createScenario({ ethers, provider, signers, artifact, record = as
     assert.ok(receipt && receipt.status === 1, 'SCENARIO_TRANSACTION_NOT_SUCCESSFUL');
     const block = await provider.getBlock(receipt.blockNumber);
     assert.equal(block?.hash, receipt.blockHash, 'SCENARIO_RECEIPT_REORGED');
+    // The newest block this scenario has caused. An observation pinned before
+    // it would read a chain that does not yet contain what was just written.
+    kit.observedBlockFloor = Math.max(kit.observedBlockFloor ?? 0, Number(receipt.blockNumber));
     await record({ kind: 'transaction', label, chainId: chainId.toString(), hash: receipt.hash,
       blockNumber: receipt.blockNumber, blockHash: receipt.blockHash, gasUsed: receipt.gasUsed.toString(), status: receipt.status });
     return receipt;
@@ -222,9 +226,10 @@ async function createScenario({ ethers, provider, signers, artifact, record = as
     assert.equal(code,errorName,'SCENARIO_EXPECTED_REVERT_NOT_OBSERVED');
     await record({kind:'read-only-revert',label,errorName,transactionSent:false});
   }
-  return { ethers,provider,signers,owners,accounts,account,projection,controller,payments,projectionAddress,controllerAddress,
+  Object.assign(kit, { ethers,provider,signers,owners,accounts,account,projection,controller,payments,projectionAddress,controllerAddress,
     observationPins:Object.freeze({controller:deploymentPins.get('ResponsibilityController'),payment:deploymentPins.get('NativeResponsibilityPayments')}),
-    domain,conditionHash,hash,uid,transaction,open,state,consent,forward,admit,complete,beginReturn,hop,payout,refused,record };
+    domain,conditionHash,hash,uid,transaction,open,state,consent,forward,admit,complete,beginReturn,hop,payout,refused,record });
+  return kit;
 }
 
 async function runCoreJourney(k,{funded}) {

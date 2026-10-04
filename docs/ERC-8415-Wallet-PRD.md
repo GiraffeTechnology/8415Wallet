@@ -1,4 +1,4 @@
-# ERC-8415 Wallet PRD v3.0 — additive responsibility-chain iteration
+# 8415wallet PRD v3.0 — additive responsibility-chain iteration
 
 Version decision (2026-09-25): v3.0 extends the existing wallet PRD; it does
 not replace the original wallet. Sections 1–8 and the historical semantic
@@ -26,11 +26,29 @@ not the Kit — is the product.
 
 ## Product Definition
 
-8415Wallet is the first commercial MVP built on ERC-8415, and the reference
-client for the standard's semantics. Those are one product, not two: what makes
-it a credible reference is what makes it useful commercially — it shows what
-the projection actually says, and it can act on that without ever collapsing
-the signals.
+The product name is **8415wallet** and its UI platform domain is
+**8415wallet.com**. **Xiongan is a V2 tenant**. V2 and V3 are separate versioned
+DApp Beta deliverables: V2 maps to the retained v2.2 foundation in sections 1–8;
+V3 retains that foundation and adds section 9. They may share a runtime when
+release manifests identify each profile, tenant, enabled features and exact
+source/PRD identity. SDK packages are supporting integration artifacts, never
+substitutes for a DApp delivery.
+
+8415wallet is a general-purpose wallet compatible with existing wallet and
+asset standards, with native ERC-8415 support. This PRD specifies its native
+asynchronous-projection foundation and linked-responsibility increment; it
+does not restrict the product to ERC-8415 assets. Existing standards
+compatibility remains a product requirement.
+
+Implementation and acceptance records must identify the exact standards,
+operations, token behaviors and wallet/provider integrations actually tested.
+A compatibility goal is not evidence that every standard or implementation has
+been exhaustively validated. The current coverage is recorded in
+`STANDARDS-COMPATIBILITY.md`.
+
+For ERC-8415, the wallet also serves as a reference client for the standard's
+semantics: it shows what the projection actually says and can act on it without
+collapsing distinct protocol signals.
 
 Positioning:
 
@@ -38,13 +56,15 @@ Positioning:
 > semantics to users without collapsing them, and that can execute a trade
 > whose authoritative registration arrives afterwards.
 
-It reads a projection, builds and sends the three settlement transactions the
-standard defines, and clears a trade through **8415 Clearing** while the
-register catches up. It does not advise, and it has no write path into a
+Its native ERC-8415 surface reads a projection and builds the three protocol
+transactions: `beginSettlement`, `finalizeSettlement` and `cancelSettlement`.
+Each is sent only through the user's own wallet after explicit review. The
+legacy **8415 Clearing** path clears a single trade while the register catches
+up. It does not advise, and it has no write path into a
 projection beyond transactions the user signs.
 
-The wallet is not an ownership viewer. ERC-8415 tracks two sequences that
-describe the same asset — the ERC-721 ownership sequence and the
+The native ERC-8415 surface goes beyond an ownership view. ERC-8415 tracks two
+sequences that describe the same asset — the ERC-721 ownership sequence and the
 register-confirmed holder sequence. At rest they agree; in flight they
 diverge. The wallet's job is to show both faithfully, show whether they align
 at a given instant. The standalone foundation remains available on its own;
@@ -60,7 +80,7 @@ A traditional wallet answers:
 Who owns this token now?
 ```
 
-8415Wallet answers, separately and without merging the answers:
+8415wallet answers, separately and without merging the answers:
 
 ```
 Who holds the tradeable position now?          -> ownerOf
@@ -95,7 +115,7 @@ Kit, that a holder is handed.
 ```
 User
  |
-8415Wallet UI
+8415wallet UI
  |
 ERC-8415 SDK port  (Erc8415Reader)
  |                        \
@@ -610,7 +630,7 @@ V2 is closed with that gap named, not closed clean.
 
 ## 9.1 Scope and preservation
 
-8415Wallet supports two modes:
+8415wallet supports two modes:
 
 | Mode | Required behavior |
 | --- | --- |

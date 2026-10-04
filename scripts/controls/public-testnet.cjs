@@ -171,7 +171,15 @@ async function main(){
         privateMaterialPersisted:false,validatorKeys:'ephemeral-test-only-not-retained',completedAt:new Date().toISOString()});
     }catch(error){
       resultWritten=true;
+      // A refusal carries its own stable code. Anything else stops the run for a
+      // reason the evidence would otherwise not record at all, so the failure is
+      // described the same disclosure-safe way an escaped one is: a name and a
+      // digest of the message, never the message, because a provider quotes
+      // back the endpoint it was given.
       createJson('result.json',{schema:'8415-v3-testnet-core/1',verdict:'INCOMPLETE',stableCode:error?.safeCode??'TESTNET_EXECUTION_REFUSED',
+        errorName:String(error?.name??'').slice(0,40),
+        errorCode:typeof error?.code==='string'&&/^[A-Z_]{1,40}$/.test(error.code)?error.code:'UNKNOWN',
+        messageSha256:hash(String(error?.message??'')),messageLength:String(error?.message??'').length,
         sourceCommit,sourceTree,eventCount:count,evidenceHeadSha256:previousHash,automaticRetry:false,privateMaterialPersisted:false});
       throw error;
     }

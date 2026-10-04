@@ -3,24 +3,26 @@
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
-  <title>Xiongan Wallet</title><link rel="stylesheet" href="wallet.css">
+  <title>8415wallet</title><link rel="stylesheet" href="wallet.css">
 </head>
-<body><header><p class="eyebrow">XIONGAN WALLET · powered by 8415Wallet</p><h1>Xiongan Wallet</h1><p>Standalone assets · Linked responsibilities · Owner-reviewed agent requests</p><p class="release-notice">Testnet development candidate. Not independently audited. 8415 controls remain testnet-only. External-account mainnet transfers require your own wallet confirmation and remain unaccepted development code.</p></header>
+<body><header><p class="eyebrow">8415wallet.com</p><h1>8415wallet</h1><p id="release-profile" role="status">Loading verified release profile…</p><p>General-purpose wallet · Native ERC-8415 support · Owner-reviewed requests</p><p class="release-notice">Functional-testing Beta. Not independently audited. Native ERC-8415 protocol and responsibility controls remain testnet-only. External-account mainnet transfers require your own wallet confirmation; genuine-wallet and physical-device acceptance remains outstanding.</p></header>
 <main>
-  <section id="asset-panel" aria-labelledby="asset-heading"><h2 id="asset-heading">Your ETH and NFTs</h2>
-    <p>Ethereum and Base, with Sepolia and Base Sepolia for rehearsal. ETH and standard ERC-721 / ERC-1155 NFTs remain in your existing external wallet account. No seed phrase, private key or standing agent permission is requested.</p>
-    <p class="release-notice">Not independently audited. This is a development candidate, not completed real-asset acceptance. Agents prepare and check requests; you personally review, sign and submit in your wallet. ETH sends currently require an EOA recipient. No swaps, approvals, ERC-20 tokens or smart-account custody.</p>
+  <section id="asset-panel" aria-labelledby="asset-heading"><h2 id="asset-heading">Your ETH, tokens and NFTs</h2>
+    <p>Ethereum and Base, with Sepolia and Base Sepolia for rehearsal. ETH, ERC-20 tokens and standard ERC-721 / ERC-1155 NFTs remain in your existing external wallet account. No seed phrase, private key or standing agent permission is requested.</p>
+    <p class="release-notice">Not independently audited. Functional-testing Beta; real-asset acceptance remains outstanding. Agents prepare and check requests; you personally review, sign and submit in your wallet. ETH sends currently require an EOA recipient. No swaps, approvals or smart-account custody. ERC-20 transfers use explicit contract addresses and integer raw amounts; optional metadata never establishes token identity. Fee-on-transfer, rebasing and other nonstandard token economics are unsupported. An exact Transfer event is not a promise of economic value or future balance.</p>
     <button id="asset-connect" type="button">Connect my external wallet</button><button id="asset-balance" type="button">Refresh ETH balance</button>
     <p id="asset-identity">Not connected. Select Ethereum, Base or a supported testnet in your wallet first.</p>
     <pre id="asset-receive">No receive address verified. Never send ETH to the 8415 controlled-account contract.</pre>
     <h3>Prepare a transfer</h3>
-    <label>Asset type <select id="asset-kind"><option value="native-transfer">ETH</option><option value="erc721-transfer">ERC-721 NFT</option><option value="erc1155-transfer">ERC-1155 NFT</option></select></label>
+    <label>Asset type <select id="asset-kind"><option value="native-transfer">ETH</option><option value="erc20-transfer">ERC-20 token</option><option value="erc721-transfer">ERC-721 NFT</option><option value="erc1155-transfer">ERC-1155 NFT</option></select></label>
     <label>Exact recipient address <input id="asset-recipient" autocomplete="off" spellcheck="false"></label>
-    <label>Amount (ETH in integer wei, or ERC-1155 units; ignored for ERC-721) <input id="asset-amount" inputmode="numeric" placeholder="1000000000000000 wei = 0.001 ETH"></label>
-    <label>NFT contract (no automatic NFT discovery) <input id="asset-contract" autocomplete="off" spellcheck="false"></label>
+    <label>Amount (integer wei for ETH; integer raw units for ERC-20 or ERC-1155; ignored for ERC-721) <input id="asset-amount" inputmode="numeric" placeholder="1000000000000000 wei = 0.001 ETH"></label>
+    <label>Exact token contract (ERC-20 / ERC-721 / ERC-1155; no automatic discovery) <input id="asset-contract" autocomplete="off" spellcheck="false"></label>
+    <button id="asset-token-balance" type="button">Read ERC-20 balance and optional metadata</button>
+    <p>ERC-20 decimals are never assumed to be 18. Enter raw integer units. A formatted display is shown only when the contract supplies valid decimals. Always check the selected chain and contract address.</p>
     <label>NFT token ID <input id="asset-token-id" inputmode="numeric"></label>
-    <button id="asset-prepare" type="button">Check ownership and prepare transfer</button>
-    <h3>Or review a request prepared by Xiongan</h3>
+    <button id="asset-prepare" type="button">Check balance or ownership and prepare transfer</button>
+    <h3>Or review a request prepared by your agent</h3>
     <label>Public asset request JSON <input id="asset-request-file" type="file" accept="application/json,.json"></label>
     <button id="asset-review-file" type="button">Review agent request (no send)</button>
     <pre id="asset-review-text">No transfer reviewed</pre>
@@ -34,12 +36,12 @@
   </section>
 
   <section aria-labelledby="connection"><h2 id="connection">Connection and deployment identity</h2>
-    <p>Use a genuine wallet provider. No keys are imported. This reference UI enables testnets only.</p>
+    <p>Use a genuine wallet provider. No keys are imported. This native ERC-8415 panel enables testnets only.</p>
     <label>Public deployment manifest <input id="deployment" type="file" accept="application/json,.json"></label>
     <button id="connect" type="button">Connect selected wallet</button><p id="identity">Not connected</p>
   </section>
   <nav aria-label="Mode"><button id="standalone-tab" type="button">Standalone account</button><button id="linked-tab" type="button">Linked responsibilities</button></nav>
-  <section id="standalone"><h2>Standalone account</h2><p>Original projection readers remain available independently. These actions manage an optional controlled account, not an escrow.</p>
+  <section id="standalone"><h2>Standalone account</h2><p>Projection readers and protocol settlement actions remain available independently. No responsibility controller or payment module is required.</p>
     <label>Token ID <input id="tokenId" inputmode="numeric" value="1"></label>
     <label>Historical instant (Unix seconds) <input id="instant" inputmode="numeric" value="0"></label>
     <div class="actions"><button data-read="asset">Read asset</button><button data-read="temporal">Query historical instant</button>
@@ -50,9 +52,35 @@
     <p>Compare up to 32 distinct token IDs on this deployment, with at most 2048 total entries per scan. A budget refusal produces no partial report. No collision found only applies to these tokens and reads, never the whole register. Registry locators are not resolved; sequential reads are not an atomic snapshot or transaction authority.</p>
     <label>Token IDs (decimal, comma-separated) <input id="collision-token-ids" value="1,2" maxlength="2560" spellcheck="false" autocomplete="off"></label>
     <button data-read="collisions" type="button">Compare public commitments and references (read only)</button>
+    <h3>Protocol settlement</h3>
+    <p>Prepare one ERC-8415 operation, review its authority and protocol checks, then explicitly continue in your own wallet. These are snapshots. An integrating contract should read holderAsOf, isFinalAsOf and openGapOf atomically inside the dependent transaction. A mined receipt is not protocol temporal finality.</p>
+    <label>Operation <select id="settlement-kind"><option value="beginSettlement">Begin settlement: open a gap</option><option value="finalizeSettlement">Finalize settlement: relay a proof</option><option value="cancelSettlement">Cancel settlement: close a gap without admission</option></select></label>
+    <label>Settlement ID (bytes32) <input id="settlement-id" spellcheck="false" autocomplete="off"></label>
+    <div class="fields">
+      <label>Expected holder (begin only) <input id="settlement-holder" spellcheck="false" autocomplete="off"></label>
+      <label>Snapshot hash (begin only, bytes32) <input id="settlement-snapshot" spellcheck="false" autocomplete="off"></label>
+      <label>Deadline (begin only, Unix seconds) <input id="settlement-deadline" inputmode="numeric"></label>
+      <label>Record commitment (finalize only, bytes32) <input id="settlement-commitment" spellcheck="false" autocomplete="off"></label>
+      <label>Registry reference (finalize only, opaque bytes32) <input id="settlement-reference" spellcheck="false" autocomplete="off"></label>
+      <label>Effective instant (finalize only, Unix seconds) <input id="settlement-effective" inputmode="numeric"></label>
+      <label>Public proof data (finalize only, hex; 64 KiB maximum) <input id="settlement-proof" value="0x" spellcheck="false" autocomplete="off"></label>
+      <label>Reason hash (cancel only, bytes32) <input id="settlement-reason" spellcheck="false" autocomplete="off"></label>
+    </div>
+    <p>Finalization is a permissionless proof relay. Only the contract verifies the proof under its verification profile; the wallet cannot verify legal identity or entitlement. Cancellation requires the recorded initiator after the deadline, closes only the contest, and makes no instant final.</p>
+    <button id="settlement-prepare" type="button">Prepare settlement review (no send)</button>
+    <pre id="settlement-terms">No settlement reviewed</pre>
+    <label><input id="settlement-ack" type="checkbox">I checked this exact chain, account, contract, parameters, authority, proof limits and consequences. I authorize one prompt and will verify gas and the final transaction in my wallet.</label>
+    <button id="settlement-send" type="button">Continue in my wallet to sign and submit</button><button id="settlement-dismiss" type="button">Dismiss settlement review</button>
+    <h3>Settlement receipt and recovery</h3>
+    <p>Unknown outcomes block another send across reloads. Never clear browser storage to bypass them. An explicit wallet cancellation requires a fresh review. Recover only from matching mined wallet activity; a different canonical same-nonce transaction can resolve the old intent without calling it successful. Two confirmations are a display threshold only.</p>
+    <button id="settlement-reconcile" type="button">Reconcile settlement receipt (read only)</button><button id="settlement-ack-terminal" type="button">Acknowledge verified terminal receipt</button>
+    <label>Transaction hash from wallet activity <input id="settlement-recovery-hash" spellcheck="false" autocomplete="off"></label>
+    <button id="settlement-recover" type="button">Verify and recover matching hash</button><button id="settlement-replacement" type="button">Verify a different transaction consumed the saved nonce</button>
+    <pre id="settlement-state">No settlement journal loaded</pre>
+    <div id="controlled-account-actions" hidden><h3>Optional controlled account</h3>
     <label>Withdrawal destination <input id="destination" spellcheck="false" autocomplete="off"></label>
     <div class="actions"><button data-action="create-account">Create account</button><button data-action="account">Read account</button>
-    <button data-action="deposit">Deposit owned token</button><button data-action="standalone-withdraw">Withdraw unencumbered token</button></div>
+    <button data-action="deposit">Deposit owned token</button><button data-action="standalone-withdraw">Withdraw unencumbered token</button></div></div>
   </section>
   <section id="linked" hidden><h2>Linked responsibilities</h2>
     <p>Completion needs both owner and admitted holder at the buyer occurrence or later. A completed prefix never becomes recallable again. Payment is optional and cannot authorize completion.</p>
@@ -76,10 +104,10 @@
     <label>Consent + disclosures JSON <input id="consent-file" type="file" accept="application/json,.json"></label>
     <button id="review">Prepare current review</button><pre id="terms">No review prepared</pre>
     <label><input id="acknowledge" type="checkbox">I accept this leg and all displayed active upstream conditions, including the named authorities and return boundary.</label>
-    <button id="accept">Sign reviewed consent</button><button id="forward">Forward with in-memory acceptance</button>
+    <button id="accept">Sign reviewed consent</button><button id="forward">Forward with in-memory acceptance</button><button id="consent-dismiss" type="button">Dismiss consent and acceptance</button>
     <p>After acceptance, select the selling wallet in your provider and reconnect before forwarding. The signature stays in this page's memory only and is cleared on reload.</p>
   </section>
-  <section aria-labelledby="agent-heading"><h2 id="agent-heading">Agent request inbox</h2>
+  <section id="agent-controls-panel" aria-labelledby="agent-heading" hidden><h2 id="agent-heading">Agent request inbox</h2>
     <p>An agent can prepare a public request for this selected testnet account. Its claimed name is not authenticated. Importing or reviewing never signs or sends. Every supported request needs your explicit review and a separate confirmation in your wallet.</p>
     <p>This first integration supports controlled-account creation, deposit, unencumbered withdrawal, prefix completion and one accepted return hop. It does not grant allowances, import signatures, execute arbitrary calldata or enable unattended trading. Linked forwarding keeps its separate informed-consent flow above.</p>
     <label>Public agent request JSON <input id="agent-file" type="file" accept="application/json,.json"></label>
@@ -89,7 +117,7 @@
     <button id="agent-execute" type="button">Send reviewed request to my wallet</button>
     <button id="agent-dismiss" type="button">Dismiss request</button>
   </section>
-  <section><h2>Recovery and execution state</h2><p id="recovery-guidance" class="release-notice" role="status">Connect the same wallet account, chain and deployment to inspect its saved operation. No automatic resend.</p><p>A submitted hash is not completion. Unknown outcomes block a second send. A refresh never automatically repeats a transaction.</p>
+  <section id="control-recovery-panel" hidden><h2>Responsibility recovery and execution state</h2><p id="recovery-guidance" class="release-notice" role="status">Connect the same wallet account, chain and deployment to inspect its saved operation. No automatic resend.</p><p>A submitted hash is not completion. Unknown outcomes block a second send. A refresh never automatically repeats a transaction.</p>
     <button id="recover">Reconcile existing submission (read only)</button><button id="ack-terminal">Acknowledge verified terminal receipt</button>
     <button id="discard-unprepared">Discard an interrupted intent only if no send template was prepared</button>
     <label>Transaction hash from your wallet activity (only for an unknown submission) <input id="recovery-hash" spellcheck="false"></label>
@@ -97,5 +125,6 @@
     <button id="superseded-nonce">Verify a different confirmed transaction consumed the saved nonce</button>
     <pre id="result" role="status" aria-live="polite">No execution performed</pre>
   </section>
+<section id="legacy-clearing-panel"></section>
 </main><footer>Record agreement is not verified legal identity. Registration delay, temporal finality, chain freshness, responsibility and payment are separate facts.</footer>
-<script type="module" src="app.mjs"></script><script type="module" src="external-assets.mjs"></script></body></html>
+<script type="module" src="app.mjs"></script><script type="module" src="external-assets.mjs"></script><script type="module" src="legacy-clearing.mjs"></script></body></html>

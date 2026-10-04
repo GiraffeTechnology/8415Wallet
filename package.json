@@ -2,7 +2,7 @@
   "name": "8415wallet",
   "version": "0.1.0",
   "private": true,
-  "description": "ERC-8415 temporal asset wallet, with the projection infrastructure it reads",
+  "description": "General-purpose wallet with existing wallet and asset standards compatibility and native ERC-8415 support",
   "license": "CC0-1.0",
   "type": "module",
   "engines": {
@@ -23,7 +23,13 @@
     "pack:v2:verify": "node scripts/package/verify-install.mjs",
     "pack:v3": "node scripts/package/build-v3.mjs",
     "pack:v3:verify": "node scripts/package/verify-install-v3.mjs",
-    "wallet:xiongan:smoke": "node scripts/controls/xiongan-ui-smoke.cjs"
+    "wallet:xiongan:smoke": "node scripts/controls/xiongan-ui-smoke.cjs",
+    "pack:dapp": "node scripts/package/build-dapp.mjs",
+    "pack:dapp:v2": "node scripts/package/build-dapp.mjs --profile v2",
+    "pack:dapp:v3": "node scripts/package/build-dapp.mjs --profile v3",
+    "pack:dapp:all": "npm run pack:dapp:v2 && npm run pack:dapp:v3",
+    "pack:dapp:verify": "node scripts/package/verify-dapp.mjs",
+    "test:package:dapp": "node --test tests/dapp-release.test.mjs"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^3.1.3",

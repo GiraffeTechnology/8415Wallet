@@ -1,18 +1,28 @@
-# V3 delivery candidate package
+# V3 beta package
 
-Date: 2026-09-26. Status: **CANDIDATE_NOT_INDEPENDENTLY_AUDITED_TESTNET_ONLY**.
+Date: 2026-10-03. Status: **BETA_FUNCTIONAL_TESTING_NOT_INDEPENDENTLY_AUDITED**.
+
+This document describes the **SDK/CLI package**, not the V3 DApp. The browser
+delivery, source manifest and deployment instructions are in
+[BETA-DAPP-DELIVERY.md](BETA-DAPP-DELIVERY.md).
+
+Public-chain execution, physical-device journeys and W-20 are collected during
+Beta testing. They are not prerequisites for producing the functional Beta.
+Independent security review remains uncompleted and is required before general
+release. The normal DApp deployment and agent-request inputs reject unsupported
+control chains; direct SDK use must apply its own network policy. There is no
+global SDK mainnet lock.
 
 `npm run pack:v3` builds it; `npm run pack:v3:verify` proves it installs and
 works from outside this repository, and that it tells the truth about itself.
 
-## Why a candidate and not a release
+## Beta assurance boundary
 
-V2 shipped as a product because its surface — the standalone reading client —
-is what the repository can stand behind. V3 adds the responsibility control
+The V2 SDK contains the narrower standalone reading and transaction surface. V3 adds the responsibility control
 kernel. Authenticated atomic adapters and alternate-path protection exist as
 development source, but the exact integration has not completed independent
 security and release acceptance. Publishing V3 as a release would overstate it,
-so it is published as a candidate instead: installable, integrable and
+so it is published as a Beta instead: installable, integrable and
 reviewable, with its status carried in the artifact name, the package
 metadata, and a notice the build refuses to omit.
 
@@ -24,7 +34,7 @@ package is audited, security-approved, production-ready or release-accepted.
 
 | Measure | Value |
 | --- | --- |
-| Artifact | `8415wallet-0.1.0-v3-candidate.tgz` |
+| Artifact | `8415wallet-3.0.0-beta.tgz` |
 | Entries / unpacked bytes | Measured in `dist/v3-package-manifest.json` per build |
 | Source modules compiled | Derived from the entry-point import graph per build |
 | Runtime dependencies | 0 |
@@ -50,8 +60,10 @@ tarball installed as a dependency:
 5. the browser entry ships;
 6. the Node operation store ships;
 7. the CLI runs from the installed package;
-8. it presents itself as a candidate: the version ends `-v3-candidate`, the
-   description says it is not independently audited, and the notice ships;
+8. it presents itself as a pre-release: the version carries a pre-release tag,
+   the description says it is not independently audited, and the notice ships.
+   The check tests the claim rather than a spelling, so a bare release version
+   such as `3.0.0` fails it;
 9. the consumer boundary contract ships with all required sections, while
    development instructions and coordination records are absent.
 
@@ -69,5 +81,5 @@ not a substitute for security review or a test result.
 - journeys on a physical device. Stage 5J's browser evidence is a real browser
   at an emulated phone viewport, which is not a handset.
 
-The V2 product package is unchanged and remains the surface without the
-unaudited kernel. Both can be built from the same commit.
+The V2 SDK remains the surface without the linked control kernel. Both SDKs
+and both DApps can be built from the same exact source commit.

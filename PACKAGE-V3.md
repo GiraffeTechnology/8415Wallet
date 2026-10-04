@@ -1,12 +1,12 @@
-# 8415wallet V3 candidate package
+# 8415wallet V3 Beta SDK package
 
-Status: **NOT_INDEPENDENTLY_AUDITED** · testnet use only · not a release.
+Status: **NOT_INDEPENDENTLY_AUDITED** · functional-testing Beta · not general-release acceptance.
 
 This tarball ships the surface the V2 package deliberately leaves out: the
 responsibility control kernel, its adapters and readers, the linked chain
-views, and the browser entry. It is prepared as a candidate so the work can
-be installed, integrated against and reviewed — not because it has passed the
-gates a release needs.
+views, and the browser entry. It is prepared as a Beta SDK for installation, integration and review. The
+versioned DApp archives are separate deliverables; this SDK does not replace
+the V2 or V3 browser package.
 
 ## What you get
 
@@ -47,12 +47,15 @@ inferences, responsibility/payment separation, execution recovery and release
 limitations. Development instructions and coordination records do not ship.
 Deployment and tests use CTYun/SIN Linux environments, not Windows hosts.
 
-## Xiongan external-account companion
+## External-account companion and tenant identity
 
-The browser entry additionally exports the Xiongan external-EOA companion. It
+The product is 8415wallet; Xiongan is a V2 tenant. The browser entry
+additionally exports the external-EOA companion. It
 recognizes Ethereum/Base and their selected testnets for ETH and standard NFTs;
-this source capability does not change the control package's testnet acceptance
-boundary. Do not treat mainnet recognition as authorization to fund an unreviewed
+this source capability does not change the testnet scope of Beta control
+acceptance. Normal DApp control inputs enforce supported testnets, while direct
+SDK consumers must supply their own chain policy. Do not treat mainnet recognition as authorization to fund an unreviewed
 client. The owner remains responsible for each genuine-wallet signing/submission
 decision. No agent key, standing grant or autonomous signer is included. Read
-`docs/XIONGAN-WALLET.md` for its separate custody, recovery and open gates.
+`docs/XIONGAN-WALLET.md` for its separate custody and recovery scope. See `docs/BETA-DAPP-DELIVERY.md`
+for the actual deployable DApp artifacts.

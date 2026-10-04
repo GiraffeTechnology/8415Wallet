@@ -51,8 +51,12 @@ console.log(JSON.stringify({
 
   const installed = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8'));
   const notice = readFileSync(join(packageRoot, 'PACKAGE-V3.md'), 'utf8');
-  check('ships as a candidate, not a release',
-    installed.version.endsWith('-v3-candidate') && /not independently audited/i.test(installed.description) &&
+  // What this guards is the claim, not a particular spelling of it. Any
+  // pre-release tag is acceptable; a bare release version is not, and neither
+  // is one whose description or notice drops the disclaimer.
+  check('ships as a pre-release, not an accepted release',
+    /^\d+\.\d+\.\d+-[0-9A-Za-z.-]+$/.test(installed.version) &&
+    /not independently audited/i.test(installed.description) &&
     notice.includes('NOT_INDEPENDENTLY_AUDITED'),
     installed.version);
   verifyBoundaryDocument(readFileSync(join(packageRoot, 'docs/INTEGRATION-BOUNDARIES.md'), 'utf8'));

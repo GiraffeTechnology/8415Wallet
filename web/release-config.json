@@ -1,0 +1,8 @@
+{
+  "schema": "8415wallet-release/1",
+  "product": "8415wallet",
+  "platform": "8415wallet.com",
+  "profile": "v3",
+  "tenant": { "id": "default", "label": "8415wallet" },
+  "deployment": { "environment": "unconfigured", "url": null }
+}

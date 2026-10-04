@@ -53,10 +53,16 @@ for (const f of DOCS) {
 }
 
 const dev = JSON.parse(readFileSync('package.json', 'utf8'));
+/**
+ * V2 and V3 are separate product lines that happen to share a repository, not
+ * two iterations of one. Each states its own version rather than deriving it
+ * from the repository's, so neither moves when the other does.
+ */
+const VERSION = '2.0.0';
 writeFileSync(join(stage, 'package.json'), `${JSON.stringify({
   name: '8415wallet',
-  version: dev.version,
-  description: 'ERC-8415 temporal asset wallet — V2 standalone reading client',
+  version: VERSION,
+  description: '8415wallet V2 SDK — standalone native ERC-8415 reading and transaction client for the general-purpose wallet',
   license: dev.license,
   type: 'module',
   engines: dev.engines,

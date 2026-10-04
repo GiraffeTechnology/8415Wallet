@@ -1,3 +1,6 @@
+import { getReleaseProfile } from './release-profile.mjs';
+import { BrowserSettlementStore } from './settlement-store.mjs';
+import { StandaloneSettlementSession, isAddressInput, TransactionWouldRevertError } from '../dist/browser/browser.js';
 import { acquireWalletUi, releaseWalletUi } from './ui-lock.mjs';
 import { ResponsibilityWalletSession, DetachedResponsibilityHistoryClient, ControlAdapterError, WalletSession, RpcErc8415Reader, Eip1193ReadTransport,
   renderAssetView, renderTemporalQuery, renderHistory, renderRegistration, renderAcquisitionDisclosure,
@@ -15,6 +18,16 @@ const number = id => integer(value(id));
 const bytes = (text, size) => { if (!new RegExp(`^0x[0-9a-fA-F]{${size * 2}}$`).test(text)) fail('CONTROL_HEX_REFUSED'); return text.toLowerCase(); };
 let deployment = null, provider = null, session = null, plainWallet = null, actor = null, review = null, signed = null, busy = false;
 let agentRequestText = null, agentReview = null;
+let settlementSession = null, settlementReview = null, settlementReviewRevision = 0n, consentRevision = 0n;
+let releaseProfile = null;
+const releaseReady = getReleaseProfile().then(profile => {
+  releaseProfile = profile;
+  el('release-profile').textContent = `${profile.product} · ${profile.version} · ${profile.platform} · tenant: ${profile.tenant.label}`;
+  el('linked-tab').hidden = !profile.features.linkedResponsibilities;
+  el('controlled-account-actions').hidden = false;
+  el('agent-controls-panel').hidden = false;
+  el('control-recovery-panel').hidden = false;
+}).catch(() => { el('release-profile').textContent = 'Release configuration unavailable. Signing is disabled; reload a verified artifact.'; });
 let connectionRevision = 0n, operationRevision = 0n;
 function requireCurrentConnection() {
   if (operationRevision !== connectionRevision) fail('CONTROL_CONNECTION_CHANGED');
@@ -24,7 +37,17 @@ function clearAgentReview() {
   agentRequestText = null; agentReview = null;
   el('agent-acknowledge').checked = false; el('agent-terms').textContent = 'No agent request reviewed';
 }
+function clearConsent(discardAcceptance = true) {
+  consentRevision++; review = null; if (discardAcceptance) signed = null;
+  el('acknowledge').checked = false; el('terms').textContent = 'No review prepared';
+}
+function clearSettlementReview() {
+  settlementReviewRevision++; settlementReview = null;
+  el('settlement-ack').checked = false; el('settlement-terms').textContent = 'No settlement reviewed';
+}
 function clearConnection() {
+  clearConsent(false); clearSettlementReview(); settlementSession = null;
+  el('settlement-state').textContent = 'Reconnect the same account and deployment to inspect the saved settlement. No automatic resend.';
   clearAgentReview(); el('recovery-guidance').textContent = recoveryGuidance(null);
   connectionRevision++; session = null; plainWallet = null; actor = null; review = null;
   el('acknowledge').checked = false; el('terms').textContent = 'No review prepared';
@@ -37,10 +60,11 @@ async function run(fn, reconnect = false) {
   if (reconnect) clearConnection();
   operationRevision = connectionRevision;
   busy = true; document.querySelectorAll('button,input,select').forEach(n => { n.disabled = true; });
-  try { await fn(); } catch (e) {
+  try { if (!releaseProfile) await releaseReady; if (!releaseProfile) fail('CONTROL_RELEASE_PROFILE_REFUSED'); await fn(); } catch (e) {
     // Provider, RPC and DOM exception text is never rendered, logged or persisted.
     renderResult(operationRevision !== connectionRevision ? 'CONTROL_CONNECTION_CHANGED' :
-      e instanceof ControlAdapterError ? e.code : 'CONTROL_UI_OPERATION_REFUSED');
+      e instanceof ControlAdapterError ? (e.code === 'CONTROL_PROVIDER_REQUEST_REJECTED' ? 'Wallet request cancelled. Prepare and acknowledge a fresh review before trying again.' : e.code) :
+      e instanceof TransactionWouldRevertError ? { action: e.kind, refusedChecks: e.checks, transactionSent: false } : 'CONTROL_UI_OPERATION_REFUSED');
   } finally {
     if (session && operationRevision === connectionRevision) {
       const current = session;
@@ -48,6 +72,12 @@ async function run(fn, reconnect = false) {
         const state = await current.status();
         if (current === session && operationRevision === connectionRevision) el('recovery-guidance').textContent = recoveryGuidance(state);
       } catch { el('recovery-guidance').textContent = 'Saved state unavailable. Do not resend or clear browser storage. Reconnect the same account and deployment.'; }
+    }
+    if (settlementSession && operationRevision === connectionRevision) {
+      const current = settlementSession;
+      try { const state = await current.status();
+        if (current === settlementSession && operationRevision === connectionRevision) el('settlement-state').textContent = JSON.stringify(state, (_k, v) => typeof v === 'bigint' ? v.toString() : v, 2);
+      } catch { if (current === settlementSession && operationRevision === connectionRevision) el('settlement-state').textContent = 'Saved settlement unavailable. Do not resend or clear storage. Reconnect the same account and deployment.'; }
     }
     busy = false; releaseWalletUi(uiLock); document.querySelectorAll('button,input,select').forEach(n => { n.disabled = false; });
   }
@@ -96,11 +126,15 @@ el('connect').addEventListener('click', () => run(async () => {
   } };
   const nextWallet = new WalletSession(new RpcErc8415Reader(new Eip1193ReadTransport(connectedProvider, deployment.chainId),
     deployment.chainId, deployment.token.controller), { account: connected });
+  const nextSettlement = new StandaloneSettlementSession(connectedProvider, deployment.token, connected,
+    new BrowserSettlementStore(deployment.chainId, deployment.token.controller, connected),
+    () => { if (capturedRevision !== connectionRevision) fail('CONTROL_CONNECTION_CHANGED'); }, nextWallet);
+  await nextSettlement.status();
   const nextSession = deployment.controller === null ? null : new ResponsibilityWalletSession(connectedProvider, deployment.controller, connected,
     new BrowserPublicOperationStore(deployment.chainId, deployment.controller.controller, connected), deployment.payment);
   const state = nextSession ? await nextSession.status() : 'Standalone wallet connected; no responsibility or payment module required.';
   requireCurrentConnection();
-  actor = connected; plainWallet = nextWallet; session = nextSession;
+  actor = connected; plainWallet = nextWallet; session = nextSession; settlementSession = nextSettlement;
   el('identity').textContent = `Chain ${deployment.chainId} · selected account ${actor}`;
   display(state);
 }, true));
@@ -137,10 +171,11 @@ document.querySelectorAll('[data-read]').forEach(button => button.addEventListen
   }
   if (wallet !== plainWallet) fail('CONTROL_CONNECTION_CHANGED'); display(output);
 })));
-el('standalone-tab').addEventListener('click', () => { el('standalone').hidden = false; el('linked').hidden = true; });
-el('linked-tab').addEventListener('click', () => { el('standalone').hidden = true; el('linked').hidden = false; });
+el('standalone-tab').addEventListener('click', () => { clearConsent(false); clearSettlementReview(); el('standalone').hidden = false; el('linked').hidden = true; });
+el('linked-tab').addEventListener('click', () => { if (!releaseProfile?.features.linkedResponsibilities) return; clearConsent(false); clearSettlementReview(); el('standalone').hidden = true; el('linked').hidden = false; });
 document.querySelectorAll('[data-action]').forEach(button => button.addEventListener('click', () => run(async () => {
   const s = selected(), kind = button.dataset.action;
+  if (!releaseProfile.features.linkedResponsibilities && !['create-account', 'account', 'deposit', 'standalone-withdraw'].includes(kind)) fail('CONTROL_RELEASE_PROFILE_REFUSED');
   if (kind === 'account') { display(await s.accounts.account(actor)); return; }
   if (kind === 'read-detached-history') {
     const archive = new DetachedResponsibilityHistoryClient(provider, deployment.controller);
@@ -167,7 +202,7 @@ document.querySelectorAll('[data-action]').forEach(button => button.addEventList
       payments: s.payments ? payments : 'not configured — responsibility remains independent', readOnly: true }); return;
   }
   let operation;
-  if (kind === 'deposit' || kind === 'standalone-withdraw') operation = { kind, token: deployment.token, tokenId: number('tokenId'), ...(kind === 'standalone-withdraw' ? { destination: bytes(value('destination'), 20) } : {}) };
+  if (kind === 'deposit' || kind === 'standalone-withdraw') operation = { kind, token: deployment.token, tokenId: number('tokenId'), ...(kind === 'standalone-withdraw' ? { destination: addressInput(value('destination')) } : {}) };
   else if (kind === 'reserve-payment') {
     if (!signed) fail('CONTROL_IN_MEMORY_CONSENT_REQUIRED');
     operation = { kind, consent: signed.consent };
@@ -191,27 +226,33 @@ document.querySelectorAll('[data-action]').forEach(button => button.addEventList
   }
   display(await s.execute(operation));
 })));
+el('consent-file').addEventListener('change', () => clearConsent());
+el('consent-dismiss').addEventListener('click', () => clearConsent());
 el('review').addEventListener('click', () => run(async () => {
-  const s = selected(); review = null; signed = null; el('acknowledge').checked = false;
+  clearConsent(); if (!releaseProfile.features.linkedResponsibilities) fail('CONTROL_RELEASE_PROFILE_REFUSED');
+  const s = selected(), revision = consentRevision;
   const input = await jsonFile('consent-file', 2300000);
   requireCurrentConnection();
   if (!input || Object.keys(input).sort().join(',') !== 'consent,documents') fail('CONTROL_PUBLIC_DOCUMENT_REFUSED');
   for (const k of ['expectedRevision', 'tokenId', 'deadline', 'recipientNonce', 'paymentAmount']) input.consent[k] = integer(input.consent[k]);
   for (const d of [input.documents.incoming, ...input.documents.inherited]) if (d.terms.scheme === 'native-payment-v1') d.terms.amount = integer(d.terms.amount);
   const prepared = await s.consent.prepare(input.consent, actor, input.documents);
-  requireCurrentConnection(); review = prepared;
+  requireCurrentConnection(); if (revision !== consentRevision || s !== session) fail('CONTROL_REVIEW_CHANGED'); review = prepared;
   el('terms').textContent = JSON.stringify(review, (_k, v) => typeof v === 'bigint' ? v.toString() : v, 2);
   display('Review ready. No signature or transaction requested.');
 }));
 el('accept').addEventListener('click', () => run(async () => {
+  if (!releaseProfile.features.linkedResponsibilities) fail('CONTROL_RELEASE_PROFILE_REFUSED');
   const s = selected(); if (!review || !el('acknowledge').checked) fail('CONTROL_REVIEW_ACKNOWLEDGEMENT_REFUSED');
-  const r = review; review = null; el('acknowledge').checked = false;
+  const r = review; clearConsent(); const revision = consentRevision;
   const signature = await s.consent.accept(r, r.digest);
   requireCurrentConnection();
+  if (revision !== consentRevision || s !== session) fail('CONTROL_REVIEW_CHANGED');
   signed = { consent: r.consent, recipientSignature: signature };
   display({ acceptedDigest: r.digest, signatureStored: false, transactionSent: false });
 }));
 el('forward').addEventListener('click', () => run(async () => {
+  if (!releaseProfile.features.linkedResponsibilities) fail('CONTROL_RELEASE_PROFILE_REFUSED');
   const s = selected(); if (!signed) fail('CONTROL_IN_MEMORY_CONSENT_REQUIRED');
   const acceptance = signed; signed = null;
   display(await s.execute({ kind: 'control', action: { kind: 'forward', ...acceptance } }));
@@ -248,6 +289,7 @@ el('agent-review').addEventListener('click', () => run(async () => {
   if (!file || file.size > 8192) fail('AGENT_REQUEST_SIZE_REFUSED');
   const text = await file.text(); requireCurrentConnection();
   const prepared = reviewAgentRequest(text, await agentContext());
+  requireOperationProfile(prepared.operation);
   requireCurrentConnection(); agentRequestText = text; agentReview = prepared;
   el('agent-terms').textContent = JSON.stringify(prepared, (_k, v) => typeof v === 'bigint' ? v.toString() : v, 2);
   display('Agent request reviewed. No signature or transaction requested. The claimed agent name is unverified.');
@@ -259,6 +301,48 @@ el('agent-execute').addEventListener('click', () => run(async () => {
   // Consume review before any asynchronous work. Repeated clicks cannot reuse it.
   clearAgentReview();
   const fresh = reviewAgentRequest(text, await agentContext());
+  requireOperationProfile(fresh.operation);
   if (s !== session || fresh.digest !== prior.digest) fail('AGENT_REVIEW_CHANGED');
   display(await s.execute(fresh.operation));
 }));
+
+const addressInput = text => { if (!isAddressInput(text)) fail('CONTROL_ADDRESS_REFUSED'); return text.toLowerCase(); };
+const settlementSelected = () => { if (!settlementSession) fail('CONTROL_CONNECTION_REQUIRED'); return settlementSession; };
+for (const id of ['settlement-kind', 'settlement-id', 'settlement-holder', 'settlement-snapshot', 'settlement-deadline',
+  'settlement-commitment', 'settlement-reference', 'settlement-effective', 'settlement-proof', 'settlement-reason', 'tokenId']) {
+  el(id).addEventListener('input', clearSettlementReview); el(id).addEventListener('change', clearSettlementReview);
+}
+el('settlement-dismiss').addEventListener('click', clearSettlementReview);
+el('settlement-prepare').addEventListener('click', () => run(async () => {
+  clearSettlementReview(); const s = settlementSelected(), revision = settlementReviewRevision;
+  const kind = value('settlement-kind'), settlementId = bytes(value('settlement-id'), 32); let params;
+  if (kind === 'beginSettlement') params = { tokenId: number('tokenId'), settlementId, expectedHolder: addressInput(value('settlement-holder')),
+    snapshotHash: bytes(value('settlement-snapshot'), 32), deadline: number('settlement-deadline') };
+  else if (kind === 'finalizeSettlement') params = { settlementId, recordCommitment: bytes(value('settlement-commitment'), 32),
+    registryReference: bytes(value('settlement-reference'), 32), effectiveAt: number('settlement-effective'), proofData: value('settlement-proof') };
+  else if (kind === 'cancelSettlement') params = { settlementId, reasonHash: bytes(value('settlement-reason'), 32) };
+  else fail('SETTLEMENT_ACTION_REFUSED');
+  const prepared = await s.prepare({ kind, params }); requireCurrentConnection();
+  if (revision !== settlementReviewRevision || s !== settlementSession) fail('SETTLEMENT_REVIEW_CHANGED');
+  settlementReview = prepared; el('settlement-terms').textContent = JSON.stringify(prepared, (_k, v) => typeof v === 'bigint' ? v.toString() : v, 2);
+  display('Settlement review prepared. Check authority, contract identity, all consequences and the wallet prompt. Nothing sent.');
+}));
+el('settlement-send').addEventListener('click', () => run(async () => {
+  const s = settlementSelected(); if (!settlementReview || !el('settlement-ack').checked) fail('SETTLEMENT_REVIEW_REQUIRED');
+  const accepted = settlementReview; clearSettlementReview();
+  display({ transactionHash: await s.submit(accepted, accepted.digest), protocolFinality: 'not-evaluated' });
+}));
+el('settlement-reconcile').addEventListener('click', () => run(async () => { display(await settlementSelected().reconcile()); }));
+el('settlement-recover').addEventListener('click', () => run(async () => { display(await settlementSelected().recover(bytes(value('settlement-recovery-hash'), 32))); }));
+el('settlement-replacement').addEventListener('click', () => run(async () => { display(await settlementSelected().acknowledgeReplacement(bytes(value('settlement-recovery-hash'), 32))); }));
+el('settlement-ack-terminal').addEventListener('click', () => run(async () => { const s = settlementSelected(); await s.acknowledge(); display(await s.status()); }));
+
+// A restored history entry must not reuse a review or signature from the old page lifecycle.
+globalThis.addEventListener?.('pagehide', () => { signed = null; clearConnection(); });
+globalThis.addEventListener?.('pageshow', event => { if (event.persisted) { signed = null; clearConnection(); } });
+
+function requireOperationProfile(operation) {
+  if (releaseProfile?.features.linkedResponsibilities) return;
+  if (['deposit', 'standalone-withdraw'].includes(operation.kind) || operation.kind === 'control' && operation.action.kind === 'create-account') return;
+  fail('CONTROL_RELEASE_PROFILE_REFUSED');
+}

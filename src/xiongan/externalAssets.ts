@@ -2,14 +2,18 @@ import type { Eip1193Provider } from '../adapters/signing/eip1193Signer.ts';
 import { encodeCall, encodeCallWithTail } from '../codec/abi.ts';
 import { keccak256Utf8 } from '../codec/keccak.ts';
 import { isAddressInput } from './address.ts';
-import { controlHex, controlRpc, controlPendingNonce, hashControlBytes, requireControlAdapter as check } from '../controls/authorization.ts';
+import { controlHex, controlRpc, controlPendingNonce, hashControlBytes, isControlProviderRejection, requireControlAdapter as check } from '../controls/authorization.ts';
 
 export const ASSET_CHAINS = Object.freeze({ '1': 'Ethereum', '8453': 'Base', '11155111': 'Sepolia', '84532': 'Base Sepolia' });
 type PublicObject = Record<string, unknown>;
 export type AssetTransaction = { from: string; to: string; chainId: string; value: string; data: string; nonce: string };
+export type Erc20Metadata = { name: string | null; symbol: string | null; decimals: number | null };
+export type Erc20Balance = { chainId: string; account: string; contract: string; balanceRaw: string;
+  displayBalance: string | null; metadata: Erc20Metadata; codeHash: string; blockNumber: string; blockHash: string };
 export type AssetReview = { requestText: string; requestId: string; claimedAgent: string; expiresAt: string;
   chain: string; asset: string; recipient: string; amount: string; tokenId: string | null;
-  transaction: AssetTransaction; codeHash: string | null; digest: string };
+  transaction: AssetTransaction; codeHash: string | null; tokenMetadata: Erc20Metadata | null;
+  displayAmount: string | null; digest: string };
 export type AssetState = { schema: 'xiongan-asset-operation/1'; revision: number; chainId: string; actor: string;
   status: 'idle' | 'outcome-unknown' | 'submitted'; transaction: AssetTransaction | null; transactionHash: string | null; digest: string | null };
 export type AssetStore = { read(): Promise<AssetState | null>; compareAndSwap(expected: number | null, next: AssetState): Promise<boolean> };
@@ -22,6 +26,29 @@ function obj(v: unknown, keys?: string[]): PublicObject {
 function addr(v: unknown): string { check(controlHex(v, 20) && !/^0x0+$/i.test(v), 'ASSET_ADDRESS_REFUSED'); return v.toLowerCase(); }
 function inputAddr(v: unknown): string { check(isAddressInput(v), 'ASSET_ADDRESS_REFUSED'); return v.toLowerCase(); }
 function uint(v: unknown): bigint { check(typeof v === 'string' && /^(0|[1-9][0-9]{0,77})$/.test(v) && BigInt(v) < 1n << 256n, 'ASSET_INTEGER_REFUSED'); return BigInt(v); }
+/** Exact display conversion only. Amount inputs always remain integer raw units. */
+export function formatTokenUnits(amount: string, decimals: number): string {
+  check(Number.isInteger(decimals) && decimals >= 0 && decimals <= 255, 'ASSET_DECIMALS_REFUSED');
+  const value = uint(amount), unit = 10n ** BigInt(decimals);
+  const fraction = (value % unit).toString().padStart(decimals, '0').replace(/0+$/, '');
+  return `${value / unit}${fraction ? `.${fraction}` : ''}`;
+}
+/** Optional display-only metadata. Reject malformed ABI, oversized text, control
+ * characters and bidirectional spoofing; never use metadata as token identity. */
+function metadataText(value: unknown): string | null {
+  if (!controlHex(value) || value.length < 130 || value.length > 386) return null;
+  const body = value.slice(2);
+  if (BigInt(`0x${body.slice(0, 64)}`) !== 32n) return null;
+  const length = BigInt(`0x${body.slice(64, 128)}`);
+  if (length === 0n || length > 128n) return null;
+  const size = Number(length), padded = Math.ceil(size / 32) * 64;
+  if (body.length !== 128 + padded || !/^0*$/.test(body.slice(128 + size * 2))) return null;
+  const bytes = Uint8Array.from(body.slice(128, 128 + size * 2).match(/../g)!, byte => Number.parseInt(byte, 16));
+  let text: string;
+  try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { return null; }
+  if (/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(text) || text.trim().length === 0) return null;
+  return text;
+}
 /** Exact display conversion only; transaction inputs remain explicit integer wei. */
 export function formatWeiAsEth(valueWei: string): string {
   const value = uint(valueWei), unit = 10n ** 18n;
@@ -94,6 +121,34 @@ export class ExternalAssetSession {
     check(hash(again.hash) === blockHash, 'ASSET_SNAPSHOT_REORGED'); await this.#identity();
     return { chainId: this.chainId, account: this.actor, balanceWei, blockNumber: number, blockHash };
   }
+  async #erc20Metadata(contract: string, block: string): Promise<Erc20Metadata> {
+    const optional = async (signature: string) => {
+      try { return await this.#rpc('eth_call', [{ to: contract, data: encodeCall(signature, [], []) }, block]); }
+      catch { return null; }
+    };
+    const name = metadataText(await optional('name()')), symbol = metadataText(await optional('symbol()'));
+    const raw = await optional('decimals()');
+    const decimals = controlHex(raw, 32) && BigInt(raw) <= 255n ? Number(BigInt(raw)) : null;
+    return Object.freeze({ name, symbol, decimals });
+  }
+  /** Explicit address on the selected chain; no ERC-165 claim or automatic
+   * discovery. Missing optional metadata never invents a symbol or 18 decimals. */
+  async erc20Balance(contractInput: string): Promise<Erc20Balance> {
+    const contract = inputAddr(contractInput); await this.#identity();
+    const header = obj(await this.#rpc('eth_getBlockByNumber', ['latest', false]));
+    const blockNumber = hex(quantity(header.number)), blockHash = hash(header.hash);
+    const code = await this.#rpc('eth_getCode', [contract, blockNumber]);
+    check(controlHex(code) && code.length > 2, 'ASSET_TOKEN_CODE_REQUIRED');
+    const balance = await this.#rpc('eth_call', [{ to: contract,
+      data: encodeCall('balanceOf(address)', ['address'], [this.actor]) }, blockNumber]);
+    check(controlHex(balance, 32), 'ASSET_ERC20_BALANCE_REFUSED');
+    const balanceRaw = BigInt(balance).toString(), metadata = await this.#erc20Metadata(contract, blockNumber);
+    check(hash(obj(await this.#rpc('eth_getBlockByNumber', [blockNumber, false])).hash) === blockHash, 'ASSET_SNAPSHOT_REORGED');
+    await this.#identity();
+    return Object.freeze({ chainId: this.chainId, account: this.actor, contract, balanceRaw,
+      displayBalance: metadata.decimals === null ? null : formatTokenUnits(balanceRaw, metadata.decimals),
+      metadata, codeHash: hashControlBytes(code), blockNumber, blockHash });
+  }
   async prepare(text: string): Promise<AssetReview> {
     const { r, chainId, actor, expiresAt, action } = parseRequest(text);
     check(chainId === this.chainId && actor === this.actor, 'ASSET_REQUEST_BINDING_REFUSED');
@@ -103,11 +158,24 @@ export class ExternalAssetSession {
     const nonce = controlPendingNonce(await this.#rpc('eth_getTransactionCount', [actor, 'pending']));
     const recipient = inputAddr(action.recipient); check(recipient !== actor, 'ASSET_SELF_TRANSFER_REFUSED');
     let to = recipient, value = 0n, data = '0x', codeHash: string | null = null, asset = 'ETH', amount: string, tokenId: string | null = null;
+    let tokenMetadata: Erc20Metadata | null = null, displayAmount: string | null = null;
     if (action.kind === 'native-transfer') {
       obj(action, ['kind', 'recipient', 'valueWei']); value = uint(action.valueWei); check(value > 0n, 'ASSET_AMOUNT_REFUSED');
       check(quantity(await this.#rpc('eth_getBalance', [actor, block])) > value, 'ASSET_BALANCE_OR_GAS_INSUFFICIENT'); amount = value.toString();
       // No calldata and no hidden contract invocation from an alleged ETH transfer.
       check(await this.#rpc('eth_getCode', [recipient, block]) === '0x', 'ASSET_NATIVE_RECIPIENT_EOA_REQUIRED');
+    } else if (action.kind === 'erc20-transfer') {
+      obj(action, ['kind', 'recipient', 'contract', 'amount']);
+      to = inputAddr(action.contract); const n = uint(action.amount); check(n > 0n, 'ASSET_AMOUNT_REFUSED');
+      const code = await this.#rpc('eth_getCode', [to, block]);
+      check(controlHex(code) && code.length > 2, 'ASSET_TOKEN_CODE_REQUIRED'); codeHash = hashControlBytes(code);
+      const balance = await this.#rpc('eth_call', [{ to, data: encodeCall('balanceOf(address)', ['address'], [actor]) }, block]);
+      check(controlHex(balance, 32), 'ASSET_ERC20_BALANCE_REFUSED');
+      check(BigInt(balance) >= n, 'ASSET_ERC20_BALANCE_INSUFFICIENT');
+      tokenMetadata = await this.#erc20Metadata(to, block);
+      data = encodeCall('transfer(address,uint256)', ['address', 'uint256'], [recipient, n]);
+      asset = 'ERC-20'; amount = n.toString();
+      displayAmount = tokenMetadata.decimals === null ? null : formatTokenUnits(amount, tokenMetadata.decimals);
     } else {
       check(action.kind === 'erc721-transfer' || action.kind === 'erc1155-transfer', 'ASSET_ACTION_UNSUPPORTED');
       obj(action, action.kind === 'erc721-transfer' ? ['kind', 'recipient', 'contract', 'tokenId'] : ['kind', 'recipient', 'contract', 'tokenId', 'amount']);
@@ -129,12 +197,18 @@ export class ExternalAssetSession {
       }
     }
     const transaction = { from: actor, to, chainId: hex(BigInt(chainId)), value: hex(value), data, nonce: hex(nonce) };
+    if (asset === 'ERC-20') {
+      // Some widely deployed legacy tokens return no value. Exact true or empty
+      // may proceed; false, noncanonical booleans and malformed data never do.
+      const result = await this.#rpc('eth_call', [structuredClone(transaction), block]);
+      check(result === '0x' || (controlHex(result, 32) && BigInt(result) === 1n), 'ASSET_ERC20_TRANSFER_RETURN_REFUSED');
+    }
     // Simulation failure is unavailable, never authorization. Gas fees remain a wallet decision.
-    quantity(await this.#rpc('eth_estimateGas', [transaction]));
+    quantity(await this.#rpc('eth_estimateGas', [structuredClone(transaction)]));
     check(hash(obj(await this.#rpc('eth_getBlockByNumber', [block, false])).hash) === blockHash, 'ASSET_SNAPSHOT_REORGED');
     await this.#identity();
     const summary = { requestId: r.requestId as string, claimedAgent: r.agent as string, expiresAt: expiresAt.toString(),
-      chain: ASSET_CHAINS[chainId as keyof typeof ASSET_CHAINS], asset, recipient, amount, tokenId, transaction, codeHash };
+      chain: ASSET_CHAINS[chainId as keyof typeof ASSET_CHAINS], asset, recipient, amount, tokenId, transaction, codeHash, tokenMetadata, displayAmount };
     Object.freeze(transaction);
     return Object.freeze({ ...summary, requestText: text, digest: keccak256Utf8(JSON.stringify(summary)) });
   }
@@ -148,8 +222,8 @@ export class ExternalAssetSession {
       const fresh = await this.prepare(original.requestText); check(fresh.digest === original.digest && JSON.stringify(fresh) === JSON.stringify(original), 'ASSET_REVIEW_CHANGED');
       const reserved: AssetState = { ...state, revision: state.revision + 1, status: 'outcome-unknown', transaction: fresh.transaction, transactionHash: null, digest: fresh.digest };
       check(await this.#store.compareAndSwap(state.revision, reserved), 'ASSET_OPERATION_CONCURRENT');
-      // Clear only if our own guard/reads fail BEFORE invoking the send boundary.
-      // A provider rejection or timeout after invocation always remains unknown.
+      // Clear only for a pre-send failure or a direct EIP-1193 user refusal.
+      // Ambiguous provider/transport failures and timeouts remain unknown.
       let sendInvoked = false;
       let transactionHash: string;
       try {
@@ -159,10 +233,16 @@ export class ExternalAssetSession {
         const guarded = { request: (args: { method: string; params?: readonly unknown[] }) => {
           this.#connectionGuard(); sendInvoked = true; return this.#provider.request(args);
         } };
-        transactionHash = hash(await controlRpc(guarded, 'eth_sendTransaction', [fresh.transaction]));
+        transactionHash = hash(await controlRpc(guarded, 'eth_sendTransaction', [structuredClone(fresh.transaction)]));
       } catch (error) {
-        if (!sendInvoked) await this.#store.compareAndSwap(reserved.revision, { ...reserved, revision: reserved.revision + 1,
-          status: 'idle', transaction: null, transactionHash: null, digest: null });
+        const rejected = isControlProviderRejection(error, 'eth_sendTransaction');
+        if (!sendInvoked || rejected) {
+          let cleared = false;
+          try { cleared = await this.#store.compareAndSwap(reserved.revision, { ...reserved, revision: reserved.revision + 1,
+            status: 'idle', transaction: null, transactionHash: null, digest: null }); }
+          catch { /* Preserve an unresolved journal if cancellation was not durably saved. */ }
+          check(cleared, rejected ? 'ASSET_REJECTION_PERSISTENCE_UNCERTAIN' : 'ASSET_OPERATION_PERSISTENCE_UNCERTAIN');
+        }
         throw error;
       }
       check(await this.#store.compareAndSwap(reserved.revision, { ...reserved, revision: reserved.revision + 1, status: 'submitted', transactionHash }), 'ASSET_PERSISTENCE_UNCERTAIN');
@@ -187,7 +267,24 @@ export class ExternalAssetSession {
     const head = quantity(await this.#rpc('eth_blockNumber', [])); if (head < blockNumber) return output('reorged');
     const count = head - blockNumber + 1n, status = quantity(receipt.status); check(status === 0n || status === 1n, 'ASSET_RECEIPT_STATUS_REFUSED');
     if (count < confirmations) return output('confirming', count);
-    if (status === 1n && expected.data !== '0x') {
+    if (status === 1n && expected.data.startsWith('0xa9059cbb')) {
+      check(expected.data.length === 138 && Array.isArray(receipt.logs), 'ASSET_ERC20_EFFECT_UNOBSERVED');
+      const from = `0x${'0'.repeat(24)}${expected.from.slice(2)}`;
+      const recipient = `0x${expected.data.slice(10, 74)}`, amount = `0x${expected.data.slice(74, 138)}`;
+      const signature = keccak256Utf8('Transfer(address,address,uint256)');
+      const effect = receipt.logs.some((raw: unknown) => {
+        const log = obj(raw);
+        if (log.transactionHash !== transactionHash || log.blockHash !== blockHash || quantity(log.blockNumber) !== blockNumber ||
+          quantity(log.transactionIndex) !== quantity(receipt.transactionIndex) || log.removed !== false) return false;
+        if (typeof log.address !== 'string' || log.address.toLowerCase() !== expected.to || !Array.isArray(log.topics)) return false;
+        const topics = log.topics.map((t: unknown) => typeof t === 'string' ? t.toLowerCase() : '');
+        return topics.length === 3 && topics[0] === signature && topics[1] === from && topics[2] === recipient &&
+          typeof log.data === 'string' && log.data.toLowerCase() === amount;
+      });
+      // An exact event is execution evidence, not a promise about future balances
+      // or nonstandard fee/rebase economics. A mismatched event stays unresolved.
+      check(effect, 'ASSET_ERC20_EFFECT_UNOBSERVED');
+    } else if (status === 1n && expected.data !== '0x') {
       check(Array.isArray(receipt.logs), 'ASSET_NFT_EFFECT_UNOBSERVED');
       const from = `0x${'0'.repeat(24)}${expected.from.slice(2)}`, recipient = `0x${expected.data.slice(74, 138)}`;
       const id = expected.data.slice(138, 202), is721 = expected.data.startsWith('0x42842e0e');

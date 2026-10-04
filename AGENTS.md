@@ -1,19 +1,31 @@
-# ERC-8415 Wallet AGENTS.md
+# 8415wallet AGENTS.md
 
 ## Product Boundary
 
-8415Wallet is an application-layer wallet and reference client for ERC-8415
-asynchronous register projection.
+8415wallet is a general-purpose application-layer wallet compatible with
+existing wallet and asset standards, with native ERC-8415 asynchronous register
+projection support. Native ERC-8415 features are additive and do not make the
+product exclusive to ERC-8415 assets. Report implemented and tested standards
+separately from the broader compatibility requirement.
 
 It is NOT:
 
-- a generic NFT wallet;
 - an ERC-3643 wallet clone;
 - a marketplace, order book or matching engine;
 - a replacement for ERC-8415 protocol semantics;
 - an adjudicator of legal title, entitlement or remedy.
 
-The wallet MUST consume ERC-8415 semantics, not redefine them.
+For its native ERC-8415 surface, the wallet MUST consume ERC-8415 semantics,
+not redefine them. Existing-standard asset flows retain their own interfaces
+and must not be required to advertise ERC-8415 support.
+
+Product identity is **8415wallet**; its UI platform domain is
+**8415wallet.com**. **Xiongan is a V2 tenant**, not a separate product.
+V2 and V3 are versioned DApp Beta deliveries mapped to the retained v2.2
+foundation and additive v3.0 requirements. SDK packages are separate integration
+artifacts and do not replace either DApp. Keep the exact implemented/tested
+standard and provider matrix in `docs/STANDARDS-COMPATIBILITY.md`, without
+claiming exhaustive validation of all existing standards.
 
 The product supports both standalone and linked use. v3.0 is an additive
 iteration on the original wallet: retain its readers, views, transaction path
@@ -75,7 +87,7 @@ commercial obligation is application state, not new ERC state.
 
 ## Core Semantic Rules
 
-The wallet MUST read, and MUST render distinctly:
+For a conforming ERC-8415 asset, the wallet MUST read and render distinctly:
 
 - `holderAsOf(tokenId, instant)` — the confirmed holder at an instant;
 - `entryAsOf(tokenId, instant)` — the entry whose effective interval covers it;
@@ -340,16 +352,27 @@ Conformance is discovered, not assumed:
    cancelled gap cannot invent an unaccepted callback condition.
 10. CP-01 is closed as a product decision by the rule above. Do not reopen it
     using the superseded proposed completion profile. Implementation,
-    enforcement and W-01–W-21 evidence remain required.
+    enforcement and W-01–W-24 evidence remain required.
 11. Develop responsibility controls as an independent module, not a wrapper
     around escrow. The local kernel is an uncommitted proposal generator, not
     verified consent or account enforcement. Its input facts are a trust boundary.
-    Do not connect it to signing/execution before authenticated atomic adapters,
-    alternate-path protection and independent security audit are complete.
+    Signing/execution must use authenticated atomic adapters and alternate-path
+    protection. Functional Beta testing on authorized testnets may collect the
+    remaining deployment and device evidence. Independent security review remains
+    required before general release; it is not a reason to mislabel or withhold
+    a functional-testing Beta package.
 
 ---
 
 ## Development Rules
+
+Current delivery interpretation: V2/V3 are functional-testing DApp Betas with
+separate exact-source manifests and evidence levels. Genuine-wallet testnet,
+physical-device and W-20 observations are collected during deployment testing;
+independent security review remains uncompleted before general release. The
+dated records below preserve historical evidence and must not override the
+current source-bound CI result or turn uncollected Beta observations into a
+claim that no testable Beta exists.
 
 ### Current user-directed order (2026-09-25, merge phase)
 
@@ -465,16 +488,39 @@ instant, and without conflating them:
   move the answer.
 
 Full product delivery also requires independent standalone use and PRD §9's
-linked-mode W-01–W-21 scenarios, including real selected account enforcement,
+linked-mode W-01–W-24 scenarios, including real selected account enforcement,
 independent controls without escrow, optional funded flows, detachment,
 callback/refund, recovery, independent security audit and deployed UI evidence. Report
 baseline, local EVM, public-testnet and UI results separately; a documentation
 change or one completed leg is not full acceptance.
 
-## CTYun TCP port 443 reservation
+## TCP port 443 reservation
 
-On CTYun hosts, TCP port 443 is reserved for SSH. Do not configure HTTP, HTTPS, web servers, reverse proxies, or TLS listeners to bind to TCP port 443. Do not stop, rebind, replace, or otherwise disrupt SSH to free that port.
+On every server this project deploys to, TCP port 443 is reserved for SSH. Do
+not configure HTTP, HTTPS, web servers, reverse proxies or TLS listeners to
+bind TCP port 443, and do not stop, rebind, replace or otherwise disrupt SSH to
+free it.
 
-Before selecting a web or bridge port, inspect the existing deployment and operations configuration and reuse an explicitly confirmed allocation. Do not guess a replacement port. If the allocation is unclear, report the missing configuration rather than changing a service binding.
+Before selecting a web or bridge port, inspect the existing deployment and
+operations configuration and reuse an explicitly confirmed allocation. Do not
+guess a replacement port. If the allocation is unclear, report the missing
+configuration rather than changing a service binding.
 
-This constraint applies only to CTYun hosts; do not extend it to SIN or other environments without an explicit instruction. Recording this rule does not authorize server access or changes to SSH, firewalls, credentials, network settings, or security settings.
+A web origin is scheme, host and port, so the port a wallet is served on is
+part of its origin. Moving a served wallet to a different port strands every
+IndexedDB operation journal written under the old one, including an operation
+left in `outcome-unknown` — the record the recovery path exists to find. Settle
+the port before a deployment carries genuine wallet use, and treat a later move
+as data loss rather than as a configuration change.
+
+The bare hostname reaches port 443 and therefore SSH, so a wallet served on
+another port is reachable only with the port spelled out, and the port becomes
+part of what a user verifies in the address bar. That is a cost of this
+reservation, not a defect to work around. HSTS does not mitigate it, because it
+upgrades the scheme and not the port.
+
+Certificate issuance must use the HTTP-01 challenge over port 80. TLS-ALPN-01
+validates on TCP 443 and is unavailable under this reservation.
+
+Recording this rule does not authorize server access or changes to SSH,
+firewalls, credentials, network settings or security settings.
