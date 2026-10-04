@@ -61,6 +61,23 @@ unchanged; updated artifacts need their own exact source identity after review.
 
 ---
 
+## Interface localization (owner update, 2026-10-04)
+
+Keep the compact six-choice UI language control, with English as the default and
+locale IDs en, zh-Hans, zh-Hant, fr, es and ja. The owner explicitly authorizes
+multilingual fixed UI catalogs and selector labels; identifiers, engineering
+documents and PR prose remain English. Token names, descriptions and metadata
+must retain their original decoded source strings and be safely rendered as text.
+Do not translate signed terms, raw transaction values, addresses or protocol
+identifiers. Switching language must not reload, reauthenticate, reset consent,
+repeat provider requests, or send transactions. Native labels and first-party
+protocol explanations belong to the presentation layer; keep finality, contest,
+freshness and legal identity distinct. See docs/UI-LOCALIZATION.md. The approved
+Figma layout is a separate implementation scope; localization alone is not a
+claim that it was ported. Preserve the original logo; do not redraw it.
+
+---
+
 ## Source of Truth
 
 The implementing agent MUST read, in this order:

@@ -87,3 +87,10 @@ are loaded or displayed. Login is memory-only and must be repeated after reload;
 connecting an account alone is insufficient. See [wallet login and its exact
 privacy boundary](docs/WALLET-LOGIN.md). Public blockchain data remains public, and
 this client-side gate is not private-API authorization.
+
+## Interface languages
+
+The browser UI supports English, Simplified Chinese, Traditional Chinese, French,
+Spanish and Japanese through fixed source catalogs and a compact language control.
+Token metadata remains source-original. See [UI localization](docs/UI-LOCALIZATION.md)
+for privacy, transaction-value and verification boundaries.

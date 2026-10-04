@@ -1,3 +1,4 @@
+import * as uiI18n from '../web/i18n.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -31,7 +32,7 @@ function fixture(method: string) {
     return { ok: !(state.fail && ['password', 'totp'].includes(path)), text: async () => JSON.stringify(data) };
   };
   class BoundClient extends AccountAuthClient { constructor({ tenant }: any) { super({ tenant, origin, fetcher }); } }
-  const sdk = { WalletLogin, WalletLoginError, AccountAuthClient: BoundClient, verifyMessage, getAddress, hashMessage, Interface,
+  const sdk = { ...uiI18n, WalletLogin, WalletLoginError, AccountAuthClient: BoundClient, verifyMessage, getAddress, hashMessage, Interface,
     getReleaseProfile: async () => ({ tenant: { id: 'xiongan' } }), acquireWalletUi: () => Symbol(), releaseWalletUi() {} };
   const login = new Function('document', 'globalThis', 'setTimeout', 'clearTimeout', ...Object.keys(sdk), `${source}\nreturn walletLogin;`)(
     { getElementById: element, addEventListener() {} }, { ethereum: provider, location: { origin }, addEventListener() {} }, () => 1, () => {}, ...Object.values(sdk));
@@ -67,4 +68,17 @@ test('actual enrollment UI discards a late secret after logout', async () => {
   const f = fixture('password'); await f.click('wallet-login'); let release!: () => void; f.state.hold = new Promise<void>(r => { release = r; });
   const pending = f.click('auth-enroll-start'); await new Promise(resolve => setImmediate(resolve)); f.click('wallet-logout'); release(); await pending;
   assert.equal(f.element('auth-enroll-secret').textContent, ''); assert.equal(f.element('wallet-private').hidden, true);
+});
+for (const { id } of uiI18n.LOCALES) test(`locale ${id} cannot unlock login or revive enrollment secrets after logout`, async () => {
+  uiI18n.setLocale('en', { persist: false }); const f = fixture('password');
+  uiI18n.setLocale(id, { persist: false }); assert.equal(f.element('wallet-private').hidden, true); assert.deepEqual(f.calls, []); assert.deepEqual(f.requests, []);
+  await f.click('wallet-login'); await f.click('auth-enroll-start'); assert.equal(f.element('wallet-private').hidden, false);
+  const binding = f.login.capture(), callCount = f.calls.length, requestCount = f.requests.length;
+  uiI18n.setLocale('en', { persist: false }); uiI18n.setLocale(id, { persist: false });
+  f.login.assert(binding); assert.equal(f.calls.length, callCount); assert.equal(f.requests.length, requestCount);
+  assert.match(f.element('auth-enroll-secret').textContent, /SYNTHETIC_SETUP_SECRET/);
+  f.click('wallet-logout'); uiI18n.setLocale('en', { persist: false }); uiI18n.setLocale(id, { persist: false });
+  assert.equal(f.element('auth-enroll-secret').textContent, ''); assert.equal(f.element('auth-recovery-codes').textContent, '');
+  assert.equal(f.element('wallet-private').hidden, true); assert.equal(f.element('wallet-private').inert, true); assert.throws(() => f.login.assert());
+  uiI18n.setLocale('en', { persist: false });
 });

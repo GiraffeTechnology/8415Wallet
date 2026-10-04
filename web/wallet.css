@@ -8,3 +8,11 @@ select{font:inherit;padding:.65rem;border:1px solid var(--line);border-radius:5p
 #identity,#asset-identity,#release-profile,#wallet-login-status{overflow-wrap:anywhere;word-break:break-word}
 
 #clearing-identity{overflow-wrap:anywhere;word-break:break-word}#legacy-clearing-panel fieldset{min-width:0}#legacy-clearing-panel button{max-width:100%}
+
+/* Compact, keyboard-accessible locale choices. Never hide text behind flags. */
+.locale-switcher{justify-content:flex-end;gap:.2rem;margin:0 0 1rem;flex-wrap:wrap}
+.locale-switcher button{min-width:2.5rem;min-height:2.75rem;padding:.4rem .55rem;background:transparent;color:var(--ink);font-size:.85rem;border-radius:.4rem}
+.locale-switcher button[aria-pressed=true]{background:var(--accent);color:#fff;font-weight:700}
+.visually-hidden{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap;border:0}
+button,legend,label,p,footer{overflow-wrap:anywhere}button{max-width:100%;white-space:normal}fieldset{min-width:0}
+:lang(zh-Hans){font-family:system-ui,"Noto Sans SC",sans-serif}:lang(zh-Hant){font-family:system-ui,"Noto Sans TC",sans-serif}:lang(ja){font-family:system-ui,"Noto Sans JP",sans-serif}
