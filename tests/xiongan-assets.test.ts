@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { ExternalAssetSession, parseAssetState, formatWeiAsEth, type AssetState, type AssetStore } from '../src/xiongan/externalAssets.ts';
 import { encodeCall } from '../src/codec/abi.ts';
 import { keccak256Utf8 } from '../src/codec/keccak.ts';
+import { ControlAdapterError } from '../src/controls/authorization.ts';
 const actor = `0x${'1'.repeat(40)}`, recipient = `0x${'2'.repeat(40)}`, nft = `0x${'3'.repeat(40)}`;
 const blockHash = `0x${'4'.repeat(64)}`, transactionHash = `0x${'5'.repeat(64)}`;
 const word = (n: bigint) => `0x${n.toString(16).padStart(64, '0')}`;
@@ -10,7 +11,7 @@ const checksummed = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed';
 const badChecksum = [checksummed.slice(0, -1) + 'c', checksummed.replace('aA', 'AA')];
 function fixture(chainId = '1', guard: () => void = () => {}) {
   let record: AssetState | null = null, sends = 0, nonce = 0n, failSend = false, pending = false, wrongTx = false, reorg = false, omitEffect = false, account = actor;
-  let sent: Record<string, string> | null = null;
+  let sent: Record<string, string> | null = null, sendError: unknown = null;
   const store: AssetStore = { async read() { return structuredClone(record); }, async compareAndSwap(expected, next) {
     if ((record?.revision ?? null) !== expected) return false; record = parseAssetState(JSON.stringify(next)); return true;
   } };
@@ -30,7 +31,7 @@ function fixture(chainId = '1', guard: () => void = () => {}) {
       if (data.startsWith('0x6352211e')) return `0x${'0'.repeat(24)}${actor.slice(2)}`;
       return word(10n);
     }
-    if (method === 'eth_sendTransaction') { sends++; sent = params[0] as Record<string, string>; if (failSend) throw new Error('private provider endpoint'); return transactionHash; }
+    if (method === 'eth_sendTransaction') { sends++; sent = params[0] as Record<string, string>; if (failSend) throw new Error('private provider endpoint'); if (sendError !== null) throw sendError; return transactionHash; }
     if (method === 'eth_getTransactionByHash') return { ...sent, from: wrongTx ? recipient : actor, input: sent!.data, hash: transactionHash, blockHash, blockNumber: '0x64', transactionIndex: '0x0' };
     if (method === 'eth_getTransactionReceipt') {
       if (pending) return null;
@@ -46,7 +47,8 @@ function fixture(chainId = '1', guard: () => void = () => {}) {
   const request = (action: unknown = { kind: 'native-transfer', recipient, valueWei: '1000' }, changes: Record<string, unknown> = {}) => JSON.stringify({
     schema: 'xiongan-asset-request/1', requestId: 'request-1', agent: 'Xiongan', chainId, actor, expiresAt: '1500', action, ...changes });
   return { session, request, provider, store, sends: () => sends, record: () => record,
-    change: (flags: { failSend?: boolean; pending?: boolean; wrongTx?: boolean; reorg?: boolean; omitEffect?: boolean; nonce?: bigint; account?: string }) => {
+    change: (flags: { sendError?: unknown; failSend?: boolean; pending?: boolean; wrongTx?: boolean; reorg?: boolean; omitEffect?: boolean; nonce?: bigint; account?: string }) => {
+      if (Object.hasOwn(flags, 'sendError')) sendError = flags.sendError;
       if (flags.failSend !== undefined) failSend = flags.failSend; if (flags.pending !== undefined) pending = flags.pending;
       if (flags.wrongTx !== undefined) wrongTx = flags.wrongTx; if (flags.reorg !== undefined) reorg = flags.reorg;
       if (flags.omitEffect !== undefined) omitEffect = flags.omitEffect; if (flags.nonce !== undefined) nonce = flags.nonce;
@@ -225,4 +227,119 @@ test('RPC account and receipt address casing stays byte-oriented, without a new 
   const review = await s.prepare(f.request(undefined, { actor: providerActor.toLowerCase() }));
   await s.submit(review, review.digest);
   assert.equal((await s.reconcile()).state, 'confirmed'); assert.equal(f.sends(), 1);
+});
+
+for (const kind of ['native-transfer', 'erc721-transfer', 'erc1155-transfer']) test(`${kind}: numeric 4001 clears only the rejected claim and permits a fresh explicit attempt`, async () => {
+  const f = fixture(), s = f.session();
+  const action = kind === 'native-transfer' ? { kind, recipient, valueWei: '1000' } :
+    { kind, recipient, contract: nft, tokenId: '7', ...(kind === 'erc1155-transfer' ? { amount: '3' } : {}) };
+  const r = await s.prepare(f.request(action)); f.change({ sendError: { code: 4001, message: 'private wallet refusal' } });
+  await assert.rejects(s.submit(r, r.digest), /CONTROL_PROVIDER_REQUEST_REJECTED/);
+  assert.deepEqual(await s.status(), { schema: 'xiongan-asset-operation/1', revision: 2, chainId: '1', actor,
+    status: 'idle', transaction: null, transactionHash: null, digest: null });
+  const restarted = f.session(); assert.equal((await restarted.status()).status, 'idle'); assert.equal(f.sends(), 1);
+  await assert.rejects(restarted.submit(r, r.digest), /CONTROL_PROVIDER_REQUEST_REJECTED/); assert.equal(f.sends(), 2);
+  f.change({ sendError: null });
+  const fresh = await restarted.prepare(f.request(action));
+  await restarted.submit(fresh, fresh.digest); assert.equal(f.sends(), 3); assert.equal((await restarted.reconcile()).state, 'confirmed');
+  await assert.rejects(restarted.submit(fresh, fresh.digest), /ASSET_RECONCILIATION_REQUIRED/); assert.equal(f.sends(), 3);
+});
+for (const error of [{ code: '4001' }, { code: -32000, data: { code: 4001 } }, { error: { code: 4001 } }, { code: 4900 }])
+  test(`external asset ambiguous ${JSON.stringify(error)} keeps the durable send claim`, async () => {
+    const f = fixture(), s = f.session(), r = await s.prepare(f.request()); f.change({ sendError: error });
+    await assert.rejects(s.submit(r, r.digest), /CONTROL_PROVIDER_OUTCOME_UNCERTAIN/);
+    assert.equal((await s.status()).status, 'outcome-unknown');
+    await assert.rejects(f.session().submit(r, r.digest), /ASSET_RECONCILIATION_REQUIRED/); assert.equal(f.sends(), 1);
+  });
+for (const failure of ['false', 'throw'] as const) test(`external asset cancellation persistence ${failure} fails closed`, async () => {
+  const f = fixture(), s = f.session(), r = await s.prepare(f.request()), cas = f.store.compareAndSwap.bind(f.store);
+  f.store.compareAndSwap = async (revision, next) => {
+    if (revision === 1 && next.status === 'idle') {
+      if (failure === 'throw') throw new Error('private disk path');
+      return false;
+    }
+    return cas(revision, next);
+  };
+  f.change({ sendError: { code: 4001 } });
+  await assert.rejects(s.submit(r, r.digest), error => {
+    assert.ok(error instanceof ControlAdapterError); assert.equal(error.code, 'ASSET_REJECTION_PERSISTENCE_UNCERTAIN'); return true;
+  });
+  assert.equal((await f.session().status()).status, 'outcome-unknown');
+  await assert.rejects(f.session().submit(r, r.digest), /ASSET_RECONCILIATION_REQUIRED/); assert.equal(f.sends(), 1);
+});
+function pendingResponse<T>() {
+  let resolve!: (value: T) => void, reject!: (reason: unknown) => void;
+  const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; }); return { promise, resolve, reject };
+}
+test('external asset refusal cannot overwrite a newer submitted journal', async () => {
+  const f = fixture(), gate = pendingResponse<unknown>(), entered = pendingResponse<void>();
+  const provider = { async request(args: { method: string; params?: readonly unknown[] }) {
+    const result = await f.provider.request(args);
+    if (args.method === 'eth_sendTransaction') { entered.resolve(); return gate.promise; }
+    return result;
+  } };
+  const s = new ExternalAssetSession(provider, '1', actor, f.store), r = await s.prepare(f.request());
+  const result = assert.rejects(s.submit(r, r.digest), /ASSET_REJECTION_PERSISTENCE_UNCERTAIN/); await entered.promise;
+  const current = (await f.store.read())!, newer: AssetState = { ...current, revision: current.revision + 1, status: 'submitted', transactionHash };
+  assert.equal(await f.store.compareAndSwap(current.revision, newer), true);
+  gate.reject({ code: 4001 }); await result; assert.deepEqual(await f.store.read(), newer); assert.equal(f.sends(), 1);
+});
+test('external asset cancellation is not retryable before durable cleanup completes', async () => {
+  const f = fixture(), s = f.session(), r = await s.prepare(f.request()), cas = f.store.compareAndSwap.bind(f.store);
+  const gate = pendingResponse<void>(), entered = pendingResponse<void>();
+  f.change({ sendError: { code: 4001 } });
+  f.store.compareAndSwap = async (revision, next) => {
+    if (revision === 1 && next.status === 'idle') { entered.resolve(); await gate.promise; }
+    return cas(revision, next);
+  };
+  const result = assert.rejects(s.submit(r, r.digest), /CONTROL_PROVIDER_REQUEST_REJECTED/); await entered.promise;
+  await assert.rejects(s.submit(r, r.digest), /ASSET_OPERATION_BUSY/);
+  await assert.rejects(f.session().submit(r, r.digest), /ASSET_RECONCILIATION_REQUIRED/);
+  gate.resolve(); await result; assert.equal((await f.session().status()).status, 'idle'); assert.equal(f.sends(), 1);
+});
+test('external asset timeout followed by a late 4001 never unlocks or resends', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const f = fixture(), gate = pendingResponse<unknown>(), entered = pendingResponse<void>();
+  const provider = { async request(args: { method: string; params?: readonly unknown[] }) {
+    const result = await f.provider.request(args);
+    if (args.method === 'eth_sendTransaction') { entered.resolve(); return gate.promise; }
+    return result;
+  } };
+  const s = new ExternalAssetSession(provider, '1', actor, f.store), r = await s.prepare(f.request());
+  const result = assert.rejects(s.submit(r, r.digest), /CONTROL_PROVIDER_OUTCOME_UNCERTAIN/); await entered.promise;
+  t.mock.timers.tick(180_000); await result; gate.reject({ code: 4001 }); await Promise.resolve(); await Promise.resolve();
+  assert.equal((await f.session().status()).status, 'outcome-unknown');
+  await assert.rejects(f.session().submit(r, r.digest), /ASSET_RECONCILIATION_REQUIRED/); assert.equal(f.sends(), 1);
+});
+test('external asset resolved error-shaped response never clears a prepared send', async () => {
+  const f = fixture(), provider = { async request(args: { method: string; params?: readonly unknown[] }) {
+    const value = await f.provider.request(args); return args.method === 'eth_sendTransaction' ? { code: 4001 } : value;
+  } };
+  const s = new ExternalAssetSession(provider, '1', actor, f.store), r = await s.prepare(f.request());
+  await assert.rejects(s.submit(r, r.digest), /ASSET_HASH_REFUSED/);
+  assert.equal((await s.status()).status, 'outcome-unknown');
+  await assert.rejects(f.session().submit(r, r.digest), /ASSET_RECONCILIATION_REQUIRED/); assert.equal(f.sends(), 1);
+});
+
+
+test('provider annotations cannot mutate a reviewed transaction or fail on its frozen send object', async () => {
+  const f = fixture();
+  const provider = { async request(args: { method: string; params?: readonly unknown[] }) {
+    if (args.method === 'eth_estimateGas' || args.method === 'eth_sendTransaction') {
+      const transaction = args.params?.[0] as Record<string, unknown>;
+      transaction.gas = '0x5208';
+      transaction.providerAnnotation = 'simulation metadata';
+    }
+    return f.provider.request(args);
+  } };
+  const s = new ExternalAssetSession(provider, '1', actor, f.store);
+  const review = await s.prepare(f.request());
+  assert.equal(Object.hasOwn(review.transaction, 'gas'), false);
+  assert.equal(Object.hasOwn(review.transaction, 'providerAnnotation'), false);
+  const wireBefore = JSON.stringify(review.transaction);
+  await s.submit(review, review.digest);
+  assert.equal(JSON.stringify(review.transaction), wireBefore);
+  assert.equal((await s.status()).status, 'submitted');
+  assert.equal((await s.reconcile()).state, 'confirmed');
+  assert.equal(f.sends(), 1);
 });

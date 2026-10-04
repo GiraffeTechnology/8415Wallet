@@ -13,3 +13,8 @@ export { CollisionScanError } from './wallet/collisions.ts';
 export { reviewAgentRequest, XIONGAN_PROFILE } from './xiongan/agentRequest.ts';
 export { recoveryGuidance } from './xiongan/recoveryView.ts';
 export { ExternalAssetSession, ASSET_CHAINS, parseAssetState, formatWeiAsEth } from './xiongan/externalAssets.ts';
+
+export { StandaloneSettlementSession, parseSettlementState, serializeSettlementState } from './wallet/standaloneSettlement.ts';
+export { isAddressInput } from './xiongan/address.ts';
+export { TransactionWouldRevertError } from './sdk/transactions.ts';
+export { LegacyClearingSession, parseLegacyClearingState, parseLegacyClearingDeployment, legacyTradeKey, CLEARING_NOTES } from './wallet/legacyClearingSession.ts';

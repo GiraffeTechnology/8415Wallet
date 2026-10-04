@@ -1,3 +1,4 @@
+import { getReleaseProfile } from './release-profile.mjs';
 import { acquireWalletUi, releaseWalletUi, walletUiBusy } from './ui-lock.mjs';
 import { ExternalAssetSession, ASSET_CHAINS, ControlAdapterError, controlRpc, formatWeiAsEth } from '../dist/browser/browser.js';
 import { BrowserExternalAssetStore } from './external-store.mjs';
@@ -13,8 +14,15 @@ function invalidate() {
 async function run(fn) {
   if (busy) return; const uiLock = acquireWalletUi(); if (uiLock === null) return; busy = true; const current = generation;
   document.querySelectorAll('button,input,select').forEach(n => { n.disabled = true; });
-  try { await fn(current); } catch (e) {
-    output(current !== generation ? 'ASSET_CONNECTION_CHANGED' : e instanceof ControlAdapterError ? e.code : 'ASSET_UI_OPERATION_REFUSED');
+  try {
+    let profile;
+    try { profile = await getReleaseProfile(); }
+    catch { throw new ControlAdapterError('ASSET_RELEASE_CONFIG_REFUSED'); }
+    if (!profile.features.externalAssets) throw new ControlAdapterError('ASSET_RELEASE_FEATURE_REFUSED');
+    checkCurrent(current); await fn(current);
+  } catch (e) {
+    output(current !== generation ? 'ASSET_CONNECTION_CHANGED' : e instanceof ControlAdapterError ? (e.code === 'CONTROL_PROVIDER_REQUEST_REJECTED' ?
+      'CONTROL_PROVIDER_REQUEST_REJECTED: Cancelled in your wallet. Nothing was submitted by this request. Prepare a new review before trying again.' : e.code) : 'ASSET_UI_OPERATION_REFUSED');
   } finally {
     if (session && current === generation) {
       const s = session;
@@ -53,7 +61,7 @@ el('asset-dismiss').addEventListener('click', dismiss);
 async function prepare(text, g) {
   dismiss(); const prepared = await selected().prepare(text); checkCurrent(g); review = prepared;
   el('asset-review-text').textContent = format({ ...prepared, requestText: undefined, humanAmount: prepared.asset === 'ETH' ? `${formatWeiAsEth(prepared.amount)} ETH` : `${prepared.amount} NFT unit(s)`, amountUnit: prepared.asset === 'ETH' ? 'wei (1 ETH = 1000000000000000000 wei)' : 'NFT units', gas: 'Review exact gas fees in your wallet. Fees are not included in the amount.',
-    custody: 'External EOA only. The claimed agent name is not authenticated.', acceptance: 'Development candidate; no independent audit or real-asset/device acceptance claimed.' });
+    custody: 'External EOA only. The claimed agent name is not authenticated.', acceptance: 'Functional-testing Beta; no independent audit or genuine-wallet/device acceptance claimed.' });
   output('Prepared and simulated only. No signature or transaction requested.');
 }
 el('asset-prepare').addEventListener('click', () => run(async g => {
@@ -81,3 +89,7 @@ el('asset-recover').addEventListener('click', () => run(async g => { const r = a
 el('asset-ack-terminal').addEventListener('click', () => run(async g => { await selected().acknowledge(); checkCurrent(g); output('Freshly verified terminal receipt acknowledged. No transaction was sent.'); }));
 
 el('asset-replacement').addEventListener('click', () => run(async g => { const r = await selected().acknowledgeReplacement(el('asset-recovery-hash').value.trim()); checkCurrent(g); output(r); }));
+
+// A history-restored page cannot retain an old review or account binding.
+globalThis.addEventListener?.('pagehide', invalidate);
+globalThis.addEventListener?.('pageshow', event => { if (event.persisted) invalidate(); });

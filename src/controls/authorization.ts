@@ -124,6 +124,20 @@ export function encodeForward(consent: ForwardConsent, signature: string): strin
     [...forwardConsentValues(consent), signature]);
 }
 
+// Only errors observed at this provider boundary carry rejection evidence. A
+// matching message/code from storage, a nested RPC error or another method is
+// not sufficient evidence to clear a prepared transaction.
+const providerRejections = new WeakMap<object, string>();
+export function isControlProviderRejection(error: unknown, method: string): boolean {
+  return error !== null && typeof error === 'object' && providerRejections.get(error) === method;
+}
+function providerRejectedRequest(error: unknown): boolean {
+  // EIP-1193 specifies the direct numeric code 4001. Do not guess from message
+  // text, string codes, nested causes or transport-specific wrappers.
+  try { return error !== null && typeof error === 'object' && (error as { code?: unknown }).code === 4001; }
+  catch { return false; }
+}
+
 /** Errors deliberately do not echo provider payloads, endpoints, signatures or credentials. */
 export async function controlRpc(provider: Eip1193Provider, method: string, params: readonly unknown[]): Promise<unknown> {
   // Timeout does not cancel a wallet prompt or prove a transaction was not sent.
@@ -132,7 +146,12 @@ export async function controlRpc(provider: Eip1193Provider, method: string, para
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
-      Promise.resolve().then(() => provider.request({ method, params })).catch(() => {
+      Promise.resolve().then(() => provider.request({ method, params })).catch(error => {
+        if (interactive && providerRejectedRequest(error)) {
+          const rejected = new ControlAdapterError('CONTROL_PROVIDER_REQUEST_REJECTED');
+          providerRejections.set(rejected, method);
+          throw rejected;
+        }
         throw new ControlAdapterError(interactive ? 'CONTROL_PROVIDER_OUTCOME_UNCERTAIN' : 'CONTROL_RPC_REFUSED');
       }),
       new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new ControlAdapterError(

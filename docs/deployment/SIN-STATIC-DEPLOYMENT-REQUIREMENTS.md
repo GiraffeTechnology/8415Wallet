@@ -1,457 +1,140 @@
-# Xiongan Wallet — SIN static deployment requirements
+# 8415wallet static Beta deployment requirements
 
-Target host: Aliyun Singapore, `8.219.77.22` (public).
-Operator: the SIN server owner. This document is the requirement set, not a
-deployment that has happened.
+This is a manual operator handoff. Building or reviewing it performs no server
+change, public-chain transaction or deployment. The artifacts are the versioned
+V2/V3 **DApps**, separate from SDK tarballs. Use
+[BETA-DAPP-DELIVERY.md](../BETA-DAPP-DELIVERY.md) for build and profile commands.
 
-Status of the thing being deployed: development candidate. It has local and
-synthetic-browser evidence only. It has **not** had an independent security
-review, and it has never executed a transaction from a genuine wallet. Nothing
-below changes that, and a successful deployment must not be reported as
-acceptance.
+## 1. Select an immutable artifact
 
----
+For each target, record the exact release profile, PRD scope, tenant (if any),
+source commit/tree, archive SHA-256 and confirmed full deployment URL. Verify
+CI for that exact source commit. Verify the archive checksum before extraction
+and every entry in `SHA256SUMS` after extraction. Use the new artifact's measured
+inventory; the older 62-file count is not a permanent requirement.
 
-## 1. Artifact
+Deploy the archive into a new immutable release directory. Serve only its
+static runtime and public configuration, never a source checkout, `.git`, test
+fixture, raw evidence directory, SDK package or credential. Do not minify,
+inject scripts, rewrite HTML/CSP or otherwise change shipped bytes during
+installation. Build target-specific configuration through the documented
+packaging path so its bytes and identity appear in the manifest.
 
-The deployable site is published on the branch `deploy/xiongan-sin` of
-`GiraffeTechnology/8415Wallet`. That branch carries the served `web/` and `dist/browser/` trees plus
-operator/integrity documents and hidden `.github/` CI metadata. A shallow clone
-can be the document root under the existing metadata/dotfile refusals below:
+## 2. Confirm the origin and port
 
-```
-git clone --depth 1 --branch deploy/xiongan-sin \
-    https://github.com/GiraffeTechnology/8415Wallet.git /srv/xiongan
-```
+The deployment URL includes HTTPS, hostname, the explicitly allocated web port
+and `/web/index.html` (or an explicitly configured equivalent entry path).
+Use the complete URL in every link and smoke test. Do not guess a replacement
+port or substitute a bare hostname.
 
-| | |
-|---|---|
-| Branch | `deploy/xiongan-sin` |
-| Release checkout | Record the merged `deploy/xiongan-sin` commit whose **Static artifact CI** passed; do not use an unverified branch tip |
-| Served files | 62 (1 html, 1 css, 5 mjs, 55 js); documents, checksums and `.github/` are not application assets |
-| Public payload size | 351,600 bytes |
-| Built from | Merged source `763b00670752db7ed97525fca356729bbe8221d5` (tree `14abc51f3d882b4c882b162753fc279efcf01707`), checksum repair PR #44 |
-| Build command | `npm run wallet:browser:build`, Node 24.19.0 and TypeScript 5.9.3; this branch reuses the verified output without recompiling |
+TCP 443 is reserved for SSH on CTYun and SIN. Do not bind HTTP/HTTPS, a reverse
+proxy, TLS listener or bridge there; do not alter SSH to free it. If the approved
+web allocation is missing, stop the server step and obtain that value. The
+package remains a valid unconfigured Beta deliverable.
 
-The 62 public files are byte-identical to `xiongan-wallet-static-763b0067.tar.gz`
-in the verified handoff ZIP. Archive SHA-256:
-`bb66593b3f1e81ec4a319b724014bd6362d2e202a640287bedc842228b3a3187`.
-The corresponding `SHA256SUMS` digest is
-`b39e63497220bd0357d4bbaa0b817587b0ddd695da46ca38977fe281cf4e0607`.
-The earlier 61-file `93934f9` payload is superseded: only `agentRequest.js`,
-`externalAssets.js` and the added `address.js` differ; the other 59 files are
-unchanged. The repair checks mixed-case ERC-55 addresses before normalization.
-All-lowercase/all-uppercase inputs remain compatible, and a valid checksum
-does not establish the recipient's identity or make a transaction safe.
+Scheme, host and port define the browser origin. A change strands browser
+journals at the prior origin. Preserve an origin with unresolved operations;
+never treat an empty journal at a new origin as evidence that nothing was sent.
 
-Source validation: PR #44 exact-head CI
-https://github.com/GiraffeTechnology/8415Wallet/actions/runs/37098073411
-and source-main CI
-https://github.com/GiraffeTechnology/8415Wallet/actions/runs/37098334390
-passed on Node 22/24, including 812 Node tests, 59 local EVM tests and actual
-Chromium with a synthetic provider. This static branch has its own **Static
-artifact CI** on pull requests and pushes: Node 22/24 verifies the pinned
-62-file checksum manifest, all 151 relative module imports, and actual shipped
-checksum/request modules with deterministic providers and zero sends. Its
-exact release-commit result must pass before delivery; source-main CI alone
-cannot substitute for that check. No package install, credential, server
-connection or deployment step is part of the static check. These checks are
-not genuine-wallet, physical-device or external security-audit acceptance.
+## 3. Serve securely
 
-The repository is private, so the clone needs a credential with read access to
-it. Do not make the repository public to simplify this.
+Use the host's existing approved service allocation and a publicly trusted
+certificate for the exact hostname. Keep its IPv4/IPv6 configuration consistent
+with published DNS. Certificate warnings must not be bypassed.
 
-Layout, which must be preserved exactly:
+Required content types:
 
-```
-<docroot>/
-  web/index.html          <- the page
-  web/*.mjs  web/wallet.css
-  dist/browser/**/*.js    <- 55 compiled modules
-  SHA256SUMS
-  DEPLOY.md  DOMAIN.md     <- operator documents, not served application assets
-  .github/                <- static CI only; must not be served
-```
-
-`web/app.mjs` imports `../dist/browser/browser.js` by relative path. The
-`web/` and `dist/` directories must stay siblings. Do not flatten, rename or
-rewrite any path.
-
-Neither `.git/` nor `.github/` may be served. The nginx dotfile rule in section 3.3 covers this,
-but confirm it: an exposed `.git` directory on a public host leaks the whole
-branch history.
-
-Verify after unpacking, from the document root:
-
-```
-sha256sum -c SHA256SUMS
-```
-
-All 62 lines must report `OK`. Do not deploy a tree that does not.
-
----
-
-## 2. HTTPS is a hard functional requirement, not a hardening step
-
-`web/external-store.mjs` and `web/public-store.mjs` both open with:
-
-```js
-if (!globalThis.indexedDB || !globalThis.isSecureContext) throw new Error('CONTROL_BROWSER_DURABILITY_REQUIRED');
-```
-
-A public IP served over plain HTTP is **not** a secure context, so
-`isSecureContext` is `false` and the wallet refuses to start its operation
-journal. The application is designed to fail closed here rather than downgrade
-to `localStorage` or an in-memory journal, so there is no fallback to enable.
-
-Consequence: **`http://8.219.77.22/` cannot work.** This is not a browser
-warning to click through; it is an application-level refusal.
-
-### 2.1 A DNS name is required
-
-Standard ACME issuance (Let's Encrypt and the common alternatives) validates a
-domain, not a bare IP. IP-address certificates exist only under limited,
-short-lived profiles with uneven client support, and mobile wallet in-app
-browsers are the least predictable clients there.
-
-`8415wallet.com` is the platform domain, registered at Xinnet, and each tenant
-receives one subdomain that is that tenant's wallet origin. The tenant to
-deploy now is **`xiongan.8415wallet.com`**. The apex serves no wallet.
-
-Where this document writes `<host>`, read `xiongan.8415wallet.com`.
-
-Deploy at that hostname from the start. The operation journal lives in
-IndexedDB under the serving origin, so standing the wallet up on the apex or a
-temporary name and moving it later strands every journal written in the
-meantime, including any operation left in `outcome-unknown`. See
-`SIN-DOMAIN-REQUIREMENTS.md` section 3.
-
-How that hostname is chosen, delegated, hardened and renewed is specified in
-`SIN-DOMAIN-REQUIREMENTS.md`, which is a blocking prerequisite for everything
-below.
-
-A self-signed certificate is not acceptable. Mobile wallet in-app browsers
-generally offer no trust-override UI, and training an operator to accept
-certificate warnings on a wallet origin is the exact habit that makes phishing
-work.
-
----
-
-## 2.2 Port 443 is reserved for SSH on every server
-
-**Owner instruction, 2026-10-03, applying to all servers including SIN.** This
-supersedes the CTYun-only scoping recorded in `AGENTS.md`; that section notes
-the restriction may be extended by explicit instruction, and this is it.
-
-- No HTTP, HTTPS, web server, reverse proxy or TLS listener may bind TCP 443.
-- Do not stop, rebind or otherwise disturb SSH to free the port.
-
-**The current deployment violates this.** Measured 2026-10-03 from outside the
-host:
-
-```
-https://xiongan.8415wallet.com/web/index.html   200   (served on 443)
-http://xiongan.8415wallet.com/web/index.html    308 -> https://...  (i.e. 443)
-```
-
-Both the TLS listener and the target of the port-80 redirect must move.
-
-### The replacement port is not to be guessed
-
-Take it from the confirmed operations allocation for this host. If no
-allocation is recorded, **report that rather than picking one** — the same rule
-`AGENTS.md` already states for CTYun. This document deliberately does not name
-a port.
-
-Below, `<web-port>` is that allocated port.
-
-### Consequences to accept before moving
-
-**The web origin changes, and that is irreversible for stored state.** A web
-origin is scheme, host **and port**. `https://xiongan.8415wallet.com` and
-`https://xiongan.8415wallet.com:<web-port>` are different origins, so every
-IndexedDB operation journal written under the current origin is stranded by the
-move — including any operation left in `outcome-unknown`, which is the record
-the recovery path exists to find.
-
-At the time of writing nothing has been written: the site has served no
-genuine wallet transaction. **That makes now the only cheap moment to move.**
-After the first real use it stops being a configuration change.
-
-**The bare hostname stops working, permanently.** A user who types
-`xiongan.8415wallet.com` reaches port 443, which is SSH, and gets a TLS
-protocol error rather than the wallet. Every link, bookmark and QR code must
-carry `:<web-port>`, and the port becomes part of what a user verifies in the
-address bar. This weakens the one anti-phishing control the application has,
-and it is a direct cost of the port policy, not something the configuration can
-mitigate.
-
-`Strict-Transport-Security` does not help here: HSTS upgrades the scheme, not
-the port, so it still sends a portless request to 443.
-
-**Certificate issuance must use HTTP-01 over port 80**, which is unaffected.
-Do not use TLS-ALPN-01, which validates on 443.
-
-**The security group must open `<web-port>`** in addition to 80.
-
----
-
-## 3. Serving rules
-
-### 3.1 MIME types
-
-`.mjs` is **not** present in the default nginx `mime.types` on most builds. If
-it is served as `application/octet-stream`, the browser refuses the module and
-the page loads to a blank shell. This is the most likely single cause of a
-failed first deployment.
-
-Required:
-
-| Extension | Content-Type |
-|---|---|
-| `.mjs` | `text/javascript` (must be added; see 3.3) |
-| `.js` | `text/javascript` or `application/javascript` (already in `mime.types`; do not redefine) |
+| Extension | Type |
+| --- | --- |
+| `.mjs`, `.js` | `text/javascript` or `application/javascript` |
 | `.css` | `text/css` |
 | `.html` | `text/html; charset=utf-8` |
+| public release configuration | `application/json` |
 
-### 3.2 Response headers
+The public release configuration needed by the DApp must be explicitly allowed;
+a blanket JSON refusal would break it. Deny source files, dotfiles, source maps,
+private deployment input, release reports and other non-runtime files. Send
+`Cache-Control: no-store` for public configuration and HTML during acceptance;
+never mix modules from different release directories.
 
-The page already ships a strict CSP in a `<meta>` tag:
+The page's CSP restricts runtime resources to its own origin. Preserve it.
+Add at least these HTTP response headers to all runtime responses:
 
-```
-default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self';
-font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none';
-form-action 'none'
-```
-
-A `<meta>` CSP **cannot** carry `frame-ancestors`. The server must supply it as
-a real header, otherwise the wallet UI can be framed by a third-party page.
-Required response headers on every response:
-
-```
+```text
 Content-Security-Policy: frame-ancestors 'none'
 X-Frame-Options: DENY
 X-Content-Type-Options: nosniff
 Referrer-Policy: no-referrer
-Strict-Transport-Security: max-age=31536000; includeSubDomains
 Cross-Origin-Opener-Policy: same-origin
 Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=()
 ```
 
-Add `Strict-Transport-Security` only once HTTPS is confirmed working; it is
-hard to walk back.
+Evaluate HSTS under the established operations policy after HTTPS works. HSTS
+changes neither the port reservation nor the requirement for complete URLs.
+If an approved HTTP redirect exists, it must explicitly target the configured
+HTTPS port. Preserve any existing authorized ACME challenge path. No new
+firewall, DNS, SSH, certificate-account or persistent-access change is implied.
 
-Do not add a second full `Content-Security-Policy` header. Two CSPs are
-intersected, and a server policy written without knowledge of the page's own
-will silently break module loading. Send only `frame-ancestors` from the
-server and leave the rest to the page.
+## 4. Configuration and custody
 
-### 3.3 Reference nginx server block
+The product is 8415wallet; 8415wallet.com is the UI platform domain; Xiongan is a
+V2 tenant. Keep platform/profile/tenant identity distinct. The DApp release
+profile controls visible features; contract deployment pins select the exact
+chain and runtime code to verify before use. Missing controller/payment
+configuration must not disable independent standalone functionality.
 
-```nginx
-# In http{}, AFTER `include mime.types;`. Add mjs only --- redefining an
-# extension that mime.types already carries (such as js) makes nginx fail to
-# start with `duplicate extension`.
-types { text/javascript mjs; }
+A normal DApp control configuration accepts supported testnets only. The
+external ETH/NFT companion also supports Ethereum/Base mainnet, and direct SDK
+integrators must enforce their own network policy. Neither capability grants
+permission for mainnet testing. Use only separately authorized testnet assets.
 
-# The Xiongan tenant origin. Serves the application and nothing else.
-server {
-    # <web-port> is the allocated web port. TCP 443 is reserved for SSH on
-    # every server; see section 2.2. Do not substitute 443 here.
-    listen <web-port> ssl;
-    listen [::]:<web-port> ssl;   # omit only if no AAAA record is published
-    http2 on;
-    server_name xiongan.8415wallet.com;
+The server holds no key, seed, signer or custody component. There is no server
+RPC proxy or transaction relay. Browser calls use the owner's injected wallet
+provider. Do not add analytics, remote script/font hosts or a CSP workaround.
 
-    ssl_certificate     /etc/letsencrypt/live/xiongan.8415wallet.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/xiongan.8415wallet.com/privkey.pem;
-    ssl_protocols TLSv1.2 TLSv1.3;
+## 5. Hosting verification
 
-    root /srv/xiongan;
-    index web/index.html;
-    autoindex off;
+Set `DAPP_URL` to the confirmed full entry URL and derive the same origin for
+checks. Do not substitute a guessed port. Record raw response status/headers,
+served file SHA-256 values, certificate subject/issuer/expiry, configuration,
+source and profile. Verify:
 
-    add_header Content-Security-Policy "frame-ancestors 'none'" always;
-    add_header X-Frame-Options DENY always;
-    add_header X-Content-Type-Options nosniff always;
-    add_header Referrer-Policy no-referrer always;
-    add_header Cross-Origin-Opener-Policy same-origin always;
-    add_header Permissions-Policy "geolocation=(), camera=(), microphone=(), payment=()" always;
+1. The entry, modules and public release configuration load with correct MIME.
+2. Runtime bytes match the approved artifact; no mixed or missing module exists.
+3. `.git/config`, source, secrets and unrelated content are unavailable.
+4. The page is a secure context and IndexedDB uses required durable storage.
+5. The displayed product/profile/tenant matches the package manifest.
+6. V2 standalone and V3 linked feature gates match their documented profiles.
+7. No unauthorized external runtime request or console exception occurs.
 
-    location = / { return 302 /web/index.html; }
+Hosting checks are not genuine-wallet acceptance. A successful connection only
+shows provider/account/chain discovery; it is not a signed or confirmed action.
 
-    location ~* /\.    { return 404; }        # no dotfiles, including .git
-    # Blocks source and metadata. Note for later: when the per-tenant
-    # deployment configuration ships (domain document, section 8) its exact
-    # path needs an explicit allow ABOVE this rule, or this would 404 it.
-    location ~* \.(ts|json|map|md)$ { return 404; }
+## 6. Wallet and device test handoff
 
-    gzip on;
-    gzip_types text/javascript text/css text/html;
-}
+Use a desktop browser with a genuine injected wallet and a physical phone's
+wallet in-app browser. A browser without an injected provider may render but
+cannot connect; do not call that a provider integration pass. Node/DOM tests,
+synthetic providers and emulated viewports stay separate evidence categories.
 
-server {
-    listen 80;
-    listen [::]:80;
-    server_name xiongan.8415wallet.com;
+Follow the exact manual scenarios in the Beta handoff: three standalone
+settlement operations and legacy clearing; all linked W-01–W-24 rows at their
+specified level; funded/unfunded flows; cancellation, repeat-click, account/
+network change and reload recovery. W-20 requires the actual deployed same-token
+multi-wallet journey. Record testnet receipts and wallet confirmations only
+when those actions are separately authorized and genuinely executed.
 
-    # The ACME challenge must be reachable on port 80, ahead of the redirect.
-    # A bare `return 301` here passes the first issuance (certbot opens its own
-    # listener) and then fails every unattended renewal about 90 days later.
-    location ^~ /.well-known/acme-challenge/ { root /var/www/certbot; }
+## 7. Rollback
 
-    # Must carry the port, or this redirects users to SSH on 443.
-    location / { return 301 https://xiongan.8415wallet.com:<web-port>$request_uri; }
-}
+Keep the prior immutable release and its exact public configuration. Before
+switching, record the current artifact/configuration hashes and unresolved
+journal compatibility. Roll back by restoring the prior approved static release
+at the **same origin** under the existing service allocation. Verify its hashes,
+module graph, headers and configuration again.
 
-# Refuse any name that is not an approved tenant, so an unconfigured or
-# attacker-chosen hostname pointed at this address gets nothing rather than a
-# copy of the wallet under a name nobody approved.
-server {
-    listen <web-port> ssl default_server;
-    listen [::]:<web-port> ssl default_server;
-    listen 80 default_server;
-    listen [::]:80 default_server;
-    server_name _;
-
-    ssl_certificate     /etc/letsencrypt/live/xiongan.8415wallet.com/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/xiongan.8415wallet.com/privkey.pem;
-
-    return 444;
-}
-```
-
-`add_header` does not inherit into a `location` block that declares its own.
-If any `location` gains an `add_header`, the security headers above must be
-repeated inside it.
-
----
-
-## 4. What the server must not do
-
-- **No RPC proxy, and no server-side chain access.** The shipped browser entry points route chain traffic through the
-  provider injected by the user's wallet application. The source CI synthetic
-  browser run recorded `externalRequests: []` at both viewports. This is a
-  result for that exercised path, not a claim that the whole tree lacks
-  `fetch`: the bundled generic RPC transport contains it. Introducing a server-side
-  RPC endpoint would insert a party able to observe and rewrite transaction
-  parameters, and would break the `connect-src 'self'` policy.
-- **No key material, signer, or custody component on the host.** The server is
-  a dumb static file host. It never holds a private key, a mnemonic or a
-  session token.
-- **No analytics, tag manager, CDN rewrite, font host or injected script.** The
-  CSP forbids them and they must not be worked around.
-- **No modification of any shipped file**, including "harmless" minification,
-  HTML rewriting or CSP relaxation. Any change invalidates `SHA256SUMS` and the
-  build's correspondence to the reviewed commit.
-- **No directory listing and no exposure of anything outside the document
-  root.** The source repository is private; only the 62 files above are to be
-  served.
-
----
-
-## 5. Risk disclosure for whoever operates this host
-
-The deployed page contains a live transaction path:
-`ExternalAssetSession.submit()` calls `eth_sendTransaction` through the user's
-wallet.
-
-- Its chain table `ASSET_CHAINS` includes Ethereum mainnet (`1`) and Base
-  (`8453`) alongside the testnets.
-- There is **no amount ceiling and no test-only sentinel** in this path.
-- The operative restriction is whichever chain the user's wallet is connected
-  to at the time.
-
-For first real-device use, set the wallet to Sepolia (`11155111`) before
-opening the page.
-
-The page's own banner states that it is an unaudited testnet development
-candidate. That banner must not be removed or edited during deployment.
-
----
-
-## 6. Access pattern — this is not a Safari page
-
-Both entry points obtain their provider the same way:
-
-```js
-provider = globalThis.ethereum;
-```
-
-Injected providers only. There is no WalletConnect, no QR pairing and no deep
-link in this build.
-
-- **iOS Safari:** `window.ethereum` is undefined. The page renders, and the
-  connect action fails with `ASSET_WALLET_PROVIDER_REQUIRED` (asset panel) or
-  `CONTROL_GENUINE_WALLET_PROVIDER_REQUIRED` (control panel). This is correct
-  behaviour, not a deployment fault.
-- **Supported:** the in-app browser of a wallet application (MetaMask, Rainbow,
-  Trust, imToken, OKX and similar), which injects a provider into the top-level
-  page.
-
-Acceptance must therefore be performed from a wallet application's in-app
-browser, not from Safari.
-
----
-
-## 7. Acceptance evidence to report back
-
-Report each item with its raw output. Do not summarise a check as passed
-without the output that shows it.
-
-**Integrity**
-
-1. Record `git -C /srv/xiongan rev-parse HEAD` and its completed **Static artifact CI** run; verify it is the approved merged release commit and its payload matches section 1.
-2. `sha256sum -c SHA256SUMS` from the document root: 62 x `OK`, 0 failures.
-2a. `curl -sSI https://xiongan.8415wallet.com/.git/config` returns 404.
-
-**Transport**
-
-3. `curl -sSI https://xiongan.8415wallet.com/web/index.html` — status, and the full header
-   block showing every header in section 3.2.
-4. `curl -sSI https://xiongan.8415wallet.com/web/app.mjs | grep -i content-type` — must be
-   `text/javascript`.
-5. `curl -sSI https://xiongan.8415wallet.com/dist/browser/browser.js | grep -i content-type` —
-   must be `text/javascript`.
-6. `curl -sSI http://xiongan.8415wallet.com/` — must be a 301 to `https://`.
-7. Certificate chain: issuer, subject, and notAfter.
-
-**Application, from a desktop browser first**
-
-8. Load `https://xiongan.8415wallet.com/web/index.html`. Report the browser console contents.
-   A clean load has no errors. A `CONTROL_BROWSER_DURABILITY_REQUIRED` here
-   means the secure-context requirement in section 2 is not satisfied.
-9. Confirm the page makes no request to any origin other than `xiongan.8415wallet.com`
-   (DevTools network tab, or equivalent).
-
-**Application, from the iPhone — this is the part that matters**
-
-10. Open `https://xiongan.8415wallet.com/web/index.html` in a wallet application's in-app
-    browser, with the wallet set to Sepolia.
-11. Screenshot the loaded page at device width.
-12. Press "Connect by external wallet" and report the result. On success the
-    identity line reads `Sepolia · EOA 0x...`. On failure report the exact error
-    string.
-13. Report whether `CONTROL_BROWSER_DURABILITY_REQUIRED` appears at any point.
-    Some in-app browsers restrict IndexedDB; the application refuses rather
-    than downgrading, so this is a real compatibility outcome and needs to be
-    recorded per wallet application tested.
-14. Name the wallet application and version used.
-
-**Not to be claimed**
-
-A completed deployment is a hosting result. It is not an independent security
-review, and it is not acceptance of the transaction path. Item 12 succeeding
-means a provider connected and a balance was read; it does not mean a
-transaction was signed, sent or confirmed. Report any signed transaction
-separately, with its chain id, hash and the wallet that produced it.
-
----
-
-## 8. Rollback
-
-Keep the previous document root. Rollback is replacing the directory and
-reloading nginx; there is no database, no migration and no server-side state
-to unwind. Client-side state lives in the user's own browser under the
-IndexedDB names `xiongan-public-assets-v1` and `8415-public-operation-v2`, and
-is not affected by a server rollback.
+Do not clear IndexedDB, change host/scheme/port or downgrade an unresolved
+journal to force rollback. If the previous version cannot understand an active
+journal schema, preserve the current compatible recovery surface until those
+operations are reconciled; a static rollback is not permission to discard
+client-side state. Contract deployments and public-chain transactions are not
+reversed by serving older HTML.

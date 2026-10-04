@@ -2,25 +2,27 @@
 
 Date: 2026-10-03. Status: **BETA_FUNCTIONAL_TESTING_NOT_INDEPENDENTLY_AUDITED**.
 
-Public-chain execution, physical device journeys and W-20 are what this build
-exists to collect, not preconditions for publishing it. Independent security
-review bounds what the build may be used for rather than blocking it: the
-surface that most needs that review, the control kernel, already cannot reach
-mainnet, because a non-testnet deployment is refused in code with
-`CONTROL_TESTNET_REQUIRED` and a non-testnet agent request with
-`AGENT_TESTNET_REQUIRED`.
+This document describes the **SDK/CLI package**, not the V3 DApp. The browser
+delivery, source manifest and deployment instructions are in
+[BETA-DAPP-DELIVERY.md](BETA-DAPP-DELIVERY.md).
+
+Public-chain execution, physical-device journeys and W-20 are collected during
+Beta testing. They are not prerequisites for producing the functional Beta.
+Independent security review remains uncompleted and is required before general
+release. The normal DApp deployment and agent-request inputs reject unsupported
+control chains; direct SDK use must apply its own network policy. There is no
+global SDK mainnet lock.
 
 `npm run pack:v3` builds it; `npm run pack:v3:verify` proves it installs and
 works from outside this repository, and that it tells the truth about itself.
 
-## Why a candidate and not a release
+## Beta assurance boundary
 
-V2 shipped as a product because its surface — the standalone reading client —
-is what the repository can stand behind. V3 adds the responsibility control
+The V2 SDK contains the narrower standalone reading and transaction surface. V3 adds the responsibility control
 kernel. Authenticated atomic adapters and alternate-path protection exist as
 development source, but the exact integration has not completed independent
 security and release acceptance. Publishing V3 as a release would overstate it,
-so it is published as a candidate instead: installable, integrable and
+so it is published as a Beta instead: installable, integrable and
 reviewable, with its status carried in the artifact name, the package
 metadata, and a notice the build refuses to omit.
 
@@ -79,5 +81,5 @@ not a substitute for security review or a test result.
 - journeys on a physical device. Stage 5J's browser evidence is a real browser
   at an emulated phone viewport, which is not a handset.
 
-The V2 product package is unchanged and remains the surface without the
-unaudited kernel. Both can be built from the same commit.
+The V2 SDK remains the surface without the linked control kernel. Both SDKs
+and both DApps can be built from the same exact source commit.

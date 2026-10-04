@@ -6,7 +6,7 @@ import { NativeResponsibilityPaymentClient } from './payments.ts';
 import { ForwardConsentReview } from './consentReview.ts';
 import { RpcResponsibilityControlReader } from './view.ts';
 import { address, proveSupersededNonce, type FixedReceipt, type SupersededNonceProof } from './execution.ts';
-import { ControlAdapterError, controlHex, requireControlAdapter as check, type ControlDeploymentPin, type ForwardConsent } from './authorization.ts';
+import { ControlAdapterError, controlHex, isControlProviderRejection, requireControlAdapter as check, type ControlDeploymentPin, type ForwardConsent } from './authorization.ts';
 import { parseOperation, serializeOperation, sameDeployment, type OperationState, type PublicOperationStore,
   type WalletSubmission } from './operationJournal.ts';
 
@@ -103,9 +103,17 @@ export class ResponsibilityWalletSession {
       check(await this.#store.compareAndSwap(reserved.revision, submitted), 'CONTROL_SUBMISSION_PERSISTENCE_UNCERTAIN');
       return structuredClone(record);
       } catch (error) {
-        // Only a failure BEFORE the beforeSend hook proves no wallet send was invoked.
-        if (!prepared) await this.#store.compareAndSwap(reserved.revision, { ...reserved, revision: reserved.revision + 1n,
-          status: 'idle', requestDigest: null, submission: null });
+        const rejected = isControlProviderRejection(error, 'eth_sendTransaction');
+        // A pre-send failure or this exact provider request's explicit refusal
+        // proves there is no submission to reconcile. End only our own claim;
+        // another transaction still requires a new explicit execute call.
+        if (!prepared || rejected) {
+          let cleared = false;
+          try { cleared = await this.#store.compareAndSwap(reserved.revision, { ...reserved, revision: reserved.revision + 1n,
+            status: 'idle', requestDigest: null, submission: null }); }
+          catch { /* An unconfirmed durable write must never be reported as retryable. */ }
+          check(cleared, rejected ? 'CONTROL_REJECTION_PERSISTENCE_UNCERTAIN' : 'CONTROL_OPERATION_PERSISTENCE_UNCERTAIN');
+        }
         throw error;
       } finally { this.#beforeSend = null; }
     });

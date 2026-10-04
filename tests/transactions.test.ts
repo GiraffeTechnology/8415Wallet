@@ -22,6 +22,7 @@ import {
   buildFinalizeSettlement,
 } from '../src/sdk/transactions.ts';
 import { ZERO_BYTES32 } from '../src/sdk/types.ts';
+import { TransportError } from '../src/sdk/errors.ts';
 import { executeTransaction } from './support/executeTransaction.ts';
 
 const SNAPSHOT = commitment('5');
@@ -384,4 +385,31 @@ describe('a contract without the settlement interface', () => {
       },
     );
   });
+});
+
+
+describe('preflight unavailable evidence remains unavailable', () => {
+  for (const operation of ['begin', 'finalize', 'cancel'] as const) {
+    test(`${operation}: a settlement transport failure is never missing/unused evidence`, async () => {
+      const { reader, contract } = divergentToken();
+      const failure = new TransportError('eth_call', 'provider refused');
+      reader.settlement = async () => { throw failure; };
+      const prepared = operation === 'begin' ? buildBeginSettlement(reader, REGISTRAR, {
+        tokenId: TOKEN, settlementId: settlementId('e'), expectedHolder: DAVE, snapshotHash: commitment('d'), deadline: contract.now + 600n,
+      }) : operation === 'finalize' ? buildFinalizeSettlement(reader, REGISTRAR, {
+        settlementId: OPEN_GAP_ID, recordCommitment: commitment('d'), registryReference: commitment('e'), effectiveAt: T.v3 + 10n, proofData: '0x',
+      }) : buildCancelSettlement(reader, REGISTRAR, { settlementId: OPEN_GAP_ID, reasonHash: commitment('f') });
+      await assert.rejects(prepared, error => error === failure);
+    });
+  }
+  for (const field of ['ownerOf', 'isSettlementAuthority'] as const) {
+    test(`${field}: a transport failure cannot become a token or authority fact`, async () => {
+      const { reader, contract } = divergentToken();
+      const failure = new TransportError('eth_call', 'provider refused');
+      reader[field] = async () => { throw failure; };
+      await assert.rejects(buildBeginSettlement(reader, REGISTRAR, {
+        tokenId: TOKEN, settlementId: settlementId('e'), expectedHolder: DAVE, snapshotHash: commitment('d'), deadline: contract.now + 600n,
+      }), error => error === failure);
+    });
+  }
 });

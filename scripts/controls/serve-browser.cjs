@@ -7,8 +7,8 @@ const path=require('node:path');
 const root=path.resolve(__dirname,'../..');
 const port=Number(process.env.WALLET_BROWSER_PORT??'8415');
 if(!Number.isInteger(port)||port<1024||port>65535)throw new Error('BROWSER_PORT_REFUSED');
-const web=new Set(['index.html','app.mjs','public-store.mjs','wallet.css','external-assets.mjs','external-store.mjs','ui-lock.mjs']);
-const mime={'.html':'text/html; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8'};
+const web=new Set(['index.html','app.mjs','public-store.mjs','wallet.css','external-assets.mjs','external-store.mjs','ui-lock.mjs','release-profile.mjs','release-config.json','settlement-store.mjs','legacy-clearing.mjs','legacy-clearing-store.mjs']);
+const mime={'.html':'text/html; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8'};
 const server=http.createServer((req,res)=>{
   res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Cache-Control','no-store');
   res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Cross-Origin-Resource-Policy','same-origin');

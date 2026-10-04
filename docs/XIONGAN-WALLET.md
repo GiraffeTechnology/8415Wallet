@@ -1,7 +1,8 @@
-# Xiongan Wallet development candidate
+# 8415wallet V2 Beta — Xiongan tenant
 
-User-facing name: **Xiongan Wallet**. Built on 8415Wallet, with
-two distinct custody boundaries. Status: **NOT_INDEPENDENTLY_AUDITED**.
+Product: **8415wallet**. UI platform domain: **8415wallet.com**.
+**Xiongan** is a V2 tenant, with two distinct custody boundaries.
+Status: **BETA_FUNCTIONAL_TESTING_NOT_INDEPENDENTLY_AUDITED**.
 This source is not release acceptance and is not a recommendation to fund it.
 
 ## Supported boundaries
@@ -9,7 +10,7 @@ This source is not release acceptance and is not a recommendation to fund it.
 | Surface | Networks | Assets and actions | Custody / decision |
 | --- | --- | --- | --- |
 | External-account companion | Ethereum (1), Base (8453), Sepolia (11155111), Base Sepolia (84532) | ETH balance/receive address; ETH transfer to EOA recipients; ERC-721 and ERC-1155 safe transfers by explicit contract/token ID | Existing external EOA; owner reviews and personally confirms signing/submission in the genuine wallet |
-| Existing ERC-8415 controls | Sepolia and Hoodi only | Original standalone/linked responsibilities, optional payments and recovery | Existing pinned controlled-account implementation; original gates unchanged |
+| Existing ERC-8415 controls | Sepolia and Hoodi only | Standalone controlled-account operations and recovery; V3 separately enables linked responsibilities and optional payments | Existing pinned controlled-account implementation; explicit profile, chain and deployment checks |
 | Agent request inbox | Same chain/account as the selected surface | Bounded public JSON requests, immutable exact-operation review, one owner-approved wallet prompt | No keys, signatures, allowances, autonomous broadcasting or standing/session permission |
 
 ETH must never be sent to an 8415 controlled-account contract as a general
@@ -38,8 +39,9 @@ npm run wallet:browser:serve
 The server listens only on loopback (default `http://127.0.0.1:8415`). It serves
 static public assets and has no signer, RPC proxy, credential, upload or agent
 write endpoint. Connect a genuine wallet manually on one supported chain. The
-external EOA panel does not require an ERC-8415 deployment manifest. The original
-controls panel still requires its exact pinned public testnet manifest.
+external EOA panel does not require an ERC-8415 deployment manifest. The protocol panel requires its exact pinned public testnet manifest. The V3
+profile additionally enables linked controls. See `BETA-DAPP-DELIVERY.md` for
+the separate versioned DApp artifacts and explicit full deployment URLs.
 
 Select the real wallet and network yourself; initialize/import any wallet key
 only in that wallet's secure interface. Never enter a mnemonic/private key in
@@ -110,8 +112,11 @@ byte-oriented and do not gain a checksum-casing requirement. A valid checksum
 does not verify who controls the address or make a transfer safe.
 
 A provably unsent failure before the send boundary may clear only that reserved
-intent. Once the provider send is invoked, rejection, timeout, malformed response
-or persistence failure remains uncertain; no automatic retry or clearing occurs.
+intent. A direct numeric EIP-1193 error code 4001 identifies a rejected request. The
+exact owned claim may return to idle only after durable cancellation storage;
+the owner must prepare a new review and explicitly try again. Other errors,
+timeouts, malformed responses and cancellation persistence failures stay
+uncertain; no automatic retry or unproved clearing occurs.
 
 - Submitted: reconcile the exact canonical transaction/receipt and expected NFT
   transfer event, including block/transaction metadata. A hash alone is not success.
@@ -130,7 +135,7 @@ also change nonce state in another wallet/tab; those changes must be reconciled,
 not assumed to authorize a replacement. No app can prevent the owner using a
 separate wallet interface.
 
-## Acceptance still required
+## Evidence collected during Beta and before general release
 
 - Exact-version independent external security review, covering the new EOA layer
   as well as existing controls and dependency/tooling boundaries.
@@ -138,10 +143,10 @@ separate wallet interface.
   account/chain transitions on the intended networks, with user-owned signing.
 - Physical mobile/hardware-device journeys. Responsive markup or simulated DOM
   events do not establish device acceptance.
-- Final chosen deployment origin, HTTPS configuration and delivery package.
+- Exact served artifact, confirmed full deployment URL, HTTPS configuration and recovery/rollback evidence.
 
 The repository's historical 126 Sepolia receipts belong to their named older
-candidate and do not validate this new layer. AI-assisted source review, Node/EVM
+candidate and do not validate this new layer. Source review, Node/EVM
 regressions and a synthetic provider must not be called an independent audit or
 real-asset acceptance. No mainnet or testnet transaction was submitted while
 implementing this candidate. Nothing here grants standing signing authority.

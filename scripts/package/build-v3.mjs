@@ -69,7 +69,7 @@ const version = '3.0.0-beta';
 writeFileSync(join(stage, 'package.json'), `${JSON.stringify({
   name: '8415wallet',
   version,
-  description: 'ERC-8415 temporal asset wallet — V3 beta: standalone reading plus linked responsibility controls. Not independently audited; control kernel is testnet only.',
+  description: 'ERC-8415 temporal asset wallet — V3 beta: standalone reading plus linked responsibility controls. Not independently audited; normal DApp control paths enforce testnet guards and SDK consumers set their own chain policy.',
   license: dev.license,
   type: 'module',
   engines: dev.engines,
@@ -107,14 +107,10 @@ writeFileSync(join(root, 'dist', 'v3-package-manifest.json'), `${JSON.stringify(
     'physical device journeys in a wallet application in-app browser',
     'W-20 deployed same-token multi-wallet journey'],
   // Independent review bounds what the build may be used for rather than
-  // blocking its publication.
+  // blocking its publication. The normal DApp manifest and agent-request paths
+  // enforce testnet guards; direct SDK consumers supply their own chain policy.
   beforeGeneralRelease: ['independent security review of the control kernel, adapters, verifiers, deployed contracts, recovery and optional payment integration'],
-  // Stated precisely, because the obvious reading is wrong. The testnet
-  // restriction is enforced at two call sites, web/app.mjs and the agent
-  // request parser, and neither ships in this package. src/controls carries no
-  // chain restriction at all, so a consumer importing the control surface from
-  // THIS package is not confined to a testnet and must impose that bound.
-  controlKernelScope: 'NOT chain-restricted in this package. The CONTROL_TESTNET_REQUIRED and AGENT_TESTNET_REQUIRED checks belong to the dApp page and the agent request parser, neither of which is shipped here. An integrator consuming the control surface directly is responsible for restricting the chain until independent review is complete.',
+  controlKernelScope: 'The normal DApp control deployment-manifest path and agent-request path enforce testnet chain guards (CONTROL_TESTNET_REQUIRED, AGENT_TESTNET_REQUIRED). Direct SDK consumers must enforce their own chain policy; the SDK is not a universal mainnet barrier.',
 }, null, 2)}\n`);
 console.log(`${packed.filename}  ${packed.entryCount} entries  ${Math.round(packed.unpackedSize / 1024)} KB`);
 console.log(`sha256 ${sha}`);

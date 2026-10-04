@@ -1,5 +1,6 @@
 import { encodeCallWithTail, type AbiType, type AbiValue } from '../codec/abi.ts';
 import { detectConformance, requireSettlementConformance } from './conformance.ts';
+import { ContractRevertError } from './errors.ts';
 import type { Erc8415Reader } from './port.ts';
 import { ZERO_BYTES32, type Address, type Bytes32, type Instant, type TokenId } from './types.ts';
 
@@ -147,7 +148,10 @@ export async function buildBeginSettlement(
     try {
       await reader.settlement(params.settlementId);
       used = true;
-    } catch {
+    } catch (error) {
+      // Only a contract revert can mean the identifier is absent. A failed
+      // transport or malformed response is unavailable evidence, not a fact.
+      if (!(error instanceof ContractRevertError)) throw error;
       used = false;
     }
     record(
@@ -167,17 +171,15 @@ export async function buildBeginSettlement(
   try {
     await reader.ownerOf(params.tokenId);
     pass(checks, 'token exists', `token ${params.tokenId} is present`);
-  } catch {
+  } catch (error) {
+    if (!(error instanceof ContractRevertError)) throw error;
     fail(checks, 'token exists', `token ${params.tokenId} does not exist`);
   }
 
   if (reader.isSettlementAuthority !== undefined) {
-    let authorized = false;
-    try {
-      authorized = await reader.isSettlementAuthority(params.tokenId, from);
-    } catch {
-      authorized = false;
-    }
+    // An unavailable authority read must not be presented as an unauthorized
+    // account. Let the read failure stop preparation without a wallet prompt.
+    const authorized = await reader.isSettlementAuthority(params.tokenId, from);
     record(
       checks,
       'settlement authority',
@@ -267,7 +269,8 @@ export async function buildFinalizeSettlement(
           ? 'the gap is open and can accept an admission'
           : `the settlement is ${record_.status}; no entry can be admitted into it`,
       );
-    } catch {
+    } catch (error) {
+      if (!(error instanceof ContractRevertError)) throw error;
       fail(checks, 'settlement exists', `no settlement named ${params.settlementId}`);
     }
   }
@@ -391,7 +394,8 @@ export async function buildCancelSettlement(
           : `${record_.deadline - now}s remain; cancelling earlier is rejected so a record ` +
             'already finalized remotely cannot be stranded by unilateral abandonment',
       );
-    } catch {
+    } catch (error) {
+      if (!(error instanceof ContractRevertError)) throw error;
       fail(checks, 'settlement exists', `no settlement named ${params.settlementId}`);
     }
   }

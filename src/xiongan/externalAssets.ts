@@ -2,7 +2,7 @@ import type { Eip1193Provider } from '../adapters/signing/eip1193Signer.ts';
 import { encodeCall, encodeCallWithTail } from '../codec/abi.ts';
 import { keccak256Utf8 } from '../codec/keccak.ts';
 import { isAddressInput } from './address.ts';
-import { controlHex, controlRpc, controlPendingNonce, hashControlBytes, requireControlAdapter as check } from '../controls/authorization.ts';
+import { controlHex, controlRpc, controlPendingNonce, hashControlBytes, isControlProviderRejection, requireControlAdapter as check } from '../controls/authorization.ts';
 
 export const ASSET_CHAINS = Object.freeze({ '1': 'Ethereum', '8453': 'Base', '11155111': 'Sepolia', '84532': 'Base Sepolia' });
 type PublicObject = Record<string, unknown>;
@@ -130,7 +130,7 @@ export class ExternalAssetSession {
     }
     const transaction = { from: actor, to, chainId: hex(BigInt(chainId)), value: hex(value), data, nonce: hex(nonce) };
     // Simulation failure is unavailable, never authorization. Gas fees remain a wallet decision.
-    quantity(await this.#rpc('eth_estimateGas', [transaction]));
+    quantity(await this.#rpc('eth_estimateGas', [structuredClone(transaction)]));
     check(hash(obj(await this.#rpc('eth_getBlockByNumber', [block, false])).hash) === blockHash, 'ASSET_SNAPSHOT_REORGED');
     await this.#identity();
     const summary = { requestId: r.requestId as string, claimedAgent: r.agent as string, expiresAt: expiresAt.toString(),
@@ -148,8 +148,8 @@ export class ExternalAssetSession {
       const fresh = await this.prepare(original.requestText); check(fresh.digest === original.digest && JSON.stringify(fresh) === JSON.stringify(original), 'ASSET_REVIEW_CHANGED');
       const reserved: AssetState = { ...state, revision: state.revision + 1, status: 'outcome-unknown', transaction: fresh.transaction, transactionHash: null, digest: fresh.digest };
       check(await this.#store.compareAndSwap(state.revision, reserved), 'ASSET_OPERATION_CONCURRENT');
-      // Clear only if our own guard/reads fail BEFORE invoking the send boundary.
-      // A provider rejection or timeout after invocation always remains unknown.
+      // Clear only for a pre-send failure or a direct EIP-1193 user refusal.
+      // Ambiguous provider/transport failures and timeouts remain unknown.
       let sendInvoked = false;
       let transactionHash: string;
       try {
@@ -159,10 +159,16 @@ export class ExternalAssetSession {
         const guarded = { request: (args: { method: string; params?: readonly unknown[] }) => {
           this.#connectionGuard(); sendInvoked = true; return this.#provider.request(args);
         } };
-        transactionHash = hash(await controlRpc(guarded, 'eth_sendTransaction', [fresh.transaction]));
+        transactionHash = hash(await controlRpc(guarded, 'eth_sendTransaction', [structuredClone(fresh.transaction)]));
       } catch (error) {
-        if (!sendInvoked) await this.#store.compareAndSwap(reserved.revision, { ...reserved, revision: reserved.revision + 1,
-          status: 'idle', transaction: null, transactionHash: null, digest: null });
+        const rejected = isControlProviderRejection(error, 'eth_sendTransaction');
+        if (!sendInvoked || rejected) {
+          let cleared = false;
+          try { cleared = await this.#store.compareAndSwap(reserved.revision, { ...reserved, revision: reserved.revision + 1,
+            status: 'idle', transaction: null, transactionHash: null, digest: null }); }
+          catch { /* Preserve an unresolved journal if cancellation was not durably saved. */ }
+          check(cleared, rejected ? 'ASSET_REJECTION_PERSISTENCE_UNCERTAIN' : 'ASSET_OPERATION_PERSISTENCE_UNCERTAIN');
+        }
         throw error;
       }
       check(await this.#store.compareAndSwap(reserved.revision, { ...reserved, revision: reserved.revision + 1, status: 'submitted', transactionHash }), 'ASSET_PERSISTENCE_UNCERTAIN');

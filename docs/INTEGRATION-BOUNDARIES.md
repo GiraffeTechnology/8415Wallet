@@ -1,6 +1,8 @@
 # 8415Wallet integration boundaries v1
 
-Status: **NOT_INDEPENDENTLY_AUDITED**. ERC-8415 candidate control integrations are testnet-only.
+Status: **NOT_INDEPENDENTLY_AUDITED**. ERC-8415 Beta control acceptance is testnet-only.
+The normal DApp enforces supported testnets; direct SDK consumers must enforce
+their own network policy. This is not a global SDK mainnet barrier.
 This contract describes product behavior, not a release certificate.
 
 ## Protocol observations
@@ -49,7 +51,10 @@ Unsupported account/proxy/provider profiles must not be treated as protected.
 Persist uncertainty before a wallet send. A hash is not success; reconcile
 canonical receipts and expected effects. Never auto-resend after timeouts or
 clear an unknown outcome merely because the page restarted. Public journals
-must not contain private keys, credentials or raw consent signatures.
+must not contain private keys, credentials or raw consent signatures. A direct
+numeric EIP-1193 code 4001 is a known request rejection, not a transaction
+receipt. Its exact owned claim may clear only after durable cancellation
+storage succeeds. Other failures remain uncertain and cannot silently retry.
 
 ## Deployment and acceptance
 
@@ -59,15 +64,16 @@ and independent security review separate. Historical real testnet transactions
 exist; they do not validate every new candidate or close all W-01–W-24 cases.
 The package's own build/install checks do not establish release acceptance.
 Independent review of the exact contracts, adapters, evidence and signature
-verification, recovery and optional payments remains required before release.
+verification, recovery and optional payments remains required before general release. Functional-testing Beta artifacts can be built and
+handed over while these deployment/device/security results remain uncollected.
 
-## Xiongan external-account companion
+## External-account companion and tenant identity
 
-Xiongan's additive EOA interface recognizes Ethereum/Base and their selected
-testnets for ETH and standard ERC-721/ERC-1155. This does not enable mainnet
-responsibility controls or turn a controlled-account contract into a general
+8415wallet is the product and 8415wallet.com is its UI platform domain.
+Xiongan is a V2 tenant. The additive EOA interface recognizes Ethereum/Base and their selected
+testnets for ETH and standard ERC-721/ERC-1155. This does not establish mainnet responsibility acceptance or turn a controlled-account contract into a general
 asset vault. Real assets stay in the user's external EOA; each prepared action
 requires a new owner review and genuine-wallet signing/submission. No agent has
 keys, a session grant, token approval or an autonomous send route. This companion
-is a development candidate with its own uncompleted genuine-provider/device
-and independent-security gates; chain support is not production acceptance.
+is functional-testing Beta code with uncompleted genuine-provider/device and
+independent-security evidence; chain support is not production acceptance.

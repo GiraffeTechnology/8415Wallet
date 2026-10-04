@@ -1,151 +1,81 @@
-/**
- * Build the deployable dApp bundle.
- *
- * This is not the npm package. It is the static tree a web server hosts: the
- * page, its modules and the compiled browser entry, with nothing else. A static
- * host resolves nothing, so the two ways this artifact fails in production are
- * a module specifier that does not resolve and an asset the page references but
- * the tree does not carry. Both are checked here rather than discovered after
- * deployment.
- *
- * The build is a BETA. Its UI is sufficient for functional testing and it has
- * not completed public-chain execution, physical device journeys, W-20 or
- * independent security review. The status travels in RELEASE.json and the build
- * refuses to ship text that claims otherwise.
- */
-import { createHash } from 'node:crypto';
+/** Build distinct static Beta artifacts; SDK npm tarballs use separate commands. */
 import { execFileSync } from 'node:child_process';
-import { lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, join, relative, resolve } from 'node:path';
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { RELEASE_PROFILES, RELEASE_STATUS, resolveReleaseProfile } from '../../web/release-profile.mjs';
+import { captureSource, deterministicArchive, exportSource, sha256, stagePublicWeb, validateStaticTree, walk } from './dapp-release.mjs';
 
 const root = process.cwd();
-const VERSION = '3.0.0-beta';
-const STATUS = 'BETA_FUNCTIONAL_TESTING_NOT_INDEPENDENTLY_AUDITED';
-/**
- * A beta's gates are not a release's gates. Public-chain execution, device
- * journeys and W-20 are what this build exists to collect; listing them as
- * blockers would describe the beta as waiting for its own purpose, and nothing
- * would ever ship. They are stated as what the beta produces.
- *
- * Independent review is different in kind: it protects whoever uses the build,
- * not the release process. It does not block publishing a beta, so it is not a
- * blocker either -- it bounds what the build may be used for. What makes that
- * bound tolerable is where the mainnet reach actually is, which SCOPE records
- * rather than leaves to a reader's assumption.
- */
-const BETA_COLLECTS = ['public-chain execution with a genuine wallet',
-  'physical device journeys in a wallet application in-app browser',
-  'W-20 deployed same-token multi-wallet journey'];
-const BEFORE_GENERAL_RELEASE = ['independent security review of the control kernel, adapters, verifiers, deployed contracts, recovery and optional payment integration'];
-const SCOPE = {
-  controlKernel: 'In THIS bundle the control panel is testnet only: web/app.mjs refuses a non-testnet deployment with CONTROL_TESTNET_REQUIRED, and the agent request parser refuses one with AGENT_TESTNET_REQUIRED. The restriction lives in these two call sites, NOT in src/controls, so it binds this page and does not bind a consumer who imports the control surface directly from the npm package.',
-  assetTransfers: 'Ethereum mainnet, Base, Sepolia and Base Sepolia. This layer holds no key and sets no amount ceiling; the final authority is the confirmation dialog of the user own wallet.',
-  recommendation: 'For functional testing set the wallet to Sepolia before connecting.',
-};
-/**
- * A beta ships the surface; what it must never ship is a claim. The phrases
- * below are claims only when asserted: the page's own banner says "Not
- * independently audited", which is the opposite, so a negation immediately
- * before the phrase clears it. Matching the phrase alone would refuse the very
- * disclaimer this check exists to protect.
- */
-const NEGATION = String.raw`(?:not|never|no|without|refuses? to be|yet to be|pending)\s+(?:\w+\s+){0,2}`;
-const CLAIMS = ['independently audited', 'security[- ]approved', 'production[- ]ready',
-  'release[- ]accepted', 'audit(?:ed)? complete'];
-const FORBIDDEN_CLAIMS = CLAIMS.map((c) => new RegExp(String.raw`(?<!${NEGATION})(?:${c})`, 'i'));
-const TREES = ['web', 'dist/browser'];
-const stage = join(root, 'dist', 'package-dapp');
-const fail = (code, detail) => { console.error(code, detail ?? ''); process.exit(1); };
-const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
-
-// Compile from source rather than trusting whatever dist/browser happens to hold.
-execFileSync('npx', ['tsc', '-p', 'tsconfig.browser.json'], { cwd: root, stdio: 'inherit' });
-
-function walk(directory) {
-  return readdirSync(join(root, directory)).flatMap((name) => {
-    const rel = `${directory}/${name}`, info = lstatSync(join(root, rel));
-    if (info.isSymbolicLink()) fail('DAPP_SYMLINK_REFUSED', rel);
-    return info.isDirectory() ? walk(rel) : [rel];
-  });
+const options = {};
+for (let i = 2; i < process.argv.length; i += 2) {
+  const key = process.argv[i];
+  if (!['--profile', '--config'].includes(key) || !process.argv[i + 1] || options[key]) throw new Error('DAPP_ARGUMENT_REFUSED');
+  options[key] = process.argv[i + 1];
 }
-const files = TREES.flatMap(walk).sort();
-if (files.length === 0) fail('DAPP_EMPTY_TREE');
-
-// Every relative specifier must resolve inside the shipped tree, and no bare
-// specifier may survive: a static host has no resolver to fall back on.
-const present = new Set(files);
-let relativeImports = 0;
-for (const file of files) {
-  if (!/\.(mjs|js)$/.test(file)) continue;
-  const text = readFileSync(join(root, file), 'utf8');
-  for (const match of text.matchAll(/(?:^|[\s;{(])(?:import|export)\b[^'"\n]*?from\s*['"]([^'"]+)['"]/g)) {
-    const spec = match[1];
-    if (!spec.startsWith('.')) fail('DAPP_BARE_SPECIFIER_REFUSED', `${file} -> ${spec}`);
-    const target = relative(root, resolve(join(root, dirname(file)), spec)).split('\\').join('/');
-    if (!present.has(target)) fail('DAPP_UNRESOLVED_IMPORT', `${file} -> ${spec}`);
-    relativeImports += 1;
-  }
+const id = options['--profile'] ?? 'v3';
+if (!Object.hasOwn(RELEASE_PROFILES, id)) throw new Error('DAPP_PROFILE_REFUSED');
+const configPath = options['--config'] ? resolve(root, options['--config']) : join(root, 'config', 'releases', `${id}.json`);
+const config = JSON.parse(readFileSync(configPath, 'utf8'));
+const profile = resolveReleaseProfile(config);
+if (profile.id !== id) throw new Error('DAPP_CONFIG_PROFILE_MISMATCH');
+const source = captureSource(root);
+const prdPath = 'docs/ERC-8415-Wallet-PRD.md';
+if (!source.files[prdPath]) throw new Error('DAPP_PRD_MISSING');
+for (const tree of ['src', 'web']) {
+  for (const file of walk(root, tree)) if (!Object.hasOwn(source.files, file)) throw new Error(`DAPP_UNTRACKED_SOURCE_STAGE_REQUIRED: ${file}`);
 }
-
-// Everything the page pulls in must be in the tree and must be local.
-const pageFile = 'web/index.html';
-if (!present.has(pageFile)) fail('DAPP_PAGE_MISSING', pageFile);
-const page = readFileSync(join(root, pageFile), 'utf8');
-let pageAssets = 0;
-for (const match of page.matchAll(/(?:src|href)="([^"]+)"/g)) {
-  const ref = match[1];
-  if (/^(https?:)?\/\//.test(ref)) fail('DAPP_EXTERNAL_ASSET_REFUSED', ref);
-  const target = relative(root, resolve(join(root, dirname(pageFile)), ref)).split('\\').join('/');
-  if (!present.has(target)) fail('DAPP_MISSING_PAGE_ASSET', ref);
-  pageAssets += 1;
+for (const file of ['docs/BETA-DAPP-DELIVERY.md', 'docs/BETA-PRD-COVERAGE.md']) {
+  if (!Object.hasOwn(source.files, file)) throw new Error(`DAPP_UNTRACKED_SOURCE_STAGE_REQUIRED: ${file}`);
 }
-if (!/<meta http-equiv="Content-Security-Policy"/.test(page)) fail('DAPP_PAGE_CSP_MISSING');
-
-for (const file of files) {
-  if (!/\.(mjs|js|html|css)$/.test(file)) continue;
-  const text = readFileSync(join(root, file), 'utf8');
-  for (const claim of FORBIDDEN_CLAIMS) if (claim.test(text)) fail('DAPP_FORBIDDEN_CLAIM', `${file} :: ${claim}`);
-}
-
-let source = 'unknown';
-try { source = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root }).toString().trim(); } catch {}
-
+// Clear output first: removed source modules must never survive a prior emit.
+rmSync(join(root, 'dist/browser'), { recursive: true, force: true });
+execFileSync(process.execPath, ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.browser.json'], { cwd: root, stdio: 'inherit' });
+const stage = join(root, 'dist', `package-dapp-${id}`);
 rmSync(stage, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
-for (const file of files) {
-  mkdirSync(join(stage, dirname(file)), { recursive: true });
-  writeFileSync(join(stage, file), readFileSync(join(root, file)));
+stagePublicWeb(root, source, stage);
+cpSync(join(root, 'dist/browser'), join(stage, 'dist/browser'), { recursive: true });
+writeFileSync(join(stage, 'web/release-config.json'), `${JSON.stringify(config, null, 2)}\n`);
+for (const file of [prdPath, 'docs/BETA-DAPP-DELIVERY.md', 'docs/BETA-PRD-COVERAGE.md']) {
+  mkdirSync(join(stage, dirname(file)), { recursive: true }); cpSync(join(root, file), join(stage, file));
 }
-
+if (captureSource(root).tree !== source.tree) throw new Error('DAPP_SOURCE_CHANGED_DURING_BUILD');
+const validation = validateStaticTree(stage);
+const runtimeFiles = Object.fromEntries(validation.files.map(file => [file, sha256(readFileSync(join(stage, file)))]));
+const sourceArtifact = `8415wallet-source-${source.tree}.tar.gz`;
+const sourceSha256 = exportSource(root, source, join(root, 'dist', sourceArtifact));
+const { entries, ...sourceIdentity } = source;
 const release = {
-  name: '8415wallet-dapp', version: VERSION, status: STATUS,
-  description: 'ERC-8415 temporal asset wallet - deployable dApp bundle. Beta: UI sufficient for functional testing. Not independently audited.',
-  source, files: files.length, relativeImports, pageAssets, externalRequests: 0,
-  entry: 'web/index.html',
-  scope: SCOPE, betaCollects: BETA_COLLECTS, beforeGeneralRelease: BEFORE_GENERAL_RELEASE,
-  notes: ['Serve over HTTPS: the operation journal refuses to start outside a secure context.',
-    'Serve .mjs as text/javascript; most servers do not map it by default.',
-    'Send frame-ancestors as a response header; the page meta CSP cannot carry it.',
-    'The served origin is part of stored state. Changing host, scheme or port strands existing journals.'],
+  schema: '8415wallet-dapp-release/2', name: `8415wallet-dapp-${id}`, product: '8415wallet', platform: '8415wallet.com',
+  profile: id, version: profile.version, status: RELEASE_STATUS, tenant: profile.tenant, deployment: profile.deployment,
+  entry: 'web/index.html', prd: { file: prdPath, sha256: source.files[prdPath], ...profile.prd },
+  features: profile.features, source: sourceIdentity, sourceArchive: { artifact: sourceArtifact, sha256: sourceSha256 },
+  toolchain: { node: process.version, typescript: JSON.parse(readFileSync(join(root, 'node_modules/typescript/package.json'), 'utf8')).version,
+    lockfileSha256: sha256(readFileSync(join(root, 'package-lock.json'))) },
+  build: { installCommand: 'npm ci', browserCommand: 'npm run wallet:browser:build',
+    packageCommand: `npm run pack:dapp:${id} -- --config dist/release-input/${id}.json`,
+    configurationPreparation: `Copy this artifact's web/release-config.json to the verified source checkout at dist/release-input/${id}.json before the package command. The dist directory is excluded from the source content tree.`,
+    configSha256: sha256(readFileSync(join(stage, 'web/release-config.json'))),
+    archiveFormat: 'GNU tar, sorted paths, epoch mtime, owner/group 0, normalized permissions; gzip -9 -n' },
+  validation: { files: validation.files.length, relativeImports: validation.relativeImports, pageAssets: validation.pageAssets },
+  runtimeFiles,
+  evidence: { package: 'static module/asset resolution and file integrity only',
+    localMock: 'record separately; not genuine-wallet or deployed acceptance', localEvm: 'record separately; not public-testnet acceptance',
+    publicTestnet: 'not established by packaging', deviceJourneys: 'not established by packaging',
+    W20: id === 'v3' ? 'requires deployed same-token multi-wallet UI journey, with funded and unfunded variants' : 'not part of V2 foundation',
+    independentReview: 'not independently audited; functional Beta publication is permitted, general release acceptance is not established' },
+  scope: { controlKernel: 'The normal DApp control deployment-manifest path and agent-request path enforce testnet chain guards. Direct SDK consumers must enforce their own chain policy; the SDK is not a universal mainnet barrier.',
+    externalAssets: 'Ethereum, Base, Sepolia and Base Sepolia; no private-key custody; each transfer requires the user wallet confirmation',
+    recommendation: 'Use authorized test assets and testnets for Beta testing. Mainnet testing requires separate authorization.' },
+  notes: ['Serve the complete tree with its web/ and dist/browser/ layout intact.',
+    'A full confirmed deployment URL is required before hosting; null means no endpoint has been assigned.',
+    'CTYun and SIN TCP 443 are reserved for SSH; never bind a web listener or infer a replacement allocation.',
+    'Preserve origin and browser operation journals across deployments and rollbacks.'],
 };
 writeFileSync(join(stage, 'RELEASE.json'), `${JSON.stringify(release, null, 2)}\n`);
-
-const sums = files.map((f) => `${sha256(readFileSync(join(stage, f)))}  ${f}`).join('\n');
+const sums = walk(stage).map(file => `${sha256(readFileSync(join(stage, file)))}  ${file}`).join('\n');
 writeFileSync(join(stage, 'SHA256SUMS'), `${sums}\n`);
-
-// Deterministic: the same source must give the same digest, or publishing a
-// hash for people to verify against means nothing. tar embeds mtimes and owners
-// and gzip embeds its own timestamp, so all three are pinned.
-const tarball = join(root, 'dist', `8415wallet-dapp-${VERSION}.tar.gz`);
-const tar = execFileSync('tar', ['--sort=name', '--mtime=UTC 1970-01-01', '--owner=0', '--group=0',
-  '--numeric-owner', '--format=gnu', '-cf', '-', '-C', stage, '.'],
-  { stdio: ['ignore', 'pipe', 'inherit'], maxBuffer: 1 << 28 });
-writeFileSync(tarball, execFileSync('gzip', ['-9', '-n'], { input: tar, maxBuffer: 1 << 28 }));
-const digest = sha256(readFileSync(tarball));
-writeFileSync(join(root, 'dist', 'dapp-package-manifest.json'),
-  `${JSON.stringify({ artifact: `8415wallet-dapp-${VERSION}.tar.gz`, sha256: digest, ...release }, null, 2)}\n`);
-
-console.log(`8415wallet-dapp-${VERSION}.tar.gz  ${files.length} files`);
-console.log(`sha256 ${digest}`);
-console.log(`${relativeImports} relative imports resolved, ${pageAssets} page assets, 0 external references`);
-console.log(`status ${STATUS}`);
+const artifact = `8415wallet-dapp-${id}-${profile.version}.tar.gz`;
+const digest = deterministicArchive(stage, join(root, 'dist', artifact));
+writeFileSync(join(root, 'dist', `dapp-${id}-package-manifest.json`), `${JSON.stringify({ artifact, sha256: digest, ...release }, null, 2)}\n`);
+console.log(`${artifact}\nsha256 ${digest}\nsource tree ${source.tree}${source.dirty ? ' (uncommitted changes included)' : ''}\nstatus ${RELEASE_STATUS}`);
