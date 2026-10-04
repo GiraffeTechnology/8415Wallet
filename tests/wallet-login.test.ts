@@ -124,3 +124,23 @@ test('initial account-permission event is allowed before the challenge, not duri
   f.provider.request = async args => { if (args.method === 'eth_requestAccounts') f.emit('accountsChanged'); return original(args); };
   await f.login.signIn(f.provider); assert.equal(f.login.assert().account, f.signer.address);
 });
+
+test('chain changes and disconnect remain observed after an account-switch lock', async () => {
+  for (const event of ['chainChanged', 'disconnect']) {
+    const f = fixture(), reasons: string[] = []; f.login.subscribe((_session: any, reason: string) => reasons.push(reason));
+    await f.login.signIn(f.provider); f.emit('accountsChanged'); f.emit(event);
+    assert.deepEqual(reasons.slice(-2), ['LOGIN_ACCOUNT_CHANGED', event === 'chainChanged' ? 'LOGIN_CHAIN_CHANGED' : 'LOGIN_DISCONNECTED']);
+    assert.throws(() => f.login.assert()); await f.login.signIn(f.provider); assert.equal(f.login.assert().account, f.signer.address);
+  }
+});
+
+for (const change of ['account', 'chain', 'contract-revocation']) test(`held read rejects silent ${change} before returning data`, async () => {
+  const f = fixture(); if (change === 'contract-revocation') f.contract(); await f.login.signIn(f.provider);
+  const original = f.provider.request, entered = deferred(), gate = deferred();
+  f.provider.request = async args => { if (args.method === 'eth_getBalance') { entered.resolve(); return gate.promise; } return original(args); };
+  const binding = f.login.capture(), pending = f.login.provider().request({ method: 'eth_getBalance' }); await entered.promise;
+  if (change === 'account') f.setAccount(f.wrong.address);
+  if (change === 'chain') f.setChain('0x2105');
+  if (change === 'contract-revocation') f.contract('0xffffffff' + '00'.repeat(28));
+  gate.resolve('private old balance'); await assert.rejects(pending); assert.equal(binding.signal.aborted, true); assert.throws(() => f.login.assert());
+});

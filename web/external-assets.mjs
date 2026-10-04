@@ -106,6 +106,7 @@ globalThis.addEventListener?.('pageshow', event => { if (event.persisted) invali
 walletLogin.subscribe(authenticated => {
   if (authenticated) return;
   invalidate(); provider = null;
+  for (const id of ['asset-recipient', 'asset-amount', 'asset-contract', 'asset-token-id', 'asset-request-file', 'asset-recovery-hash']) el(id).value = '';
   el('asset-state').textContent = 'Log in to inspect the preserved account journal.';
   output('Log in to view assets and history.');
 });

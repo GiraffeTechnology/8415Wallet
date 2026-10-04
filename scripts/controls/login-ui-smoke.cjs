@@ -62,7 +62,7 @@ async function main() {
         };
         state.emit = event => { for (const listener of [...listeners.get(event) ?? []]) listener(); };
       });
-      const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
+      const page = await context.newPage(); await page.clock.install(); page.on('pageerror', error => errors.push(error.message));
       const idle = () => page.waitForFunction(() => !document.getElementById('asset-connect').disabled && !document.getElementById('wallet-login').disabled);
       const locked = async () => {
         assert.equal(await page.locator('#wallet-private').isVisible(), false);
@@ -99,7 +99,11 @@ async function main() {
       await page.click('#wallet-logout'); await page.evaluate(() => __loginTest.release()); await idle(); await locked();
       await page.evaluate(() => { __loginTest.mode = 'normal'; }); await loadAssets();
       assert.equal(await page.evaluate(() => __loginTest.calls.includes('eth_sendTransaction')), false);
+      for (const id of ['asset-recipient', 'asset-contract', 'asset-recovery-hash', 'clearing-trade-key', 'clearing-recovery-hash', 'settlement-recovery-hash', 'recovery-hash']) {
+        await page.locator(`#${id}`).evaluate(node => { node.value = 'previous-account-private-display'; });
+      }
       await page.click('#wallet-logout'); await locked();
+      for (const id of ['asset-recipient', 'asset-contract', 'asset-recovery-hash', 'clearing-trade-key', 'clearing-recovery-hash', 'settlement-recovery-hash', 'recovery-hash']) assert.equal(await page.inputValue(`#${id}`), '');
       await page.evaluate(() => { __loginTest.mode = 'replay'; }); await page.click('#wallet-login'); await idle(); await locked();
       await page.evaluate(() => { __loginTest.mode = 'normal'; }); await loadAssets();
       // State or signature fields in browser storage never authenticate a reload.
@@ -113,16 +117,19 @@ async function main() {
       await page.evaluate(() => { __loginTest.actor = `0x${'2'.repeat(40)}`; });
       await page.click('#asset-balance'); await idle(); await locked();
       await page.evaluate(() => { __loginTest.actor = '0x7e5f4552091a69125d5dfcb7b8c2659029395bdf'; }); await loadAssets();
-      for (const mode of ['hold-read', 'hold-token']) {
-        await page.evaluate(mode => { __loginTest.mode = mode; __loginTest.gate = null; }, mode);
+      for (const mode of ['hold-read', 'hold-token', 'silent-account', 'silent-chain']) {
+        await page.evaluate(mode => { __loginTest.mode = mode.startsWith('silent-') ? 'hold-read' : mode; __loginTest.gate = null; }, mode);
         if (mode === 'hold-token') { await page.fill('#asset-contract', `0x${'3'.repeat(40)}`); await page.click('#asset-token-balance'); }
         else await page.click('#asset-balance');
         await page.waitForFunction(() => __loginTest.gate !== null);
-        await page.click('#wallet-logout'); await locked(); await page.evaluate(() => __loginTest.release()); await idle(); await locked();
-        await page.evaluate(() => { __loginTest.mode = 'normal'; }); await loadAssets();
+        if (mode === 'silent-account') await page.evaluate(() => { __loginTest.actor = `0x${'2'.repeat(40)}`; });
+        else if (mode === 'silent-chain') await page.evaluate(() => { __loginTest.chain = '0x2105'; });
+        else { await page.click('#wallet-logout'); await locked(); }
+        await page.evaluate(() => __loginTest.release()); await idle(); await locked();
+        await page.evaluate(() => { __loginTest.mode = 'normal'; __loginTest.actor = '0x7e5f4552091a69125d5dfcb7b8c2659029395bdf'; __loginTest.chain = '0x1'; }); await loadAssets();
       }
       // Explicit time shift tests operation expiry without waiting for the timer.
-      await page.evaluate(() => { const original = Date.now; Date.now = () => original() + 16 * 60 * 1000; });
+      await page.clock.setFixedTime(new Date((await page.evaluate(() => Date.now())) + 16 * 60 * 1000));
       await page.click('#asset-balance'); await idle(); await locked();
       await page.reload(); await loadAssets();
       await page.evaluate(() => dispatchEvent(new PageTransitionEvent('pagehide'))); await locked();

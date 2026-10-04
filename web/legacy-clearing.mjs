@@ -110,6 +110,7 @@ if (mount) {
   walletLogin.subscribe(authenticated => {
     if (authenticated) return;
     disconnect(); provider = null;
+    for (const input of mount.querySelectorAll('input:not([type="checkbox"])')) input.value = input.type === 'file' ? '' : input.defaultValue ?? '';
     result('Log in to view clearing assets and history.');
     el('clearing-recovery-guidance').textContent = 'Log in to inspect preserved recovery state. No automatic resend.';
   });

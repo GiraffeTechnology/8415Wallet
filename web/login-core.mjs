@@ -37,7 +37,7 @@ export async function verifyLoginSignature(provider, challenge, signature, crypt
 }
 export class WalletLogin {
   #crypto; #origin; #now; #random; #epoch = 0; #session = null; #provider = null;
-  #pending = null; #signing = false; #usedNonces = new Set(); #listeners = new Set(); #removeListeners = null; #abort = null; #contractProof = null;
+  #pending = null; #signing = false; #usedNonces = new Set(); #listeners = new Set(); #removeListeners = null; #observerGeneration = 0; #abort = null; #contractProof = null;
   constructor({ crypto, origin, now = Date.now, random = bytes => globalThis.crypto.getRandomValues(bytes) }) {
     this.#crypto = crypto; this.#origin = origin; this.#now = now; this.#random = random;
   }
@@ -45,7 +45,9 @@ export class WalletLogin {
   #notify(reason) { for (const listener of this.#listeners) listener(this.#session, reason); }
   logout(reason = 'LOGIN_REQUIRED') {
     this.#epoch++; this.#pending = null; this.#session = null; this.#provider = null;
-    this.#abort?.abort(); this.#abort = null; this.#contractProof = null; this.#removeListeners?.(); this.#removeListeners = null;
+    this.#abort?.abort(); this.#abort = null; this.#contractProof = null;
+    // Continue observing chain/disconnect while locked so an account-switch
+    // handoff cannot retain a completed consent across an unseen chain change.
     this.#notify(reason);
   }
   assert(binding) {
@@ -90,7 +92,8 @@ export class WalletLogin {
     this.logout('LOGIN_STARTING'); this.#signing = true; const epoch = this.#epoch;
     const current = () => insist(epoch === this.#epoch, 'LOGIN_CANCELLED');
     let watching = false; // The initial account-permission event precedes the challenge.
-    const callbacks = ['accountsChanged', 'chainChanged', 'disconnect'].map(event => [event, () => { if (watching && epoch === this.#epoch) this.logout(event === 'accountsChanged' ? 'LOGIN_ACCOUNT_CHANGED' : event === 'chainChanged' ? 'LOGIN_CHAIN_CHANGED' : 'LOGIN_DISCONNECTED'); }]);
+    this.#removeListeners?.(); const observer = ++this.#observerGeneration;
+    const callbacks = ['accountsChanged', 'chainChanged', 'disconnect'].map(event => [event, () => { if (watching && observer === this.#observerGeneration) this.logout(event === 'accountsChanged' ? 'LOGIN_ACCOUNT_CHANGED' : event === 'chainChanged' ? 'LOGIN_CHAIN_CHANGED' : 'LOGIN_DISCONNECTED'); }]);
     for (const [event, callback] of callbacks) provider.on?.(event, callback);
     this.#removeListeners = () => { for (const [event, callback] of callbacks) provider.removeListener?.(event, callback); };
     try {
@@ -131,7 +134,7 @@ export class WalletLogin {
     return Object.freeze({ request: async args => {
       this.assert(binding); await this.check(); const session = this.assert(binding);
       const result = await provider.request(args);
-      this.assert(binding);
+      this.assert(binding); await this.check(); this.assert(binding);
       if (args.method === 'eth_accounts' || args.method === 'eth_requestAccounts') {
         if (!Array.isArray(result) || result[0]?.toLowerCase() !== session.account.toLowerCase()) { this.logout('LOGIN_ACCOUNT_CHANGED'); throw new WalletLoginError('LOGIN_ACCOUNT_CHANGED'); }
       }

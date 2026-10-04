@@ -144,6 +144,9 @@ walletLogin.subscribe((authenticated, reason) => {
   if (authenticated) return;
   if (!['LOGIN_ACCOUNT_CHANGED', 'LOGIN_STARTING'].includes(reason)) signed = null;
   clearConnection(); provider = null;
+  for (const input of document.querySelectorAll('#standalone input, #linked input, #agent-controls-panel input, #control-recovery-panel input')) {
+    if (input.type === 'checkbox') input.checked = false; else input.value = input.type === 'file' ? '' : input.defaultValue ?? '';
+  }
   el('settlement-state').textContent = 'Log in to inspect the preserved settlement journal.';
   el('recovery-guidance').textContent = 'Log in to inspect preserved recovery state. No automatic resend.';
   el('identity').textContent = 'Login required';
