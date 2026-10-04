@@ -35,6 +35,60 @@ standalone use.
 
 ---
 
+## Current installation handoff (2026-10-04)
+
+The private repository stores the immutable manual-deployment package at
+[`releases/2026-10-04-login-beta/`](releases/2026-10-04-login-beta/README.md).
+Download
+[`8415wallet-V2-V3-DApp-Beta-Handoff-1f4a9ae6-20261004.zip`](releases/2026-10-04-login-beta/8415wallet-V2-V3-DApp-Beta-Handoff-1f4a9ae6-20261004.zip)
+with an account authorized for this repository. Preserve repository privacy;
+do not publish the package, source or evidence to an external public location.
+
+- Archive size: **11,015,079 bytes**.
+- SHA-256: `df5058bec9d5c12cffb9ca10cd7ea991e46696207a50f3d2ccf47ac375681838`.
+- Built source commit: `1f4a9ae6dd5b8b062ab4f903920cf4b39d158e36`.
+- Built source tree: `366a1b4e744d6414dce6a1feab390a3fe1a99095`.
+- DApps: V2 platform **2.2.0-beta**, Xiongan V2 tenant **2.2.0-beta**,
+  and V3 platform **3.0.0-beta**. The optional SDK/CLI packages remain separate.
+
+This archive includes the verified-wallet-login privacy gate. Its public entry
+remains open, but connecting a provider alone cannot display assets or history.
+Login is bound to origin/account/chain, expires, and is held only in memory.
+Read `docs/WALLET-LOGIN.md`; it does not confer transaction authority, encrypt
+device storage or make public chain data confidential.
+
+Before installation, verify the outer archive against the adjacent `SHA256SUMS`,
+extract it, and read `START-HERE-EN.md`. Verify the extracted handoff's own
+`SHA256SUMS`, select one `dapps/` profile, then check that profile's manifest,
+`RELEASE.json` and extracted checksums. Preserve the `web/` and `dist/browser/`
+layout; the entry is `web/index.html`. No private key or seed phrase is required.
+
+The deployment URLs are intentionally unset. Obtain the authorized environment,
+exact origin and confirmed port allocation, plus verified testnet deployment
+manifests and authorized test accounts, before configuring or serving a build.
+Follow `docs/BETA-DAPP-DELIVERY.md`, regenerate configuration-bound manifests
+and hashes for that build, and retain this original archive unchanged. TCP 443
+remains reserved for SSH on every server; never invent a replacement port or
+change listeners, SSH, DNS, TLS, firewalls or credentials as part of this handoff.
+Keep existing recovery journals and their origin intact during upgrades.
+
+The source's [merged-main CI run](https://github.com/GiraffeTechnology/8415Wallet/actions/runs/37209416014)
+passed both Node 22 and Node 24 jobs. The archived report records 1,069 Node
+cases, 89 local-EVM cases, package/install/reproducibility checks, and synthetic
+Chromium desktop/mobile-viewport evidence. These are exact-source automated
+results, not genuine-wallet or physical-device acceptance. Genuine provider
+prompts, deployed endpoint/headers/rollback, public-testnet receipts, W-20 and
+independent security review remain separate manual acceptance work. No server
+deployment or real transaction is authorized or established by this publication.
+
+The artifact's source identity stays the commit above even when a later commit
+adds this archive or updates documentation. Never relabel old bytes as a build
+of the publication commit. Repository repairs and artifact/documentation changes
+use separate PRs; the release owner merges only after all CI for the exact PR
+head is green. Historical dated results below do not supersede current checks.
+
+---
+
 ## Source of Truth
 
 The implementing agent MUST read, in this order:
@@ -410,11 +464,12 @@ satisfied by a merge:
 - **W-20**, which asks for one deployed same-token multi-wallet journey and
   cannot be satisfied locally by construction.
 
-GitHub Actions has not run on any of this. Every run in this repository since
-2026-09-19 fails in seconds with no step started and no runner assigned,
-including pushes to `main`, so it is not a property of any branch. Until that
-is resolved, "CI is green" is not a claim this repository can make, and the
-local pipeline tables stand in its place — clearly labelled as local.
+At the time of that September 25 batch, GitHub Actions had not run the work:
+the observed runs since September 19 failed before a runner or step started,
+including pushes to `main`. The local pipeline tables were therefore labelled
+as local, not green CI. That historical runner blockage is superseded by the
+exact-source October 4 CI evidence in the current installation handoff above;
+future changes still require their own exact-head CI result.
 
 Do not describe the new source as never tested, and do not describe it as
 released. Do not invent results, and do not infer that development is complete
