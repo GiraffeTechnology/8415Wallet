@@ -33,13 +33,16 @@ function fixture() {
     acknowledgeReplacement() { return Promise.resolve({ originalOutcome: 'superseded-not-successful' }); }
   }
   const provider = { request() {}, on(name: string, fn: () => void) { events.set(name, fn); } };
-  const sdk = { LegacyClearingSession: Session, BrowserLegacyClearingStore: class {}, parseLegacyClearingDeployment, CLEARING_NOTES, ControlAdapterError,
+  let authChanged: ((session: any) => void) | null = null;
+  const sdk = {
+    // Authentication is isolated in wallet-login.test.ts and the full browser suite.
+    walletLogin: { assert() {}, check: async () => {}, provider: () => provider, subscribe(listener: (session: any) => void) { authChanged = listener; } }, WalletLoginError: class extends Error {}, LegacyClearingSession: Session, BrowserLegacyClearingStore: class {}, parseLegacyClearingDeployment, CLEARING_NOTES, ControlAdapterError,
     getReleaseProfile: () => hooks.profile(), controlRpc: () => { connects++; return hooks.connect(); }, acquireWalletUi: () => Symbol(), releaseWalletUi() {} };
   new Function('document', 'globalThis', ...Object.keys(sdk), source)({ getElementById: element, querySelectorAll: () => [...elements.values()] }, { ethereum: provider, addEventListener: (name: string, fn: (event: any) => void) => lifecycle.set(name, fn) }, ...Object.values(sdk));
   element('clearing-deployment').files = [{ size: 1, text: async () => JSON.stringify({ schema: '8415-legacy-clearing/1', chainId: '31337',
     escrow: { address: `0x${'c'.repeat(40)}`, runtimeCodeHash: digest }, projection: { address: `0x${'d'.repeat(40)}`, runtimeCodeHash: digest }, registerId: digest, verificationProfile: digest }) }];
   const click = async (id: string, type = 'click') => element(id).handlers.get(type)?.();
-  return { element, click, hooks, lifecycle: (name: string) => lifecycle.get(name)!({ persisted: true }), emit: (name: string) => events.get(name)!(), counts: () => ({ sends, connects, verifications }),
+  return { logout: () => authChanged!(null), element, click, hooks, lifecycle: (name: string) => lifecycle.get(name)!({ persisted: true }), emit: (name: string) => events.get(name)!(), counts: () => ({ sends, connects, verifications }),
     async connect() { await click('clearing-deployment', 'change'); await click('clearing-connect'); } };
 }
 function deferred() { let resolve!: (value: any) => void; return { promise: new Promise<any>(r => { resolve = r; }), resolve: (value: any) => resolve(value) }; }
@@ -93,4 +96,12 @@ test('clearing review and connection do not survive page exit or history restora
     assert.equal(f.element('clearing-review').textContent, 'No clearing review prepared');
     assert.equal(f.element('clearing-result').textContent, 'CLEARING_OWNER_REVIEW_REQUIRED');
   }
+});
+
+test('logout removes automatically populated trade and submission identifiers before another login', async () => {
+  const f = fixture(); await f.connect(); await f.click('clearing-review-open');
+  f.element('clearing-acknowledge').checked = true; await f.click('clearing-send');
+  assert.equal(f.element('clearing-trade-key').value, digest); assert.equal(f.element('clearing-recovery-hash').value, digest);
+  f.logout(); assert.equal(f.element('clearing-trade-key').value, ''); assert.equal(f.element('clearing-recovery-hash').value, '');
+  assert.equal(f.element('clearing-review').textContent, 'No clearing review prepared'); assert.equal(f.counts().sends, 1);
 });

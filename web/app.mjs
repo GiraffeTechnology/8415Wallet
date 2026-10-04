@@ -1,3 +1,4 @@
+import { walletLogin, WalletLoginError } from './wallet-auth.mjs';
 import { getReleaseProfile } from './release-profile.mjs';
 import { BrowserSettlementStore } from './settlement-store.mjs';
 import { StandaloneSettlementSession, isAddressInput, TransactionWouldRevertError } from '../dist/browser/browser.js';
@@ -30,9 +31,10 @@ const releaseReady = getReleaseProfile().then(profile => {
 }).catch(() => { el('release-profile').textContent = 'Release configuration unavailable. Signing is disabled; reload a verified artifact.'; });
 let connectionRevision = 0n, operationRevision = 0n;
 function requireCurrentConnection() {
+  walletLogin.assert();
   if (operationRevision !== connectionRevision) fail('CONTROL_CONNECTION_CHANGED');
 }
-const selected = () => { if (!session || !deployment || !actor) fail('CONTROL_CONNECTION_REQUIRED'); return session; };
+const selected = () => { walletLogin.assert(); if (!session || !deployment || !actor) fail('CONTROL_CONNECTION_REQUIRED'); return session; };
 function clearAgentReview() {
   agentRequestText = null; agentReview = null;
   el('agent-acknowledge').checked = false; el('agent-terms').textContent = 'No agent request reviewed';
@@ -59,11 +61,11 @@ async function run(fn, reconnect = false) {
   const uiLock = acquireWalletUi(); if (uiLock === null) return;
   if (reconnect) clearConnection();
   operationRevision = connectionRevision;
-  busy = true; document.querySelectorAll('button,input,select').forEach(n => { n.disabled = true; });
-  try { if (!releaseProfile) await releaseReady; if (!releaseProfile) fail('CONTROL_RELEASE_PROFILE_REFUSED'); await fn(); } catch (e) {
+  busy = true; document.querySelectorAll('button:not([data-auth-control]),input,select').forEach(n => { n.disabled = true; });
+  try { await walletLogin.check(); if (!releaseProfile) await releaseReady; if (!releaseProfile) fail('CONTROL_RELEASE_PROFILE_REFUSED'); await fn(); } catch (e) {
     // Provider, RPC and DOM exception text is never rendered, logged or persisted.
     renderResult(operationRevision !== connectionRevision ? 'CONTROL_CONNECTION_CHANGED' :
-      e instanceof ControlAdapterError ? (e.code === 'CONTROL_PROVIDER_REQUEST_REJECTED' ? 'Wallet request cancelled. Prepare and acknowledge a fresh review before trying again.' : e.code) :
+      e instanceof WalletLoginError ? e.code : e instanceof ControlAdapterError ? (e.code === 'CONTROL_PROVIDER_REQUEST_REJECTED' ? 'Wallet request cancelled. Prepare and acknowledge a fresh review before trying again.' : e.code) :
       e instanceof TransactionWouldRevertError ? { action: e.kind, refusedChecks: e.checks, transactionSent: false } : 'CONTROL_UI_OPERATION_REFUSED');
   } finally {
     if (session && operationRevision === connectionRevision) {
@@ -79,7 +81,7 @@ async function run(fn, reconnect = false) {
         if (current === settlementSession && operationRevision === connectionRevision) el('settlement-state').textContent = JSON.stringify(state, (_k, v) => typeof v === 'bigint' ? v.toString() : v, 2);
       } catch { if (current === settlementSession && operationRevision === connectionRevision) el('settlement-state').textContent = 'Saved settlement unavailable. Do not resend or clear storage. Reconnect the same account and deployment.'; }
     }
-    busy = false; releaseWalletUi(uiLock); document.querySelectorAll('button,input,select').forEach(n => { n.disabled = false; });
+    busy = false; releaseWalletUi(uiLock); document.querySelectorAll('button:not([data-auth-control]),input,select').forEach(n => { n.disabled = false; });
   }
 }
 async function jsonFile(id, maximum) {
@@ -103,8 +105,8 @@ el('deployment').addEventListener('change', () => run(async () => {
 }, true));
 el('connect').addEventListener('click', () => run(async () => {
   if (!deployment) fail('CONTROL_DEPLOYMENT_REQUIRED');
-  if (!provider) {
-    provider = globalThis.ethereum;
+  {
+    provider = walletLogin.provider();
     if (!provider || typeof provider.request !== 'function') fail('CONTROL_GENUINE_WALLET_PROVIDER_REQUIRED');
     provider.on?.('accountsChanged', clearConnection);
     provider.on?.('chainChanged', () => { signed = null; clearConnection(); });
@@ -138,6 +140,18 @@ el('connect').addEventListener('click', () => run(async () => {
   el('identity').textContent = `Chain ${deployment.chainId} · selected account ${actor}`;
   display(state);
 }, true));
+walletLogin.subscribe((authenticated, reason) => {
+  if (authenticated) return;
+  if (!['LOGIN_ACCOUNT_CHANGED', 'LOGIN_STARTING'].includes(reason)) signed = null;
+  clearConnection(); provider = null;
+  for (const input of document.querySelectorAll('#standalone input, #linked input, #agent-controls-panel input, #control-recovery-panel input')) {
+    if (input.type === 'checkbox') input.checked = false; else input.value = input.type === 'file' ? '' : input.defaultValue ?? '';
+  }
+  el('settlement-state').textContent = 'Log in to inspect the preserved settlement journal.';
+  el('recovery-guidance').textContent = 'Log in to inspect preserved recovery state. No automatic resend.';
+  el('identity').textContent = 'Login required';
+  renderResult('Log in to view assets and history.');
+});
 document.querySelectorAll('[data-read]').forEach(button => button.addEventListener('click', () => run(async () => {
   if (!plainWallet || !deployment) fail('CONTROL_CONNECTION_REQUIRED');
   const wallet = plainWallet; await verifyControlDeployment(provider, deployment.token);

@@ -1,3 +1,4 @@
+import { walletLogin, WalletLoginError } from './wallet-auth.mjs';
 import { LegacyClearingSession, parseLegacyClearingDeployment, CLEARING_NOTES, controlRpc, ControlAdapterError } from '../dist/browser/browser.js';
 import { BrowserLegacyClearingStore } from './legacy-clearing-store.mjs';
 import { getReleaseProfile } from './release-profile.mjs';
@@ -56,15 +57,15 @@ if (mount) {
   const disconnect = () => { generation++; session = null; clearReview(); el('clearing-identity').textContent = 'Connection changed; reconnect the same account and deployment to recover.'; };
   globalThis.addEventListener?.('pagehide', disconnect);
   globalThis.addEventListener?.('pageshow', event => { if (event.persisted) disconnect(); });
-  const selected = () => { if (!session) throw new ControlAdapterError('CLEARING_CONNECTION_REQUIRED'); return session; };
+  const selected = () => { walletLogin.assert(); if (!session) throw new ControlAdapterError('CLEARING_CONNECTION_REQUIRED'); return session; };
   async function run(fn) {
     if (busy) return;
     const lock = acquireWalletUi(); if (lock === null) return;
     busy = true; const current = generation;
-    document.querySelectorAll('button,input,select').forEach(n => { n.disabled = true; });
-    const guard = () => { if (current !== generation) throw new ControlAdapterError('CLEARING_CONNECTION_CHANGED'); };
-    try { await getReleaseProfile(); guard(); await fn(guard); guard(); } catch (error) {
-      result(current !== generation ? 'CLEARING_CONNECTION_CHANGED' : error instanceof ControlAdapterError ? error.code : 'CLEARING_UI_OPERATION_REFUSED');
+    document.querySelectorAll('button:not([data-auth-control]),input,select').forEach(n => { n.disabled = true; });
+    const guard = () => { walletLogin.assert(); if (current !== generation) throw new ControlAdapterError('CLEARING_CONNECTION_CHANGED'); };
+    try { await walletLogin.check(); await getReleaseProfile(); guard(); await fn(guard); guard(); } catch (error) {
+      result(current !== generation ? 'CLEARING_CONNECTION_CHANGED' : error instanceof WalletLoginError ? error.code : error instanceof ControlAdapterError ? error.code : 'CLEARING_UI_OPERATION_REFUSED');
     } finally {
       if (session && current === generation) {
         try {
@@ -74,7 +75,7 @@ if (mount) {
               `Saved transaction ${state.transactionHash}. Verify its receipt, then explicitly acknowledge. No automatic resend.`;
         } catch { el('clearing-recovery-guidance').textContent = 'Saved state is unavailable or bound to another deployment. Keep browser storage; reconnect the original account and deployment.'; }
       }
-      busy = false; releaseWalletUi(lock); document.querySelectorAll('button,input,select').forEach(n => { n.disabled = false; });
+      busy = false; releaseWalletUi(lock); document.querySelectorAll('button:not([data-auth-control]),input,select').forEach(n => { n.disabled = false; });
     }
   }
   for (const input of mount.querySelectorAll('input:not([type="checkbox"]):not([type="file"])')) input.addEventListener('input', clearReview);
@@ -91,7 +92,7 @@ if (mount) {
     session = null; clearReview();
     if (!deployment) throw new ControlAdapterError('CLEARING_DEPLOYMENT_REQUIRED');
     if (!provider) {
-      provider = globalThis.ethereum;
+      provider = walletLogin.provider();
       if (!provider || typeof provider.request !== 'function') throw new ControlAdapterError('CLEARING_GENUINE_WALLET_REQUIRED');
       provider.on?.('accountsChanged', disconnect); provider.on?.('chainChanged', disconnect); provider.on?.('disconnect', disconnect);
     }
@@ -106,6 +107,13 @@ if (mount) {
     el('clearing-identity').textContent = `${account} on chain ${deployment.chainId}; escrow ${deployment.escrow.address}`;
     result(status);
   }));
+  walletLogin.subscribe(authenticated => {
+    if (authenticated) return;
+    disconnect(); provider = null;
+    for (const input of mount.querySelectorAll('input:not([type="checkbox"])')) input.value = input.type === 'file' ? '' : input.defaultValue ?? '';
+    result('Log in to view clearing assets and history.');
+    el('clearing-recovery-guidance').textContent = 'Log in to inspect preserved recovery state. No automatic resend.';
+  });
   function inputRequest(kind) {
     if (kind !== 'open' && kind !== 'approve') return { kind, tradeKey: text('clearing-trade-key') };
     return { kind, localId: text('clearing-local-id'), tokenId: text('clearing-token-id'), buyer: text('clearing-buyer'),

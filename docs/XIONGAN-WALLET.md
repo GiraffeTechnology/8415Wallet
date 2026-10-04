@@ -172,3 +172,12 @@ Do not send ERC-20 tokens to an 8415 controlled-account contract without a
 separately verified withdrawal path. Runtime code does not pin a proxy
 implementation, and a matching event is not a
 promise of economic value or future balance. See `STANDARDS-COMPATIBILITY.md`.
+
+## Login before viewing assets
+
+The public entry stays open. A verified, origin/account/chain-bound wallet login
+is required before assets, balances, holdings, histories and recovery journals
+are loaded or displayed. Login is memory-only and must be repeated after reload;
+connecting an account alone is insufficient. See [wallet login and its exact
+privacy boundary](WALLET-LOGIN.md). Public blockchain data remains public, and
+this client-side gate is not private-API authorization.

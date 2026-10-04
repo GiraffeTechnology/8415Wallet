@@ -7,10 +7,18 @@
 </head>
 <body><header><p class="eyebrow">8415wallet.com</p><h1>8415wallet</h1><p id="release-profile" role="status">Loading verified release profile…</p><p>General-purpose wallet · Native ERC-8415 support · Owner-reviewed requests</p><p class="release-notice">Functional-testing Beta. Not independently audited. Native ERC-8415 protocol and responsibility controls remain testnet-only. External-account mainnet transfers require your own wallet confirmation; genuine-wallet and physical-device acceptance remains outstanding.</p></header>
 <main>
+  <section aria-labelledby="login-heading"><h2 id="login-heading">Wallet login</h2>
+    <p>The public entry stays open. Assets, balances, holdings and history appear only after a verified wallet login. Sign the site-bound login message in your own wallet; it grants no transaction authority.</p>
+    <p>Login lasts 15 minutes in this tab and ends on reload, logout, account or chain changes. Public blockchain records remain public. This display lock does not protect a private server API.</p>
+    <button id="wallet-login" data-auth-control type="button">Log in with my wallet</button>
+    <button id="wallet-logout" data-auth-control type="button" hidden>Log out / cancel login</button>
+    <p id="wallet-login-status" role="status">Log in to view assets and history. Connecting an account alone is not login.</p>
+  </section>
+  <div id="wallet-private" hidden inert>
   <section id="asset-panel" aria-labelledby="asset-heading"><h2 id="asset-heading">Your ETH, tokens and NFTs</h2>
     <p>Ethereum and Base, with Sepolia and Base Sepolia for rehearsal. ETH, ERC-20 tokens and standard ERC-721 / ERC-1155 NFTs remain in your existing external wallet account. No seed phrase, private key or standing agent permission is requested.</p>
     <p class="release-notice">Not independently audited. Functional-testing Beta; real-asset acceptance remains outstanding. Agents prepare and check requests; you personally review, sign and submit in your wallet. ETH sends currently require an EOA recipient. No swaps, approvals or smart-account custody. ERC-20 transfers use explicit contract addresses and integer raw amounts; optional metadata never establishes token identity. Fee-on-transfer, rebasing and other nonstandard token economics are unsupported. An exact Transfer event is not a promise of economic value or future balance.</p>
-    <button id="asset-connect" type="button">Connect my external wallet</button><button id="asset-balance" type="button">Refresh ETH balance</button>
+    <button id="asset-connect" type="button">Load my authenticated assets</button><button id="asset-balance" type="button">Refresh ETH balance</button>
     <p id="asset-identity">Not connected. Select Ethereum, Base or a supported testnet in your wallet first.</p>
     <pre id="asset-receive">No receive address verified. Never send ETH to the 8415 controlled-account contract.</pre>
     <h3>Prepare a transfer</h3>
@@ -38,7 +46,7 @@
   <section aria-labelledby="connection"><h2 id="connection">Connection and deployment identity</h2>
     <p>Use a genuine wallet provider. No keys are imported. This native ERC-8415 panel enables testnets only.</p>
     <label>Public deployment manifest <input id="deployment" type="file" accept="application/json,.json"></label>
-    <button id="connect" type="button">Connect selected wallet</button><p id="identity">Not connected</p>
+    <button id="connect" type="button">Load authenticated native wallet</button><p id="identity">Not connected</p>
   </section>
   <nav aria-label="Mode"><button id="standalone-tab" type="button">Standalone account</button><button id="linked-tab" type="button">Linked responsibilities</button></nav>
   <section id="standalone"><h2>Standalone account</h2><p>Projection readers and protocol settlement actions remain available independently. No responsibility controller or payment module is required.</p>
@@ -126,5 +134,6 @@
     <pre id="result" role="status" aria-live="polite">No execution performed</pre>
   </section>
 <section id="legacy-clearing-panel"></section>
+</div>
 </main><footer>Record agreement is not verified legal identity. Registration delay, temporal finality, chain freshness, responsibility and payment are separate facts.</footer>
-<script type="module" src="app.mjs"></script><script type="module" src="external-assets.mjs"></script><script type="module" src="legacy-clearing.mjs"></script></body></html>
+<script type="module" src="wallet-auth.mjs"></script><script type="module" src="app.mjs"></script><script type="module" src="external-assets.mjs"></script><script type="module" src="legacy-clearing.mjs"></script></body></html>

@@ -61,3 +61,12 @@ Compatibility is a product requirement across existing standards; the native ERC
 - [September local validation](docs/reports/V3-LOCAL-VALIDATION-20260925.md): historical source-bound results.
 
 Earlier Sepolia receipts and test totals remain evidence for their named versions. They do not validate a newer source tree, artifact or deployed origin. Current CI and build evidence must identify the exact tested commit; publication, merge and hosting do not themselves establish full PRD acceptance.
+
+## Login before viewing assets
+
+The public entry stays open. A verified, origin/account/chain-bound wallet login
+is required before assets, balances, holdings, histories and recovery journals
+are loaded or displayed. Login is memory-only and must be repeated after reload;
+connecting an account alone is insufficient. See [wallet login and its exact
+privacy boundary](docs/WALLET-LOGIN.md). Public blockchain data remains public, and
+this client-side gate is not private-API authorization.

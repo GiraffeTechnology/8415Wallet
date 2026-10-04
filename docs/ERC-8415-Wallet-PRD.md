@@ -26,6 +26,14 @@ not the Kit — is the product.
 
 ## Product Definition
 
+Assets, balances, holdings and history require verified wallet login before
+display; the public DApp entry remains open. Connection alone is insufficient.
+The static Beta uses an origin/account/chain-bound, expiring in-memory proof,
+with fresh login after reload and invalidation on logout or identity changes.
+This UI privacy requirement does not make public chain data confidential or
+replace server-side authorization for any future private API. See
+`WALLET-LOGIN.md` for the implemented scope and acceptance cases.
+
 The product name is **8415wallet** and its UI platform domain is
 **8415wallet.com**. **Xiongan is a V2 tenant**. V2 and V3 are separate versioned
 DApp Beta deliverables: V2 maps to the retained v2.2 foundation in sections 1–8;

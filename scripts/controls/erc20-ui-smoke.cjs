@@ -1,20 +1,22 @@
 // Actual Chromium, DOM and strict IndexedDB regression with a synthetic ERC-20
-// provider. No real wallet, keys, signatures or network RPC; no device acceptance.
+// provider. No real wallet, user keys/signatures or network RPC; login uses a public test key; no device acceptance.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { chromium } = require('playwright-core');
+const { installSyntheticLoginSigner, login } = require('./synthetic-login.cjs');
 const root = path.resolve(__dirname, '../..');
 const out = path.resolve(process.env.ERC20_UI_OUTPUT || '/tmp/8415-erc20-ui-evidence');
 const port = 18418, origin = `http://127.0.0.1:${port}`;
-const actor = `0x${'1'.repeat(40)}`, recipient = `0x${'2'.repeat(40)}`, contract = `0x${'3'.repeat(40)}`;
+const actor = '0x7e5f4552091a69125d5dfcb7b8c2659029395bdf', recipient = `0x${'2'.repeat(40)}`, contract = `0x${'3'.repeat(40)}`;
 const transactionHash = `0x${'5'.repeat(64)}`;
 const release = JSON.parse(fs.readFileSync(path.join(root, 'web/release-config.json'), 'utf8'));
 
 async function installProvider(context) {
+  await installSyntheticLoginSigner(context);
   await context.addInitScript(() => {
-    const actor = `0x${'1'.repeat(40)}`, contract = `0x${'3'.repeat(40)}`, blockHash = `0x${'4'.repeat(64)}`, transactionHash = `0x${'5'.repeat(64)}`;
+    const actor = '0x7e5f4552091a69125d5dfcb7b8c2659029395bdf', contract = `0x${'3'.repeat(40)}`, blockHash = `0x${'4'.repeat(64)}`, transactionHash = `0x${'5'.repeat(64)}`;
     const word = number => `0x${BigInt(number).toString(16).padStart(64, '0')}`;
     const string = value => `${word(32)}${word(value.length).slice(2)}${Array.from(value, c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('').padEnd(64, '0')}`;
     const state = globalThis.__erc20Test = { mode: 'normal', sends: Number(sessionStorage.getItem('erc20-test-sends') || 0),
@@ -22,7 +24,8 @@ async function installProvider(context) {
     globalThis.ethereum = { on() {}, async request({ method, params = [] }) {
       if (method === 'eth_requestAccounts') { state.accountRequests++; return [actor]; }
       if (method === 'eth_accounts') return [actor];
-      if (method === 'eth_chainId') return '0x1';
+      if (method === 'personal_sign') return globalThis.__syntheticLoginSign(params[0]);
+          if (method === 'eth_chainId') return '0x1';
       if (method === 'eth_getCode') return params[0] === contract ? '0x6000' : '0x';
       if (method === 'eth_getBlockByNumber') return { number: '0x64', timestamp: `0x${Math.floor(Date.now() / 1000).toString(16)}`, hash: blockHash };
       if (method === 'eth_getBalance') return '0xde0b6b3a7640000';
@@ -84,7 +87,7 @@ async function main() {
         await installProvider(context);
         const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
         const idle = () => page.waitForFunction(() => !document.getElementById('asset-connect').disabled);
-        const connect = async () => {
+        const connect = async () => { await login(page);
           await page.click('#asset-connect'); await page.waitForFunction(() => document.getElementById('asset-identity').textContent.includes('Ethereum'));
           await idle();
         };
@@ -144,7 +147,7 @@ async function main() {
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
         await page.locator('#asset-panel').screenshot({ path: path.join(out, `erc20-${profile}-${viewport.width}.png`) });
         assert.deepEqual(errors, []); assert.deepEqual(externalRequests, []);
-        evidence.push({ profile, viewport, provider: 'synthetic-no-signing-no-rpc', sends: 3,
+        evidence.push({ profile, viewport, provider: 'synthetic-test-login-no-user-signing-no-rpc', sends: 3,
           journeys: ['explicit-token-balance', 'six-decimal-exact-display', 'raw-integer-refusal', 'unknown-decimals', 'no-ack-no-send',
             'numeric-4001-review-clearing', 'duplicate-click', 'submitted-reload', 'mismatched-effect-refusal', 'canonical-receipt',
             'unknown-reload-no-resend', 'exact-hash-recovery', 'terminal-acknowledgement', 'no-horizontal-overflow'], errors, externalRequests });
@@ -160,8 +163,11 @@ async function main() {
       return route.continue();
     });
     await installProvider(blocked); const blockedPage = await blocked.newPage(); await blockedPage.goto(origin);
-    await blockedPage.click('#asset-connect');
-    await blockedPage.waitForFunction(() => document.getElementById('asset-result').textContent === 'ASSET_RELEASE_CONFIG_REFUSED');
+    await blockedPage.click('#wallet-login');
+    await blockedPage.waitForFunction(() => document.getElementById('wallet-login-status').textContent === 'LOGIN_RELEASE_CONFIG_REFUSED');
+    assert.equal(await blockedPage.locator('#wallet-private').isVisible(), false);
+    await blockedPage.locator('#asset-connect').dispatchEvent('click');
+    await blockedPage.waitForFunction(() => document.getElementById('asset-result').textContent === 'LOGIN_REQUIRED');
     assert.equal(await blockedPage.evaluate(() => __erc20Test.accountRequests), 0);
     assert.equal(await blockedPage.evaluate(() => __erc20Test.sends), 0);
     evidence.push({ profileGate: 'missing-config-refused-before-provider', accountRequests: 0, sends: 0 }); await blocked.close();

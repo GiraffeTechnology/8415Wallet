@@ -333,3 +333,12 @@ Keep remaining genuine-wallet, physical-device, independent-registrar and
 W-20 observations open until actual evidence is recorded. These are the
 purpose of the Beta deployment/testing handoff; do not report them as already
 passed merely because the deployable archives build successfully.
+
+## Login before viewing assets
+
+The public entry stays open. A verified, origin/account/chain-bound wallet login
+is required before assets, balances, holdings, histories and recovery journals
+are loaded or displayed. Login is memory-only and must be repeated after reload;
+connecting an account alone is insufficient. See [wallet login and its exact
+privacy boundary](WALLET-LOGIN.md). Public blockchain data remains public, and
+this client-side gate is not private-API authorization.

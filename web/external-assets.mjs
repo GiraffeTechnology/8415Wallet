@@ -1,3 +1,4 @@
+import { walletLogin, WalletLoginError } from './wallet-auth.mjs';
 import { getReleaseProfile } from './release-profile.mjs';
 import { acquireWalletUi, releaseWalletUi, walletUiBusy } from './ui-lock.mjs';
 import { ExternalAssetSession, ASSET_CHAINS, ControlAdapterError, controlRpc, formatWeiAsEth } from '../dist/browser/browser.js';
@@ -13,15 +14,16 @@ function invalidate() {
 }
 async function run(fn) {
   if (busy) return; const uiLock = acquireWalletUi(); if (uiLock === null) return; busy = true; const current = generation;
-  document.querySelectorAll('button,input,select').forEach(n => { n.disabled = true; });
+  document.querySelectorAll('button:not([data-auth-control]),input,select').forEach(n => { n.disabled = true; });
   try {
+    await walletLogin.check();
     let profile;
     try { profile = await getReleaseProfile(); }
     catch { throw new ControlAdapterError('ASSET_RELEASE_CONFIG_REFUSED'); }
     if (!profile.features.externalAssets) throw new ControlAdapterError('ASSET_RELEASE_FEATURE_REFUSED');
     checkCurrent(current); await fn(current);
   } catch (e) {
-    output(current !== generation ? 'ASSET_CONNECTION_CHANGED' : e instanceof ControlAdapterError ? (e.code === 'CONTROL_PROVIDER_REQUEST_REJECTED' ?
+    output(current !== generation ? 'ASSET_CONNECTION_CHANGED' : e instanceof WalletLoginError ? e.code : e instanceof ControlAdapterError ? (e.code === 'CONTROL_PROVIDER_REQUEST_REJECTED' ?
       'CONTROL_PROVIDER_REQUEST_REJECTED: Cancelled in your wallet. Nothing was submitted by this request. Prepare a new review before trying again.' : e.code) : 'ASSET_UI_OPERATION_REFUSED');
   } finally {
     if (session && current === generation) {
@@ -29,15 +31,15 @@ async function run(fn) {
       try { const state = await s.status(); if (s === session && current === generation) el('asset-state').textContent = format(state); }
       catch { el('asset-state').textContent = 'Journal unavailable. Do not resend or clear browser storage.'; }
     }
-    busy = false; releaseWalletUi(uiLock); document.querySelectorAll('button,input,select').forEach(n => { n.disabled = false; });
+    busy = false; releaseWalletUi(uiLock); document.querySelectorAll('button:not([data-auth-control]),input,select').forEach(n => { n.disabled = false; });
   }
 }
-const checkCurrent = g => { if (g !== generation) throw new ControlAdapterError('ASSET_CONNECTION_CHANGED'); };
-const selected = () => { if (!session) throw new ControlAdapterError('ASSET_CONNECTION_REQUIRED'); return session; };
+const checkCurrent = g => { walletLogin.assert(); if (g !== generation) throw new ControlAdapterError('ASSET_CONNECTION_CHANGED'); };
+const selected = () => { walletLogin.assert(); if (!session) throw new ControlAdapterError('ASSET_CONNECTION_REQUIRED'); return session; };
 el('asset-connect').addEventListener('click', () => {
   if (busy || walletUiBusy()) return;
   invalidate(); return run(async g => {
-    provider = globalThis.ethereum;
+    provider = walletLogin.provider();
     if (!provider || typeof provider.request !== 'function') throw new ControlAdapterError('ASSET_WALLET_PROVIDER_REQUIRED');
     if (listeningProvider !== provider) {
       provider.on?.('accountsChanged', invalidate); provider.on?.('chainChanged', invalidate); provider.on?.('disconnect', invalidate);
@@ -100,3 +102,11 @@ el('asset-replacement').addEventListener('click', () => run(async g => { const r
 // A history-restored page cannot retain an old review or account binding.
 globalThis.addEventListener?.('pagehide', invalidate);
 globalThis.addEventListener?.('pageshow', event => { if (event.persisted) invalidate(); });
+
+walletLogin.subscribe(authenticated => {
+  if (authenticated) return;
+  invalidate(); provider = null;
+  for (const id of ['asset-recipient', 'asset-amount', 'asset-contract', 'asset-token-id', 'asset-request-file', 'asset-recovery-hash']) el(id).value = '';
+  el('asset-state').textContent = 'Log in to inspect the preserved account journal.';
+  output('Log in to view assets and history.');
+});
