@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { chromium } = require('playwright-core');
+const { login } = require('./synthetic-login.cjs');
 const hre = require('hardhat');
 const { requestLocalEip1193 } = require('./local-eip1193.cjs');
 const { ethers } = hre;
@@ -41,6 +42,7 @@ async function main() {
       await context.exposeFunction('__localSettlementRpc', async args => {
         try {
           if (args.method === 'eth_requestAccounts' || args.method === 'eth_accounts') return { result: [registrar.address] };
+          if (args.method === 'personal_sign') return { result: await registrar.signMessage(ethers.getBytes(args.params[0])) };
           if (args.method === 'eth_sendTransaction') { sends++; if (rejectSend) return { error: { code: 4001 } }; }
           return { result: await requestLocalEip1193(hre.network.provider, args) };
         } catch (error) { return { error: { code: typeof error.code === 'number' ? error.code : -32000 } }; }
@@ -54,7 +56,7 @@ async function main() {
       });
       const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
       const idle = () => page.waitForFunction(() => !document.getElementById('connect').disabled);
-      const connect = async () => {
+      const connect = async () => { await login(page);
         await page.setInputFiles('#deployment', { name: 'deployment.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(manifest)) });
         await idle(); await page.click('#connect'); await page.waitForFunction(() => document.getElementById('identity').textContent.startsWith('Chain ')); await idle();
       };

@@ -5,6 +5,6 @@
 
 select{font:inherit;padding:.65rem;border:1px solid var(--line);border-radius:5px;background:white;width:100%;margin-top:.3rem}
 /* Full account identities must remain readable on phone-width layouts. */
-#identity,#asset-identity,#release-profile{overflow-wrap:anywhere;word-break:break-word}
+#identity,#asset-identity,#release-profile,#wallet-login-status{overflow-wrap:anywhere;word-break:break-word}
 
 #clearing-identity{overflow-wrap:anywhere;word-break:break-word}#legacy-clearing-panel fieldset{min-width:0}#legacy-clearing-panel button{max-width:100%}

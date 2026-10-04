@@ -37,7 +37,9 @@ function fixture(sendError?: unknown, connectError?: unknown, releaseError?: unk
       this.record = parseAssetState(JSON.stringify(next)); return true;
     }
   }
-  const sdk = { getReleaseProfile: async () => { if (releaseError !== undefined) throw releaseError; return { features: { externalAssets: true } }; }, ExternalAssetSession, ASSET_CHAINS, formatWeiAsEth, ControlAdapterError, controlRpc,
+  const sdk = {
+    // Authentication is isolated in wallet-login.test.ts and the full browser suite.
+    walletLogin: { assert() {}, check: async () => {}, provider: () => provider, subscribe() {} }, WalletLoginError: class extends Error {}, getReleaseProfile: async () => { if (releaseError !== undefined) throw releaseError; return { features: { externalAssets: true } }; }, ExternalAssetSession, ASSET_CHAINS, formatWeiAsEth, ControlAdapterError, controlRpc,
     BrowserExternalAssetStore: Store, acquireWalletUi: () => Symbol(), releaseWalletUi: () => {}, walletUiBusy: () => false };
   new Function('document', 'globalThis', ...Object.keys(sdk), source)(
     { getElementById: element, querySelectorAll: () => [...elements.values()] }, { ethereum: provider, addEventListener: (name: string, fn: (event: any) => void) => lifecycle.set(name, fn) }, ...Object.values(sdk));

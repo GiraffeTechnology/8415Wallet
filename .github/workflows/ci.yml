@@ -38,8 +38,24 @@ jobs:
       - name: Browser entry
         run: npm run wallet:browser:build
 
-      # No real wallet, RPC, keys or signatures. Reuse the existing hosted runner;
+      # No genuine wallet, network RPC, user keys or user signatures. Reuse the existing hosted runner;
       # this step does not provision infrastructure or establish device acceptance.
+      - name: Verified wallet login browser privacy
+        shell: bash
+        run: |
+          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          test -n "$WALLET_BROWSER_CHROMIUM"
+          node scripts/controls/login-ui-smoke.cjs
+
+      - name: Verified wallet login browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallet-login-browser-node-${{ matrix.node-version }}
+          path: /tmp/8415-login-ui-evidence
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Xiongan synthetic browser recovery
         shell: bash
         run: |

@@ -48,7 +48,10 @@ function fixture(profile = 'v3') {
   const document = { getElementById: element, querySelectorAll(selector: string) {
     return selector === '[data-action]' ? actions : selector === '[data-read]' ? reads : [...elements.values()];
   } };
+  let authenticationChanged: ((session: any, reason: string) => void) | null = null;
   const sdk = {
+    // Authentication is isolated in wallet-login.test.ts and the full browser suite.
+    walletLogin: { assert() {}, check: async () => {}, provider: () => provider, subscribe(listener: (session: any, reason: string) => void) { authenticationChanged = listener; } }, WalletLoginError: class extends Error {},
     ResponsibilityWalletSession: Session, ControlAdapterError, isAddressInput, TransactionWouldRevertError: class extends Error {},
     getReleaseProfile: async () => { if (profile === 'blocked') throw new Error('RELEASE_LOCATION_MISMATCH'); return ({ product: '8415wallet', platform: '8415wallet.com', version: '3.0.0-beta', tenant: { label: 'None' }, features: { linkedResponsibilities: profile === 'v3' } }); },
     StandaloneSettlementSession: class { status() { return Promise.resolve({ status: 'idle' }); }
@@ -73,7 +76,7 @@ function fixture(profile = 'v3') {
     token: { address, runtimeCodeHash: digest }, controller: { address, runtimeCodeHash: digest }, payment: null });
   file('consent-file', { consent: { expectedRevision: '0', tokenId: '1', deadline: '1', recipientNonce: '0', paymentAmount: '0' },
     documents: { incoming: { terms: { scheme: 'utf8-keccak256' } }, inherited: [] } });
-  return { hooks, element, click, state, collisionIds: () => collisionIds, emit: (event: string, value?: unknown) => events.get(event)!(value),
+  return { authChange: (reason: string) => authenticationChanged!(null, reason), hooks, element, click, state, collisionIds: () => collisionIds, emit: (event: string, value?: unknown) => events.get(event)!(value),
     counts: () => ({ executions, prepares, accepts, settlementSends }),
     load: () => click('deployment', 'change'),
     async connect() { await click('deployment', 'change'); await click('connect'); },
@@ -176,8 +179,8 @@ test('late read does not overwrite the connection-change result', async () => {
   assert.equal(f.element('result').textContent, 'CONTROL_CONNECTION_CHANGED');
 });
 test('late send result is not attributed to the new account and is never retried', async () => {
-  const f = fixture(); await f.connect(); await f.sign(); const gate = deferred(); f.hooks.execute = () => gate.promise;
-  const pending = f.click('forward'); f.emit('accountsChanged'); gate.resolve({ submitted: true }); await pending;
+  const f = fixture(); await f.connect(); await f.sign(); const gate = deferred(), entered = deferred(); f.hooks.execute = () => { entered.resolve(); return gate.promise; };
+  const pending = f.click('forward'); await entered.promise; f.emit('accountsChanged'); gate.resolve({ submitted: true }); await pending;
   assert.equal(f.counts().executions, 1); assert.equal(f.element('result').textContent, 'CONTROL_CONNECTION_CHANGED');
   await f.click('connect'); assert.equal(f.counts().executions, 1);
 });
@@ -266,4 +269,15 @@ test('failed release profile refuses wallet connection and leaves every signing 
   const f = fixture('blocked'); await f.connect(); assert.equal(f.state().connected, false);
   assert.equal(f.element('result').textContent, 'CONTROL_RELEASE_PROFILE_REFUSED');
   await f.click('settlement-send'); await f.click('forward'); assert.equal(f.counts().settlementSends, 0); assert.equal(f.counts().executions, 0);
+});
+
+test('verified V3 recipient acceptance remains separate from login across an account switch', async () => {
+  const f = fixture(); await f.connect(); await f.sign(); f.authChange('LOGIN_ACCOUNT_CHANGED');
+  assert.equal(f.state().signed, true); assert.equal(f.state().reviewed, false); assert.equal(f.state().connected, false);
+  assert.equal(f.element('terms').textContent, 'No review prepared');
+  f.authChange('LOGIN_STARTING'); await f.click('connect'); await f.click('forward'); assert.equal(f.counts().executions, 1);
+});
+for (const reason of ['LOGIN_REQUIRED', 'LOGIN_EXPIRED', 'LOGIN_CHAIN_CHANGED', 'LOGIN_DISCONNECTED']) test(`login invalidation ${reason} clears completed consent too`, async () => {
+  const f = fixture(); await f.connect(); await f.sign(); f.authChange(reason);
+  assert.equal(f.state().signed, false); assert.equal(f.state().connected, false); assert.equal(f.element('result').textContent, 'Log in to view assets and history.');
 });

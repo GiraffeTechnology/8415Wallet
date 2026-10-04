@@ -33,7 +33,9 @@ function fixture() {
     acknowledgeReplacement() { return Promise.resolve({ originalOutcome: 'superseded-not-successful' }); }
   }
   const provider = { request() {}, on(name: string, fn: () => void) { events.set(name, fn); } };
-  const sdk = { LegacyClearingSession: Session, BrowserLegacyClearingStore: class {}, parseLegacyClearingDeployment, CLEARING_NOTES, ControlAdapterError,
+  const sdk = {
+    // Authentication is isolated in wallet-login.test.ts and the full browser suite.
+    walletLogin: { assert() {}, check: async () => {}, provider: () => provider, subscribe() {} }, WalletLoginError: class extends Error {}, LegacyClearingSession: Session, BrowserLegacyClearingStore: class {}, parseLegacyClearingDeployment, CLEARING_NOTES, ControlAdapterError,
     getReleaseProfile: () => hooks.profile(), controlRpc: () => { connects++; return hooks.connect(); }, acquireWalletUi: () => Symbol(), releaseWalletUi() {} };
   new Function('document', 'globalThis', ...Object.keys(sdk), source)({ getElementById: element, querySelectorAll: () => [...elements.values()] }, { ethereum: provider, addEventListener: (name: string, fn: (event: any) => void) => lifecycle.set(name, fn) }, ...Object.values(sdk));
   element('clearing-deployment').files = [{ size: 1, text: async () => JSON.stringify({ schema: '8415-legacy-clearing/1', chainId: '31337',

@@ -1,10 +1,11 @@
-// Deterministic browser/provider regression only. No genuine wallet, private key,
-// signing implementation or network RPC. Does not establish production acceptance.
+// Deterministic browser/provider regression only. No genuine wallet, user private key,
+// or network RPC. Login uses a public synthetic test key. Does not establish production acceptance.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawn } = require('node:child_process');
 const { chromium } = require('playwright-core');
+const { installSyntheticLoginSigner, login } = require('./synthetic-login.cjs');
 const root = path.resolve(__dirname, '../..');
 const out = path.resolve(process.env.XIONGAN_SMOKE_OUTPUT || '/tmp/xiongan-ui-evidence');
 fs.mkdirSync(out, { recursive: true });
@@ -22,14 +23,16 @@ let browser;
       if (!route.request().url().startsWith(origin)) { externalRequests.push(route.request().url()); return route.abort(); }
       return route.continue();
     });
-    await context.addInitScript(() => {
-      const actor = `0x${'1'.repeat(40)}`, blockHash = `0x${'4'.repeat(64)}`, transactionHash = `0x${'5'.repeat(64)}`;
+    await installSyntheticLoginSigner(context);
+  await context.addInitScript(() => {
+      const actor = '0x7e5f4552091a69125d5dfcb7b8c2659029395bdf', blockHash = `0x${'4'.repeat(64)}`, transactionHash = `0x${'5'.repeat(64)}`;
       const events = new Map();
       const state = globalThis.__xionganTest = { mode: 'normal', sends: Number(sessionStorage.getItem('test-sends') || 0), actor, holdEstimate: false, gate: null, release: null };
       globalThis.ethereum = {
         on(event, fn) { const list = events.get(event) || []; list.push(fn); events.set(event, list); },
         async request({ method, params = [] }) {
           if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [state.actor];
+          if (method === 'personal_sign') return globalThis.__syntheticLoginSign(params[0]);
           if (method === 'eth_chainId') return '0x1';
           if (method === 'eth_getCode') return '0x';
           if (method === 'eth_getBlockByNumber') return { number: '0x64', timestamp: `0x${Math.floor(Date.now() / 1000).toString(16)}`, hash: blockHash };
@@ -56,7 +59,7 @@ let browser;
     });
     const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
     await page.goto(origin); const idle = () => page.waitForFunction(() => !document.getElementById('asset-connect').disabled);
-    const connect = async () => { await page.click('#asset-connect'); await page.waitForFunction(() => document.getElementById('asset-identity').textContent.includes('Ethereum')); await idle(); };
+    const connect = async () => { await login(page); await page.click('#asset-connect'); await page.waitForFunction(() => document.getElementById('asset-identity').textContent.includes('Ethereum')); await idle(); };
     const prepare = async () => {
       await page.fill('#asset-recipient', `0x${'2'.repeat(40)}`); await page.fill('#asset-amount', '1000'); await page.click('#asset-prepare');
       await page.waitForFunction(() => document.getElementById('asset-review-text').textContent.includes('digest')); await idle();
@@ -79,7 +82,7 @@ let browser;
               await page.fill('#asset-amount', '1000'); await page.click('#asset-prepare');
             } else {
               const payload = { schema: 'xiongan-asset-request/1', requestId: 'checksum-ui', agent: 'Synthetic regression',
-                chainId: '1', actor: `0x${'1'.repeat(40)}`, expiresAt: String(Math.floor(Date.now() / 1000) + 600), action };
+                chainId: '1', actor: '0x7e5f4552091a69125d5dfcb7b8c2659029395bdf', expiresAt: String(Math.floor(Date.now() / 1000) + 600), action };
               await page.setInputFiles('#asset-request-file', { name: 'checksum-request.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(payload)) });
               await page.click('#asset-review-file');
             }
@@ -100,7 +103,7 @@ let browser;
     // A -> B -> A revokes the pending generation even if the final account matches.
     await page.evaluate(() => { __xionganTest.holdEstimate = true; }); await page.check('#asset-ack'); await page.click('#asset-send');
     await page.waitForFunction(() => __xionganTest.gate === 'estimate');
-    await page.evaluate(() => { __xionganTest.emit('accountsChanged', `0x${'2'.repeat(40)}`); __xionganTest.emit('accountsChanged', `0x${'1'.repeat(40)}`); __xionganTest.release(); });
+    await page.evaluate(() => { __xionganTest.emit('accountsChanged', `0x${'2'.repeat(40)}`); __xionganTest.emit('accountsChanged', '0x7e5f4552091a69125d5dfcb7b8c2659029395bdf'); __xionganTest.release(); });
     await idle(); assert.equal(await page.evaluate(() => __xionganTest.sends), 0);
     assert.match(await page.locator('#asset-receive').textContent(), /No receive address verified/);
     await connect(); await prepare(); await page.evaluate(() => { __xionganTest.mode = 'hold-send'; __xionganTest.gate = null; });
@@ -129,7 +132,7 @@ let browser;
       .map(node => ({ tag: node.tagName, id: node.id, width: node.clientWidth, scrollWidth: node.scrollWidth, right: node.getBoundingClientRect().right })) )));
     assert.equal(fits, true, `viewport ${viewport.width} must not overflow horizontally`);
     assert.deepEqual(errors, []); assert.deepEqual(externalRequests, []);
-    evidence.push({ viewport, provider: 'synthetic-no-signing-no-rpc', journeys: ['prepare-no-send', 'checksum-form-and-agent-json-refusal', 'A-B-A-revocation', 'cross-panel-lock', 'submit-reload-reconcile', 'unknown-restart-no-resend-recover'], sends: 2, errors, externalRequests });
+    evidence.push({ viewport, provider: 'synthetic-test-login-no-user-signing-no-rpc', journeys: ['prepare-no-send', 'checksum-form-and-agent-json-refusal', 'A-B-A-revocation', 'cross-panel-lock', 'submit-reload-reconcile', 'unknown-restart-no-resend-recover'], sends: 2, errors, externalRequests });
     await context.close();
   }
   fs.writeFileSync(path.join(out, 'result.json'), JSON.stringify({ verdict: 'SYNTHETIC_BROWSER_REGRESSION_PASSED_NOT_REAL_WALLET_ACCEPTANCE', evidence }, null, 2));

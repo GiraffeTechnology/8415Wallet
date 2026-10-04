@@ -5,6 +5,8 @@ import { dirname, join, resolve } from 'node:path';
 import { RELEASE_PROFILES, RELEASE_STATUS, resolveReleaseProfile } from '../../web/release-profile.mjs';
 import { captureSource, deterministicArchive, exportSource, sha256, stagePublicWeb, validateStaticTree, walk } from './dapp-release.mjs';
 
+import { buildLoginVendor } from './build-login-vendor.mjs';
+
 const root = process.cwd();
 const options = {};
 for (let i = 2; i < process.argv.length; i += 2) {
@@ -24,19 +26,20 @@ if (!source.files[prdPath]) throw new Error('DAPP_PRD_MISSING');
 for (const tree of ['src', 'web']) {
   for (const file of walk(root, tree)) if (!Object.hasOwn(source.files, file)) throw new Error(`DAPP_UNTRACKED_SOURCE_STAGE_REQUIRED: ${file}`);
 }
-for (const file of ['docs/BETA-DAPP-DELIVERY.md', 'docs/BETA-PRD-COVERAGE.md', 'docs/STANDARDS-COMPATIBILITY.md', 'docs/stages/LEGACY-CLEARING-BETA-DAPP.md']) {
+for (const file of ['docs/BETA-DAPP-DELIVERY.md', 'docs/BETA-PRD-COVERAGE.md', 'docs/STANDARDS-COMPATIBILITY.md', 'docs/WALLET-LOGIN.md', 'docs/stages/LEGACY-CLEARING-BETA-DAPP.md']) {
   if (!Object.hasOwn(source.files, file)) throw new Error(`DAPP_UNTRACKED_SOURCE_STAGE_REQUIRED: ${file}`);
 }
 // Clear output first: removed source modules must never survive a prior emit.
 rmSync(join(root, 'dist/browser'), { recursive: true, force: true });
 execFileSync(process.execPath, ['node_modules/typescript/bin/tsc', '-p', 'tsconfig.browser.json'], { cwd: root, stdio: 'inherit' });
+buildLoginVendor(root);
 const stage = join(root, 'dist', `package-dapp-${id}`);
 rmSync(stage, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
 stagePublicWeb(root, source, stage);
 cpSync(join(root, 'dist/browser'), join(stage, 'dist/browser'), { recursive: true });
 writeFileSync(join(stage, 'web/release-config.json'), `${JSON.stringify(config, null, 2)}\n`);
-for (const file of [prdPath, 'docs/BETA-DAPP-DELIVERY.md', 'docs/BETA-PRD-COVERAGE.md', 'docs/STANDARDS-COMPATIBILITY.md', 'docs/stages/LEGACY-CLEARING-BETA-DAPP.md']) {
+for (const file of [prdPath, 'docs/BETA-DAPP-DELIVERY.md', 'docs/BETA-PRD-COVERAGE.md', 'docs/STANDARDS-COMPATIBILITY.md', 'docs/WALLET-LOGIN.md', 'docs/stages/LEGACY-CLEARING-BETA-DAPP.md']) {
   mkdirSync(join(stage, dirname(file)), { recursive: true }); cpSync(join(root, file), join(stage, file));
 }
 if (captureSource(root).tree !== source.tree) throw new Error('DAPP_SOURCE_CHANGED_DURING_BUILD');
@@ -65,7 +68,7 @@ const release = {
     publicTestnet: 'not established by packaging', deviceJourneys: 'not established by packaging',
     W20: id === 'v3' ? 'requires deployed same-token multi-wallet UI journey, with funded and unfunded variants' : 'not part of V2 foundation',
     independentReview: 'not independently audited; functional Beta publication is permitted, general release acceptance is not established' },
-  scope: { controlKernel: 'The normal DApp control deployment-manifest path and agent-request path enforce testnet chain guards. Direct SDK consumers must enforce their own chain policy; the SDK is not a universal mainnet barrier.',
+  scope: { login: 'Verified origin/account/chain-bound in-memory wallet login is required for asset/history display. Public entry and blockchain records remain public; private APIs require separate server authorization.', controlKernel: 'The normal DApp control deployment-manifest path and agent-request path enforce testnet chain guards. Direct SDK consumers must enforce their own chain policy; the SDK is not a universal mainnet barrier.',
     externalAssets: 'ETH, ERC-20, ERC-721 and ERC-1155 on Ethereum, Base, Sepolia and Base Sepolia; no private-key custody; each transfer requires the user wallet confirmation',
     recommendation: 'Use authorized test assets and testnets for Beta testing. Mainnet testing requires separate authorization.' },
   notes: ['Serve the complete tree with its web/ and dist/browser/ layout intact.',
