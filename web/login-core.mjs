@@ -63,8 +63,8 @@ export class WalletLogin {
   async #identity(provider) {
     const accounts = await provider.request({ method: 'eth_accounts', params: [] });
     const chain = await provider.request({ method: 'eth_chainId', params: [] });
-    insist(Array.isArray(accounts) && typeof accounts[0] === 'string', 'LOGIN_ACCOUNT_REQUIRED');
-    let account; try { account = this.#crypto.getAddress(accounts[0]); } catch { throw new WalletLoginError('LOGIN_ACCOUNT_REQUIRED'); }
+    insist(Array.isArray(accounts) && typeof accounts[0] === 'string' && /^0x[0-9a-fA-F]{40}$/.test(accounts[0]), 'LOGIN_ACCOUNT_REQUIRED');
+    let account; try { account = this.#crypto.getAddress(accounts[0].toLowerCase()); } catch { throw new WalletLoginError('LOGIN_ACCOUNT_REQUIRED'); }
     insist(!/^0x0+$/i.test(account) && typeof chain === 'string' && /^0x[0-9a-f]+$/i.test(chain), 'LOGIN_CHAIN_REFUSED');
     const chainId = BigInt(chain).toString(); insist(supportedChains.has(chainId), 'LOGIN_CHAIN_REFUSED');
     return { account, chainId };

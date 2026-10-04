@@ -20,7 +20,7 @@ function fixture() {
       if (method === 'eth_accounts' || method === 'eth_requestAccounts') return [account];
       if (method === 'eth_chainId') return chainId;
       if (method === 'eth_getCode') return code;
-      if (method === 'personal_sign') { const message = toUtf8String(getBytes(params[0])); messages.push(message); assert.equal(params[1], account); return sign(message); }
+      if (method === 'personal_sign') { const message = toUtf8String(getBytes(params[0])); messages.push(message); assert.equal(params[1].toLowerCase(), account.toLowerCase()); return sign(message); }
       if (method === 'eth_call') {
         const decoded = new Interface(['function isValidSignature(bytes32,bytes) view returns (bytes4)']).decodeFunctionData('isValidSignature', params[0].data);
         assert.equal(decoded[0], hashMessage(messages.at(-1)!)); assert.equal(params[0].to, account); return contractResult;
@@ -153,4 +153,11 @@ for (const event of ['chainChanged', 'disconnect']) test(`pre-challenge ${event}
   const pending = f.login.signIn(f.provider); await entered.promise; f.emit(event); gate.resolve();
   await assert.rejects(pending, /LOGIN_CANCELLED/); assert.equal(reasons.at(-1), event === 'chainChanged' ? 'LOGIN_CHAIN_CHANGED' : 'LOGIN_DISCONNECTED');
   assert.throws(() => f.login.assert()); assert.equal(f.calls.filter(method => method === 'personal_sign').length, 1);
+});
+
+test('provider address casing stays byte-oriented while the SIWE message uses the canonical checksum', async () => {
+  const f = fixture(); const mixed = f.signer.address.replace(/[a-fA-F]/g, value => value === value.toLowerCase() ? value.toUpperCase() : value.toLowerCase());
+  f.setAccount(mixed); await f.login.signIn(f.provider);
+  assert.equal(f.login.assert().account, f.signer.address); assert.ok(f.messages[0]!.includes(`\n${f.signer.address}\n`));
+  await f.login.check();
 });
