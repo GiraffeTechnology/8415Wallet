@@ -38,7 +38,7 @@ const BETA_COLLECTS = ['public-chain execution with a genuine wallet',
   'W-20 deployed same-token multi-wallet journey'];
 const BEFORE_GENERAL_RELEASE = ['independent security review of the control kernel, adapters, verifiers, deployed contracts, recovery and optional payment integration'];
 const SCOPE = {
-  controlKernel: 'testnet only, enforced in code: a non-testnet deployment is refused with CONTROL_TESTNET_REQUIRED and a non-testnet agent request with AGENT_TESTNET_REQUIRED. The unaudited V3 surface cannot reach mainnet.',
+  controlKernel: 'In THIS bundle the control panel is testnet only: web/app.mjs refuses a non-testnet deployment with CONTROL_TESTNET_REQUIRED, and the agent request parser refuses one with AGENT_TESTNET_REQUIRED. The restriction lives in these two call sites, NOT in src/controls, so it binds this page and does not bind a consumer who imports the control surface directly from the npm package.',
   assetTransfers: 'Ethereum mainnet, Base, Sepolia and Base Sepolia. This layer holds no key and sets no amount ceiling; the final authority is the confirmation dialog of the user own wallet.',
   recommendation: 'For functional testing set the wallet to Sepolia before connecting.',
 };

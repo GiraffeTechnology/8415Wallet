@@ -107,10 +107,14 @@ writeFileSync(join(root, 'dist', 'v3-package-manifest.json'), `${JSON.stringify(
     'physical device journeys in a wallet application in-app browser',
     'W-20 deployed same-token multi-wallet journey'],
   // Independent review bounds what the build may be used for rather than
-  // blocking its publication. The surface that most needs it already cannot
-  // reach mainnet: a non-testnet deployment is refused in code.
+  // blocking its publication.
   beforeGeneralRelease: ['independent security review of the control kernel, adapters, verifiers, deployed contracts, recovery and optional payment integration'],
-  controlKernelScope: 'testnet only, enforced in code (CONTROL_TESTNET_REQUIRED, AGENT_TESTNET_REQUIRED)',
+  // Stated precisely, because the obvious reading is wrong. The testnet
+  // restriction is enforced at two call sites, web/app.mjs and the agent
+  // request parser, and neither ships in this package. src/controls carries no
+  // chain restriction at all, so a consumer importing the control surface from
+  // THIS package is not confined to a testnet and must impose that bound.
+  controlKernelScope: 'NOT chain-restricted in this package. The CONTROL_TESTNET_REQUIRED and AGENT_TESTNET_REQUIRED checks belong to the dApp page and the agent request parser, neither of which is shipped here. An integrator consuming the control surface directly is responsible for restricting the chain until independent review is complete.',
 }, null, 2)}\n`);
 console.log(`${packed.filename}  ${packed.entryCount} entries  ${Math.round(packed.unpackedSize / 1024)} KB`);
 console.log(`sha256 ${sha}`);
