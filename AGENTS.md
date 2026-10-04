@@ -35,6 +35,26 @@ standalone use.
 
 ---
 
+## Current client-directed installation and joint testing (2026-10-05)
+
+ArtFi control owns the client-requested ArtFi iteration, installation and joint
+testing using the Beta package on branch `delivery/install-handoff-20261004`.
+The exact source is `1f4a9ae6dd5b8b062ab4f903920cf4b39d158e36`; the archive SHA256
+is `df5058bec9d5c12cffb9ca10cd7ea991e46696207a50f3d2ccf47ac375681838`.
+Preserve the immutable supplied archive and verify its nested manifests before
+installation. This client instruction, rather than artifact publication alone,
+authorizes production-like Beta installation and joint testing in the approved
+CTYun/SIN Linux environment. Windows is a source/report workstation only.
+
+Historical Charity completion, full V3 acceptance and independent general-release
+audit are not prerequisites for this Beta installation and testing. Remaining
+genuine-wallet, public-testnet, device and W-20 observations are collected and
+reported separately; no old result is inherited by a changed source or origin.
+Public entry navigation may skip login, but protected assets/history still require
+verified login. Mainnet/real-value testing, credential disclosure, unknown-outcome
+replay and changes to shared or other-task services remain outside this authority.
+GitHub writes remain English only.
+
 ## Current installation handoff (2026-10-04)
 
 The private repository stores the immutable manual-deployment package at
@@ -63,13 +83,18 @@ extract it, and read `START-HERE-EN.md`. Verify the extracted handoff's own
 `RELEASE.json` and extracted checksums. Preserve the `web/` and `dist/browser/`
 layout; the entry is `web/index.html`. No private key or seed phrase is required.
 
-The deployment URLs are intentionally unset. Obtain the authorized environment,
-exact origin and confirmed port allocation, plus verified testnet deployment
-manifests and authorized test accounts, before configuring or serving a build.
+The deployment URLs are intentionally unset. For the client's authorized installation,
+inspect the approved Linux environment and select a free non-443 allocation, then
+configure the complete origin and entry path. Public entry/header/navigation checks
+need no funded account. Before chain-dependent actions, validate the relevant testnet
+deployment manifests and authorized test accounts; missing chain inputs block those
+actions, not independent static installation checks.
 Follow `docs/BETA-DAPP-DELIVERY.md`, regenerate configuration-bound manifests
 and hashes for that build, and retain this original archive unchanged. TCP 443
-remains reserved for SSH on every server; never invent a replacement port or
-change listeners, SSH, DNS, TLS, firewalls or credentials as part of this handoff.
+and occupied ports remain excluded on target servers. Preserve SSH, shared
+listeners, bridges, credentials and other-task configuration. Apply only task-owned
+changes within existing client authority; actual ingress permissions remain scoped
+to their target rules. The handoff itself grants no additional infrastructure authority.
 Keep existing recovery journals and their origin intact during upgrades.
 
 The source's [merged-main CI run](https://github.com/GiraffeTechnology/8415Wallet/actions/runs/37209416014)
@@ -78,8 +103,9 @@ cases, 89 local-EVM cases, package/install/reproducibility checks, and synthetic
 Chromium desktop/mobile-viewport evidence. These are exact-source automated
 results, not genuine-wallet or physical-device acceptance. Genuine provider
 prompts, deployed endpoint/headers/rollback, public-testnet receipts, W-20 and
-independent security review remain separate manual acceptance work. No server
-deployment or real transaction is authorized or established by this publication.
+independent security review remain separate manual acceptance work. Publication alone establishes neither deployed acceptance nor transaction authority.
+The client's subsequent installation and joint-test instruction supplies the scoped
+execution authority described above; real-value activity is not authorized.
 
 The artifact's source identity stays the commit above even when a later commit
 adds this archive or updates documentation. Never relabel old bytes as a build
@@ -556,10 +582,12 @@ not configure HTTP, HTTPS, web servers, reverse proxies or TLS listeners to
 bind TCP port 443, and do not stop, rebind, replace or otherwise disrupt SSH to
 free it.
 
-Before selecting a web or bridge port, inspect the existing deployment and
-operations configuration and reuse an explicitly confirmed allocation. Do not
-guess a replacement port. If the allocation is unclear, report the missing
-configuration rather than changing a service binding.
+Before selecting a web or bridge port, inspect current listeners and operations
+configuration. Reuse a suitable existing allocation or select an actually free
+non-443 port within the client's approved deployment scope. Occupied ports,
+SSH, shared bridges and other-task services remain protected. Do not invent a
+separate per-port client approval requirement; actual public-ingress authority
+still applies to its target rule. Complete configured URLs determine the origin.
 
 A web origin is scheme, host and port, so the port a wallet is served on is
 part of its origin. Moving a served wallet to a different port strands every
@@ -574,8 +602,9 @@ part of what a user verifies in the address bar. That is a cost of this
 reservation, not a defect to work around. HSTS does not mitigate it, because it
 upgrades the scheme and not the port.
 
-Certificate issuance must use the HTTP-01 challenge over port 80. TLS-ALPN-01
-validates on TCP 443 and is unavailable under this reservation.
+Use supported certificate validation within existing operations authority, such as
+available HTTP-01 or authorized DNS-01. Do not consume reserved TCP 443 for
+TLS-ALPN-01; HTTP-01 is not the sole permitted method.
 
 Recording this rule does not authorize server access or changes to SSH,
 firewalls, credentials, network settings or security settings.
