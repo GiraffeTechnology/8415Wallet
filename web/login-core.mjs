@@ -93,7 +93,7 @@ export class WalletLogin {
     const current = () => insist(epoch === this.#epoch, 'LOGIN_CANCELLED');
     let watching = false; // The initial account-permission event precedes the challenge.
     this.#removeListeners?.(); const observer = ++this.#observerGeneration;
-    const callbacks = ['accountsChanged', 'chainChanged', 'disconnect'].map(event => [event, () => { if (watching && observer === this.#observerGeneration) this.logout(event === 'accountsChanged' ? 'LOGIN_ACCOUNT_CHANGED' : event === 'chainChanged' ? 'LOGIN_CHAIN_CHANGED' : 'LOGIN_DISCONNECTED'); }]);
+    const callbacks = ['accountsChanged', 'chainChanged', 'disconnect'].map(event => [event, () => { if ((watching || event !== 'accountsChanged') && observer === this.#observerGeneration) this.logout(event === 'accountsChanged' ? 'LOGIN_ACCOUNT_CHANGED' : event === 'chainChanged' ? 'LOGIN_CHAIN_CHANGED' : 'LOGIN_DISCONNECTED'); }]);
     for (const [event, callback] of callbacks) provider.on?.(event, callback);
     this.#removeListeners = () => { for (const [event, callback] of callbacks) provider.removeListener?.(event, callback); };
     try {

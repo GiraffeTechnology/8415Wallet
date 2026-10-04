@@ -144,3 +144,13 @@ for (const change of ['account', 'chain', 'contract-revocation']) test(`held rea
   if (change === 'contract-revocation') f.contract('0xffffffff' + '00'.repeat(28));
   gate.resolve('private old balance'); await assert.rejects(pending); assert.equal(binding.signal.aborted, true); assert.throws(() => f.login.assert());
 });
+
+for (const event of ['chainChanged', 'disconnect']) test(`pre-challenge ${event} cancels re-login and invalidates an account-switch handoff`, async () => {
+  const f = fixture(), reasons: string[] = []; f.login.subscribe((_session: any, reason: string) => reasons.push(reason));
+  await f.login.signIn(f.provider); f.emit('accountsChanged');
+  const original = f.provider.request, entered = deferred(), gate = deferred();
+  f.provider.request = async args => { if (args.method === 'eth_requestAccounts') { entered.resolve(); await gate.promise; } return original(args); };
+  const pending = f.login.signIn(f.provider); await entered.promise; f.emit(event); gate.resolve();
+  await assert.rejects(pending, /LOGIN_CANCELLED/); assert.equal(reasons.at(-1), event === 'chainChanged' ? 'LOGIN_CHAIN_CHANGED' : 'LOGIN_DISCONNECTED');
+  assert.throws(() => f.login.assert()); assert.equal(f.calls.filter(method => method === 'personal_sign').length, 1);
+});
