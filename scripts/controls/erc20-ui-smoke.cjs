@@ -163,8 +163,11 @@ async function main() {
       return route.continue();
     });
     await installProvider(blocked); const blockedPage = await blocked.newPage(); await blockedPage.goto(origin);
-    await blockedPage.click('#asset-connect');
-    await blockedPage.waitForFunction(() => document.getElementById('asset-result').textContent === 'ASSET_RELEASE_CONFIG_REFUSED');
+    await blockedPage.click('#wallet-login');
+    await blockedPage.waitForFunction(() => document.getElementById('wallet-login-status').textContent === 'LOGIN_RELEASE_CONFIG_REFUSED');
+    assert.equal(await blockedPage.locator('#wallet-private').isVisible(), false);
+    await blockedPage.locator('#asset-connect').dispatchEvent('click');
+    await blockedPage.waitForFunction(() => document.getElementById('asset-result').textContent === 'LOGIN_REQUIRED');
     assert.equal(await blockedPage.evaluate(() => __erc20Test.accountRequests), 0);
     assert.equal(await blockedPage.evaluate(() => __erc20Test.sends), 0);
     evidence.push({ profileGate: 'missing-config-refused-before-provider', accountRequests: 0, sends: 0 }); await blocked.close();
