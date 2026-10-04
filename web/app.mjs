@@ -1,7 +1,8 @@
 import { acquireWalletUi, releaseWalletUi } from './ui-lock.mjs';
 import { ResponsibilityWalletSession, DetachedResponsibilityHistoryClient, ControlAdapterError, WalletSession, RpcErc8415Reader, Eip1193ReadTransport,
   renderAssetView, renderTemporalQuery, renderHistory, renderRegistration, renderAcquisitionDisclosure,
-  renderRiskSurfaces, renderPosture, renderSettlementLog, renderOwnershipHistory, renderCollisions, CollisionScanError, verifyControlDeployment, controlRpc } from '../dist/browser/browser.js';
+  renderRiskSurfaces, renderPosture, renderSettlementLog, renderOwnershipHistory, renderCollisions, CollisionScanError, verifyControlDeployment, controlRpc,
+  isAddressInput } from '../dist/browser/browser.js';
 import { reviewAgentRequest, recoveryGuidance } from '../dist/browser/browser.js';
 import { BrowserPublicOperationStore } from './public-store.mjs';
 
@@ -13,6 +14,9 @@ const fail = code => { throw new ControlAdapterError(code); };
 const integer = text => { if (!/^(0|[1-9][0-9]{0,77})$/.test(text) || BigInt(text) >= 1n << 256n) fail('CONTROL_INTEGER_REFUSED'); return BigInt(text); };
 const number = id => integer(value(id));
 const bytes = (text, size) => { if (!new RegExp(`^0x[0-9a-fA-F]{${size * 2}}$`).test(text)) fail('CONTROL_HEX_REFUSED'); return text.toLowerCase(); };
+/** A human-typed address, not a byte string. bytes() lowercases before anything
+ * can read the checksum, so a mistyped mixed-case address would pass it. */
+const addressInput = text => { if (!isAddressInput(text)) fail('CONTROL_ADDRESS_REFUSED'); return text.toLowerCase(); };
 let deployment = null, provider = null, session = null, plainWallet = null, actor = null, review = null, signed = null, busy = false;
 let agentRequestText = null, agentReview = null;
 let connectionRevision = 0n, operationRevision = 0n;
@@ -24,10 +28,16 @@ function clearAgentReview() {
   agentRequestText = null; agentReview = null;
   el('agent-acknowledge').checked = false; el('agent-terms').textContent = 'No agent request reviewed';
 }
-function clearConnection() {
-  clearAgentReview(); el('recovery-guidance').textContent = recoveryGuidance(null);
-  connectionRevision++; session = null; plainWallet = null; actor = null; review = null;
+/** Review display state only. Whether a COMPLETED acceptance survives is a
+ * separate, deliberate decision made at each call site: an intentional account
+ * switch keeps it, a chain change or disconnect drops it. */
+function clearConsentReview() {
+  review = null;
   el('acknowledge').checked = false; el('terms').textContent = 'No review prepared';
+}
+function clearConnection() {
+  clearAgentReview(); clearConsentReview(); el('recovery-guidance').textContent = recoveryGuidance(null);
+  connectionRevision++; session = null; plainWallet = null; actor = null;
   el('identity').textContent = 'Connection changed; reconnect and re-read before acting';
   renderResult('Connection changed. Reconnect to reconcile any submitted or unknown operation; do not automatically repeat it.');
 }
@@ -167,7 +177,7 @@ document.querySelectorAll('[data-action]').forEach(button => button.addEventList
       payments: s.payments ? payments : 'not configured — responsibility remains independent', readOnly: true }); return;
   }
   let operation;
-  if (kind === 'deposit' || kind === 'standalone-withdraw') operation = { kind, token: deployment.token, tokenId: number('tokenId'), ...(kind === 'standalone-withdraw' ? { destination: bytes(value('destination'), 20) } : {}) };
+  if (kind === 'deposit' || kind === 'standalone-withdraw') operation = { kind, token: deployment.token, tokenId: number('tokenId'), ...(kind === 'standalone-withdraw' ? { destination: addressInput(value('destination')) } : {}) };
   else if (kind === 'reserve-payment') {
     if (!signed) fail('CONTROL_IN_MEMORY_CONSENT_REQUIRED');
     operation = { kind, consent: signed.consent };
@@ -191,8 +201,14 @@ document.querySelectorAll('[data-action]').forEach(button => button.addEventList
   }
   display(await s.execute(operation));
 })));
+// Choosing a different file invalidates what was reviewed from the previous
+// one. Without this, the displayed terms and the selected file diverge, and
+// accept would sign the earlier consent. The agent panel already does this.
+el('consent-file').addEventListener('change', clearConsentReview);
 el('review').addEventListener('click', () => run(async () => {
-  const s = selected(); review = null; signed = null; el('acknowledge').checked = false;
+  // Cleared before the read, so a failed prepare leaves no stale terms on
+  // screen. Starting a new review also drops any completed acceptance, as before.
+  const s = selected(); clearConsentReview(); signed = null;
   const input = await jsonFile('consent-file', 2300000);
   requireCurrentConnection();
   if (!input || Object.keys(input).sort().join(',') !== 'consent,documents') fail('CONTROL_PUBLIC_DOCUMENT_REFUSED');

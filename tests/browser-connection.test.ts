@@ -3,9 +3,11 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { recoveryGuidance } from '../src/xiongan/recoveryView.ts';
 import { reviewAgentRequest } from '../src/xiongan/agentRequest.ts';
+import { isAddressInput } from '../src/xiongan/address.ts';
 
 // Executes the actual UI handlers with deterministic provider/DOM boundaries.
-// This is a connection-lifecycle regression, not genuine wallet/UI acceptance.
+// Connection lifecycle, input validation and review-state hygiene regressions;
+// not genuine wallet or physical-device acceptance.
 const source = readFileSync(new URL('../web/app.mjs', import.meta.url), 'utf8')
   .replace(/^import[\s\S]*?;\r?\n/gm, '');
 const address = `0x${'1'.repeat(40)}`;
@@ -23,7 +25,7 @@ function fixture() {
       addEventListener(name: string, fn: () => Promise<void>) { this.handlers.set(name, fn); } });
     return elements.get(id);
   };
-  const actions = ['account', 'read', 'reserve-payment'].map(name => {
+  const actions = ['account', 'read', 'reserve-payment', 'standalone-withdraw'].map(name => {
     const node = element(name); node.dataset.action = name; return node;
   });
   const reads = [element('read-asset'), element('read-collisions')];
@@ -54,6 +56,7 @@ function fixture() {
       collisions(ids: bigint[]) { collisionIds = ids; return hooks.collisions(); }
     },
     RpcErc8415Reader: class {}, Eip1193ReadTransport: class {}, BrowserPublicOperationStore: class {},
+    isAddressInput,
     renderAssetView: (v: unknown) => v,
     renderCollisions: (v: unknown) => v,
     CollisionScanError: class extends Error {},
@@ -176,4 +179,65 @@ test('late send result is not attributed to the new account and is never retried
   const pending = f.click('forward'); f.emit('accountsChanged'); gate.resolve({ submitted: true }); await pending;
   assert.equal(f.counts().executions, 1); assert.equal(f.element('result').textContent, 'CONTROL_CONNECTION_CHANGED');
   await f.click('connect'); assert.equal(f.counts().executions, 1);
+});
+
+// A destination is typed by a person and decides where the token goes. The
+// checksum is the only protection against a character that changed in transit,
+// and lowercasing before reading it throws that protection away.
+const checksummed = '0x5aAeb6053F3E94C9b9A09f33669435E7Ef1BeAed';
+
+test('a withdrawal destination with a broken checksum is refused before any send', async () => {
+  const f = fixture(); await f.connect();
+  f.element('tokenId').value = '1';
+  for (const broken of [checksummed.replace('aA', 'AA'), `${checksummed.slice(0, -1)}c`]) {
+    f.element('destination').value = broken;
+    await f.click('standalone-withdraw');
+    assert.equal(f.element('result').textContent, 'CONTROL_ADDRESS_REFUSED', broken);
+    assert.equal(f.counts().executions, 0, broken);
+  }
+});
+
+test('an unchecksummed destination still works, so the check adds no new refusal', async () => {
+  const f = fixture(); await f.connect();
+  f.element('tokenId').value = '1';
+  for (const accepted of [checksummed, checksummed.toLowerCase(), `0x${checksummed.slice(2).toUpperCase()}`]) {
+    f.element('destination').value = accepted;
+    await f.click('standalone-withdraw');
+    assert.notEqual(f.element('result').textContent, 'CONTROL_ADDRESS_REFUSED', accepted);
+  }
+  assert.equal(f.counts().executions, 3);
+});
+
+test('choosing another consent file invalidates what was reviewed from the first', async () => {
+  const f = fixture(); await f.connect();
+  await f.click('review');
+  assert.equal(f.state().reviewed, true);
+  assert.match(f.element('terms').textContent, /digest/);
+
+  // The owner points the input at a different document without reviewing it.
+  await f.click('consent-file', 'change');
+
+  assert.equal(f.state().reviewed, false, 'the earlier review must not survive the selection');
+  assert.equal(f.element('terms').textContent, 'No review prepared');
+  f.element('acknowledge').checked = true;
+  await f.click('accept');
+  assert.equal(f.element('result').textContent, 'CONTROL_REVIEW_ACKNOWLEDGEMENT_REFUSED');
+  assert.equal(f.state().signed, false);
+  assert.equal(f.counts().accepts, 0, 'nothing may be signed from a superseded review');
+});
+
+test('a failed prepare leaves no terms from the previous one on screen', async () => {
+  const f = fixture(); await f.connect();
+  await f.click('review');
+  assert.match(f.element('terms').textContent, /digest/);
+
+  f.hooks.prepare = async () => { throw new Error('private prepare diagnostic'); };
+  await f.click('review');
+
+  assert.equal(f.state().reviewed, false);
+  assert.equal(f.element('terms').textContent, 'No review prepared',
+    'stale terms alongside a failure read as the reviewed document');
+  f.element('acknowledge').checked = true;
+  await f.click('accept');
+  assert.equal(f.counts().accepts, 0);
 });

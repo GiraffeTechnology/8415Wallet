@@ -1,6 +1,7 @@
 /** Additive browser entry, no filesystem store or automatically connecting transport. */
 export * from './controls/index.ts';
 export { WalletSession } from './wallet/session.ts';
+export { isAddressInput } from './xiongan/address.ts';
 export { RpcErc8415Reader } from './adapters/rpc/rpcReader.ts';
 export { Eip1193ReadTransport } from './adapters/signing/eip1193ReadTransport.ts';
 export { renderAssetView } from './wallet/renderAssetView.ts';
