@@ -32,6 +32,12 @@ proxy, TLS listener or bridge there; do not alter SSH to free it. If the approve
 web allocation is missing, stop the server step and obtain that value. The
 package remains a valid unconfigured Beta deliverable.
 
+The browser URL identifies the public TLS endpoint. If a separately approved
+external front door terminates public HTTPS on 443, that does not change the
+SIN/CTYun upstream reservation: the origin listener still requires its own
+confirmed non-443 allocation. Keep public endpoint and origin listener records
+separate. This document provisions neither a proxy nor a port.
+
 Scheme, host and port define the browser origin. A change strands browser
 journals at the prior origin. Preserve an origin with unresolved operations;
 never treat an empty journal at a new origin as evidence that nothing was sent.

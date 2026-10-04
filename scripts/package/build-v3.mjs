@@ -69,7 +69,7 @@ const version = '3.0.0-beta';
 writeFileSync(join(stage, 'package.json'), `${JSON.stringify({
   name: '8415wallet',
   version,
-  description: 'ERC-8415 temporal asset wallet — V3 beta: standalone reading plus linked responsibility controls. Not independently audited; normal DApp control paths enforce testnet guards and SDK consumers set their own chain policy.',
+  description: '8415wallet V3 Beta SDK for the general-purpose wallet: native ERC-8415 reading and linked responsibility controls. Not independently audited; normal DApp control paths enforce testnet guards and SDK consumers set their own chain policy.',
   license: dev.license,
   type: 'module',
   engines: dev.engines,

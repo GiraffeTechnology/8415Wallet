@@ -2,7 +2,8 @@
 
 ## Product, versions and scope
 
-The product is **8415wallet**. The platform identity is **8415wallet.com**;
+The product is **8415wallet**, a general-purpose wallet with existing wallet
+and asset standards compatibility and native ERC-8415 support. The platform identity is **8415wallet.com**;
 that identity is not a configured URL, a DNS assertion or permission to bind a
 server port. The Xiongan tenant uses the **V2** profile.
 
@@ -166,6 +167,18 @@ on a reserved listener. If the endpoint has not been supplied, deliver the
 unconfigured artifact and record the missing endpoint instead of inventing a
 link. The platform name alone must not be converted into a default-443 URL.
 
+
+The configured URL is the **public browser endpoint**, which is not necessarily
+an origin server's listener. For direct CTYun/SIN hosting, the configured port
+must be the confirmed non-443 web listener. If operations explicitly approves
+a separate externally managed TLS front door, its public HTTPS endpoint may
+use 443 while its CTYun/SIN upstream still uses the separately approved non-443
+listener. Record both allocations and the actual TLS termination boundary in
+the deployment evidence. In that case `environment: "other"` describes the
+external public endpoint; it must never be used to disguise a CTYun/SIN web
+listener on the reserved port. No proxy, external service, DNS change, listener
+allocation or public URL is created or authorized by this package.
+
 ```sh
 npm run pack:dapp:v2 -- --config /path/to/confirmed-public-config.json
 npm run pack:dapp:v3 -- --config /path/to/confirmed-public-config.json
@@ -259,7 +272,7 @@ Screenshots alone cannot prove signing, chain execution or device identity.
 - Review and execute only authorized protocol/legacy-clearing test transactions
   through the user's wallet. Confirm read snapshots and actor authority remain
   visible. Legacy clearing is a single-trade pattern, not W-20 evidence.
-- Prepare an external ETH/NFT transfer using authorized test assets. Verify the
+- Prepare an external ETH/ERC-20/NFT transfer using authorized test assets. Verify the
   exact chain, account, asset, recipient and amount; reject once, repeat only
   after a genuinely new review; exercise duplicate clicks and account changes.
   No import or review alone may submit a transaction.
@@ -267,6 +280,27 @@ Screenshots alone cannot prove signing, chain execution or device identity.
   automatic resend. Test wallet rejection, a dropped connection, a matching
   replacement hash and explicit same-nonce replacement evidence separately.
   Persist unresolved outcomes and check wallet activity before retrying.
+
+### ERC-20 balance and transfer
+
+1. On an authorized supported testnet, select ERC-20 and enter the exact token
+   contract. Read balance and optional metadata. Confirm the raw balance and
+   actual chain/address; metadata is not identity and decimals are never assumed.
+2. Enter recipient and a positive integer raw amount. For a six-decimal token,
+   1000000 raw units displays as 1 only when valid decimals are returned. With
+   absent/malformed optional metadata, raw-unit review remains explicit.
+3. Prepare, inspect the full raw and formatted amount, token/runtime pin,
+   recipient, chain/account and expiry, then acknowledge and confirm in the
+   genuine wallet. No approval or allowance is requested.
+4. Verify the canonical transaction/receipt and exact Transfer event, then
+   acknowledge the terminal receipt. Capture the actual hash and raw output.
+5. Repeat rejection, duplicate click, account/chain change, reload, lost-response
+   matching-hash recovery and canonical different-transaction replacement tests.
+   Missing/wrong Transfer effects must not become a success assertion.
+6. Locally exercise true-return, legacy empty-return, false-return and malformed
+   return fixtures. A false/malformed simulation result refuses preparation.
+   Do not represent fee-on-transfer/rebasing tokens or arbitrary proxy upgrades
+   as supported by these standard transfer tests.
 
 ### V3 linked journey and W-01–W-24 mapping
 

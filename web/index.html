@@ -5,21 +5,23 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <title>8415wallet</title><link rel="stylesheet" href="wallet.css">
 </head>
-<body><header><p class="eyebrow">8415wallet.com</p><h1>8415wallet</h1><p id="release-profile" role="status">Loading verified release profile…</p><p>Standalone assets · Linked responsibilities · Owner-reviewed agent requests</p><p class="release-notice">Testnet development candidate. Not independently audited. 8415 controls remain testnet-only. External-account mainnet transfers require your own wallet confirmation and remain unaccepted development code.</p></header>
+<body><header><p class="eyebrow">8415wallet.com</p><h1>8415wallet</h1><p id="release-profile" role="status">Loading verified release profile…</p><p>General-purpose wallet · Native ERC-8415 support · Owner-reviewed requests</p><p class="release-notice">Functional-testing Beta. Not independently audited. Native ERC-8415 protocol and responsibility controls remain testnet-only. External-account mainnet transfers require your own wallet confirmation; genuine-wallet and physical-device acceptance remains outstanding.</p></header>
 <main>
-  <section id="asset-panel" aria-labelledby="asset-heading"><h2 id="asset-heading">Your ETH and NFTs</h2>
-    <p>Ethereum and Base, with Sepolia and Base Sepolia for rehearsal. ETH and standard ERC-721 / ERC-1155 NFTs remain in your existing external wallet account. No seed phrase, private key or standing agent permission is requested.</p>
-    <p class="release-notice">Not independently audited. This is a development candidate, not completed real-asset acceptance. Agents prepare and check requests; you personally review, sign and submit in your wallet. ETH sends currently require an EOA recipient. No swaps, approvals, ERC-20 tokens or smart-account custody.</p>
+  <section id="asset-panel" aria-labelledby="asset-heading"><h2 id="asset-heading">Your ETH, tokens and NFTs</h2>
+    <p>Ethereum and Base, with Sepolia and Base Sepolia for rehearsal. ETH, ERC-20 tokens and standard ERC-721 / ERC-1155 NFTs remain in your existing external wallet account. No seed phrase, private key or standing agent permission is requested.</p>
+    <p class="release-notice">Not independently audited. Functional-testing Beta; real-asset acceptance remains outstanding. Agents prepare and check requests; you personally review, sign and submit in your wallet. ETH sends currently require an EOA recipient. No swaps, approvals or smart-account custody. ERC-20 transfers use explicit contract addresses and integer raw amounts; optional metadata never establishes token identity. Fee-on-transfer, rebasing and other nonstandard token economics are unsupported. An exact Transfer event is not a promise of economic value or future balance.</p>
     <button id="asset-connect" type="button">Connect my external wallet</button><button id="asset-balance" type="button">Refresh ETH balance</button>
     <p id="asset-identity">Not connected. Select Ethereum, Base or a supported testnet in your wallet first.</p>
     <pre id="asset-receive">No receive address verified. Never send ETH to the 8415 controlled-account contract.</pre>
     <h3>Prepare a transfer</h3>
-    <label>Asset type <select id="asset-kind"><option value="native-transfer">ETH</option><option value="erc721-transfer">ERC-721 NFT</option><option value="erc1155-transfer">ERC-1155 NFT</option></select></label>
+    <label>Asset type <select id="asset-kind"><option value="native-transfer">ETH</option><option value="erc20-transfer">ERC-20 token</option><option value="erc721-transfer">ERC-721 NFT</option><option value="erc1155-transfer">ERC-1155 NFT</option></select></label>
     <label>Exact recipient address <input id="asset-recipient" autocomplete="off" spellcheck="false"></label>
-    <label>Amount (ETH in integer wei, or ERC-1155 units; ignored for ERC-721) <input id="asset-amount" inputmode="numeric" placeholder="1000000000000000 wei = 0.001 ETH"></label>
-    <label>NFT contract (no automatic NFT discovery) <input id="asset-contract" autocomplete="off" spellcheck="false"></label>
+    <label>Amount (integer wei for ETH; integer raw units for ERC-20 or ERC-1155; ignored for ERC-721) <input id="asset-amount" inputmode="numeric" placeholder="1000000000000000 wei = 0.001 ETH"></label>
+    <label>Exact token contract (ERC-20 / ERC-721 / ERC-1155; no automatic discovery) <input id="asset-contract" autocomplete="off" spellcheck="false"></label>
+    <button id="asset-token-balance" type="button">Read ERC-20 balance and optional metadata</button>
+    <p>ERC-20 decimals are never assumed to be 18. Enter raw integer units. A formatted display is shown only when the contract supplies valid decimals. Always check the selected chain and contract address.</p>
     <label>NFT token ID <input id="asset-token-id" inputmode="numeric"></label>
-    <button id="asset-prepare" type="button">Check ownership and prepare transfer</button>
+    <button id="asset-prepare" type="button">Check balance or ownership and prepare transfer</button>
     <h3>Or review a request prepared by your agent</h3>
     <label>Public asset request JSON <input id="asset-request-file" type="file" accept="application/json,.json"></label>
     <button id="asset-review-file" type="button">Review agent request (no send)</button>
@@ -34,7 +36,7 @@
   </section>
 
   <section aria-labelledby="connection"><h2 id="connection">Connection and deployment identity</h2>
-    <p>Use a genuine wallet provider. No keys are imported. This reference UI enables testnets only.</p>
+    <p>Use a genuine wallet provider. No keys are imported. This native ERC-8415 panel enables testnets only.</p>
     <label>Public deployment manifest <input id="deployment" type="file" accept="application/json,.json"></label>
     <button id="connect" type="button">Connect selected wallet</button><p id="identity">Not connected</p>
   </section>

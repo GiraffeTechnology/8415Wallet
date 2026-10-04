@@ -29,7 +29,7 @@ wallet, physical-device or W-20 result.
 | Begin, finalize and cancel settlement | Standalone protocol transaction review, explicit wallet confirmation and recovery | Existing `WalletSession.transactions`, `sdk/transactions.ts`, `Eip1193Signer`; DApp wrapper revalidates the reviewed request and preserves uncertain sends |
 | Legacy single-trade clearing | Separate legacy-clearing panel | `ProjectionEscrow.sol`, `escrowRpcReader.ts`, `escrowView.test.ts`, `test-evm/escrow.cjs`; escrow terms never become linked authority |
 | Independent use | Token-only manifest, controller/payment absent | No ArtFi, Oracle, linked control or payment adapter required for standalone protocol use |
-| External ETH/NFT tenant companion | External wallet asset panel | `xiongan-assets.test.ts`, `xiongan-address-ui.test.ts`; separate EOA custody, not ERC register semantics |
+| Existing-standards ETH/ERC-20/NFT companion | External wallet asset panel | `xiongan-assets.test.ts`, `xiongan-address-ui.test.ts`, `xiongan-erc20.test.ts`, `external-erc20.cjs`; separate EOA custody, not ERC register semantics |
 
 The optional Kit and watchtower integrations retain their SDK/CLI configuration
 surfaces. The DApp's direct-chain standalone path does not silently require

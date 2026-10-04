@@ -32,6 +32,8 @@ test('V2 and V3 have distinct PRD mapping, explicit features and Beta identity',
   const v2 = resolveReleaseProfile(fixture('v2')), v3 = resolveReleaseProfile(fixture('v3'));
   assert.equal(v2.version, '2.2.0-beta'); assert.equal(v3.version, '3.0.0-beta');
   assert.equal(v2.features.controlledAccounts, true); assert.equal(v3.features.controlledAccounts, true);
+  assert.deepEqual(v2.features.assetStandards, ['native-ETH', 'ERC-20', 'ERC-721', 'ERC-1155']);
+  assert.deepEqual(v3.features.assetStandards, v2.features.assetStandards);
   assert.equal(v2.features.linkedResponsibilities, false); assert.equal(v3.features.linkedResponsibilities, true);
   assert.deepEqual(v2.prd.sections, ['1','2','3','4','5','6','7','8']);
   assert.equal(v3.prd.scenarios.length, 24); assert.equal(v3.prd.scenarios[23], 'W-24');

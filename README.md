@@ -1,6 +1,6 @@
 # 8415wallet
 
-8415wallet is a DApp and reference client for [ERC-8415 asynchronous register projection](https://github.com/GiraffeTechnology/ERC-8415). It shows the ERC-721 tradeable position separately from the register-confirmed holder, temporal finality, open gaps and chain freshness. Record agreement does not verify legal identity or title.
+8415wallet is a general-purpose wallet compatible with existing wallet and asset standards, with native [ERC-8415 asynchronous register projection](https://github.com/GiraffeTechnology/ERC-8415) support. Its native projection views show the ERC-721 tradeable position separately from the register-confirmed holder, temporal finality, open gaps and chain freshness. Record agreement does not verify legal identity or title.
 
 ## V2 and V3 DApp Beta
 
@@ -39,11 +39,13 @@ The local reference server is `npm run wallet:browser:serve`. Its loopback addre
 - The browser uses the owner's external wallet provider. It accepts no private key, mnemonic, imported signature or standing signing permission.
 - Unknown outcomes remain durable and cannot be silently retried. A direct standard wallet rejection is distinct from a transport failure, lost response or unverified replacement.
 
-## External ETH and NFTs
+## Existing assets and standards compatibility
 
-The external-account companion supports ETH, explicit ERC-721 and ERC-1155 transfers on Ethereum, Base and their supported testnets. It is a separate custody surface from ERC-8415 controlled accounts. It has no automatic NFT discovery, swaps, bridges, ERC-20 transfer, arbitrary calldata or delegated keys. Mainnet reach of that surface is not authorization to test with real assets; deployment testing uses authorized testnet assets only.
+The external-account companion supports ETH and explicitly configured ERC-20, ERC-721 and ERC-1155 transfers on Ethereum, Base and their supported testnets. It is a separate custody surface from ERC-8415 controlled accounts. It has no automatic NFT discovery, swaps, bridges, arbitrary calldata or delegated keys. Mainnet reach of that surface is not authorization to test with real assets; deployment testing uses authorized testnet assets only.
 
 The normal DApp control manifest and agent-request paths require supported testnets. Direct SDK integrators must enforce their own chain policy; the DApp restriction is not a global SDK mainnet barrier.
+
+Compatibility is a product requirement across existing standards; the native ERC-8415 feature does not restrict the product to ERC-8415 assets. See the [implemented and tested compatibility matrix](docs/STANDARDS-COMPATIBILITY.md) for exact operations, evidence and remaining integration limits. This Beta does not claim exhaustive validation of every standard or token implementation.
 
 ## SDK artifacts
 

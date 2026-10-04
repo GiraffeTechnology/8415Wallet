@@ -71,7 +71,7 @@ handed over while these deployment/device/security results remain uncollected.
 
 8415wallet is the product and 8415wallet.com is its UI platform domain.
 Xiongan is a V2 tenant. The additive EOA interface recognizes Ethereum/Base and their selected
-testnets for ETH and standard ERC-721/ERC-1155. This does not establish mainnet responsibility acceptance or turn a controlled-account contract into a general
+testnets for ETH, ERC-20 and standard ERC-721/ERC-1155. This does not establish mainnet responsibility acceptance or turn a controlled-account contract into a general
 asset vault. Real assets stay in the user's external EOA; each prepared action
 requires a new owner review and genuine-wallet signing/submission. No agent has
 keys, a session grant, token approval or an autonomous send route. This companion

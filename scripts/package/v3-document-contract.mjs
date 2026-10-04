@@ -4,7 +4,7 @@ export const V3_DOCUMENTS = Object.freeze([
   'docs/ERC-8415-Wallet-PRD.md', 'docs/RESPONSIBILITY-CONTROLS-SECURITY.md',
   'docs/V3-REVIEW-AND-VALIDATION.md', 'docs/stages/STAGE-5J-PUBLIC-PATH-AND-UI.md',
   'docs/V3-DEVELOPMENT-CLOSURE.md', 'docs/XIONGAN-WALLET.md',
-  'docs/BETA-DAPP-DELIVERY.md', 'docs/BETA-PRD-COVERAGE.md',
+  'docs/BETA-DAPP-DELIVERY.md', 'docs/BETA-PRD-COVERAGE.md', 'docs/STANDARDS-COMPATIBILITY.md', 'docs/stages/LEGACY-CLEARING-BETA-DAPP.md',
 ]);
 export const BOUNDARY_SECTIONS = Object.freeze([
   '## Protocol observations', '## Forbidden inferences',
@@ -22,7 +22,7 @@ export function verifyBoundaryDocument(text) {
 export const V2_DOCUMENTS = Object.freeze([
   'LICENSE', 'README.md', 'docs/INTEGRATION.md', 'docs/INTEGRATION-BOUNDARIES.md',
   'docs/ERC-8415-Wallet-PRD.md', 'docs/V2-CLOSEOUT.md',
-  'docs/BETA-DAPP-DELIVERY.md', 'docs/BETA-PRD-COVERAGE.md',
+  'docs/BETA-DAPP-DELIVERY.md', 'docs/BETA-PRD-COVERAGE.md', 'docs/STANDARDS-COMPATIBILITY.md', 'docs/stages/LEGACY-CLEARING-BETA-DAPP.md',
 ]);
 /** How this repository instructs itself. None of it belongs in a package. */
 const DEVELOPMENT_ONLY = Object.freeze(['agents.md', 'control-development-status.md', '.codex', '.agents']);

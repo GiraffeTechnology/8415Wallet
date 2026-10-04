@@ -55,18 +55,25 @@ el('asset-connect').addEventListener('click', () => {
     output({ ...balance, balanceETH: formatWeiAsEth(balance.balanceWei), custody: 'Your external wallet account. Never an 8415 controlled-contract deposit address.' });
   });
 });
+el('asset-token-balance').addEventListener('click', () => run(async g => {
+  const result = await selected().erc20Balance(el('asset-contract').value.trim()); checkCurrent(g);
+  output({ ...result, amountUnit: 'Integer raw token units; display balance only when decimals are available.',
+    metadataTrust: 'Name, symbol and decimals are untrusted token-supplied display metadata. Identify the asset by chain and exact contract address.' });
+}));
 el('asset-balance').addEventListener('click', () => run(async g => { const result = await selected().balance(); checkCurrent(g); output({ ...result, balanceETH: formatWeiAsEth(result.balanceWei) }); }));
-for (const id of ['asset-kind', 'asset-recipient', 'asset-amount', 'asset-contract', 'asset-token-id', 'asset-request-file']) el(id).addEventListener('change', dismiss);
+for (const id of ['asset-kind', 'asset-recipient', 'asset-amount', 'asset-contract', 'asset-token-id', 'asset-request-file']) { el(id).addEventListener('change', dismiss); el(id).addEventListener('input', dismiss); }
 el('asset-dismiss').addEventListener('click', dismiss);
 async function prepare(text, g) {
   dismiss(); const prepared = await selected().prepare(text); checkCurrent(g); review = prepared;
-  el('asset-review-text').textContent = format({ ...prepared, requestText: undefined, humanAmount: prepared.asset === 'ETH' ? `${formatWeiAsEth(prepared.amount)} ETH` : `${prepared.amount} NFT unit(s)`, amountUnit: prepared.asset === 'ETH' ? 'wei (1 ETH = 1000000000000000000 wei)' : 'NFT units', gas: 'Review exact gas fees in your wallet. Fees are not included in the amount.',
+  el('asset-review-text').textContent = format({ ...prepared, requestText: undefined, humanAmount: prepared.asset === 'ETH' ? `${formatWeiAsEth(prepared.amount)} ETH` : prepared.asset === 'ERC-20' ? (prepared.displayAmount === null ? 'Display amount unavailable; decimals unknown' : `${prepared.displayAmount} token units (token-reported decimals)`) : `${prepared.amount} NFT unit(s)`, amountUnit: prepared.asset === 'ETH' ? 'wei (1 ETH = 1000000000000000000 wei)' : prepared.asset === 'ERC-20' ? 'Integer raw token units; no decimals assumed' : 'NFT units',
+    tokenCautions: prepared.asset === 'ERC-20' ? 'Identify by chain and contract address, not optional token metadata. Do not send ERC-20 tokens to an 8415 controlled-account contract unless a separate withdrawal path has been verified. This Beta provides no ERC-20 withdrawal path there. Fee-on-transfer, rebasing and other nonstandard token economics are unsupported. Runtime-code checks do not pin proxy implementations. A canonical exact Transfer event does not guarantee future balance or economic value.' : undefined, gas: 'Review exact gas fees in your wallet. Fees are not included in the amount.',
     custody: 'External EOA only. The claimed agent name is not authenticated.', acceptance: 'Functional-testing Beta; no independent audit or genuine-wallet/device acceptance claimed.' });
   output('Prepared and simulated only. No signature or transaction requested.');
 }
 el('asset-prepare').addEventListener('click', () => run(async g => {
   const s = selected(), kind = el('asset-kind').value, recipient = el('asset-recipient').value.trim();
   const action = kind === 'native-transfer' ? { kind, recipient, valueWei: el('asset-amount').value.trim() } :
+    kind === 'erc20-transfer' ? { kind, recipient, contract: el('asset-contract').value.trim(), amount: el('asset-amount').value.trim() } :
     { kind, recipient, contract: el('asset-contract').value.trim(), tokenId: el('asset-token-id').value.trim(), ...(kind === 'erc1155-transfer' ? { amount: el('asset-amount').value.trim() } : {}) };
   const text = JSON.stringify({ schema: 'xiongan-asset-request/1', requestId: `owner-${Date.now()}`, agent: 'Owner form',
     chainId: s.chainId, actor: s.actor, expiresAt: String(Math.floor(Date.now() / 1000) + 600), action });

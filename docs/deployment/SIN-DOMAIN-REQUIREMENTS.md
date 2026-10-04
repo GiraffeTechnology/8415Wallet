@@ -27,6 +27,14 @@ room. No replacement web port is chosen here. Missing allocation blocks the
 server deployment step, not the ability to build an unconfigured functional
 Beta package.
 
+
+Distinguish a public TLS endpoint from the upstream server listener. A separately
+approved externally managed TLS front door can use a confirmed public HTTPS
+port while its SIN/CTYun upstream retains a confirmed non-443 listener. Record
+the two boundaries independently; an external public port does not authorize
+binding that port on a reserved origin host. No external proxy or new endpoint
+is selected by this handoff.
+
 The web origin is the complete scheme, hostname and port. Changing any one
 creates a different IndexedDB security boundary. A new hostname, alternate
 port, temporary hostname or `www` alias does not inherit outstanding journals.
@@ -45,8 +53,8 @@ outstanding transaction exists.
   bypass a browser certificate warning.
 - Use a certificate-validation method compatible with the port reservation.
   HTTP-01 may use the existing approved port-80 challenge path. TLS-ALPN-01 on
-  port 443 is incompatible with its SSH reservation. DNS-based validation, if
-  selected by operations, needs its own authorized DNS workflow.
+  port 443 is incompatible with its SSH reservation. The current operations
+  policy selects HTTP-01 over port 80; this handoff does not change that policy.
 - A port-80 redirect must target the exact full configured HTTPS URL/port,
   preserving the requested path only within that approved origin. A redirect
   to a hostname without its allocated port reaches 443 and is incorrect here.

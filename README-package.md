@@ -1,5 +1,9 @@
 # 8415wallet
 
+This V2 SDK is the native ERC-8415 integration surface of the general-purpose
+8415wallet product. The product supports existing wallet and asset standards;
+this SDK tarball is separate from its versioned DApp Beta deliverables.
+
 A reading client for [ERC-8415](https://ethereum-magicians.org/t/erc-8415-asynchronous-register-projection-for-nfts/29634)
 asynchronous register projections: an off-chain register's answers, projected
 onto an ERC-721, read without being conflated with the token itself.
@@ -59,10 +63,13 @@ register. `docs/INTEGRATION-BOUNDARIES.md` states the full contract, and
 
 This package is the standalone reading surface. It deliberately does **not**
 contain the linked-responsibility control kernel, which is unaudited and
-published separately as a testnet-only candidate — the build fails if its
-import graph reaches that code.
+published separately as a Beta SDK intended for testnet use. Direct SDK
+consumers enforce their own chain policy. The V2 build fails if its import
+graph reaches that linked control code.
 
-It is not a generic NFT wallet, a marketplace, or an adjudicator of legal
+This is the narrower V2 SDK artifact of the general-purpose 8415wallet product,
+which supports existing wallet and asset standards with native ERC-8415 features.
+The SDK is not a marketplace or an adjudicator of legal
 title. It reports what is recorded and what is still open; the parties' own
 terms decide what to do about it.
 

@@ -2,7 +2,7 @@
   "name": "8415wallet",
   "version": "0.1.0",
   "private": true,
-  "description": "ERC-8415 temporal asset wallet, with the projection infrastructure it reads",
+  "description": "General-purpose wallet with existing wallet and asset standards compatibility and native ERC-8415 support",
   "license": "CC0-1.0",
   "type": "module",
   "engines": {

@@ -62,7 +62,7 @@ const VERSION = '2.0.0';
 writeFileSync(join(stage, 'package.json'), `${JSON.stringify({
   name: '8415wallet',
   version: VERSION,
-  description: 'ERC-8415 temporal asset wallet — V2 standalone reading client',
+  description: '8415wallet V2 SDK — standalone native ERC-8415 reading and transaction client for the general-purpose wallet',
   license: dev.license,
   type: 'module',
   engines: dev.engines,

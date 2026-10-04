@@ -59,6 +59,22 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: ERC20 browser recovery
+        shell: bash
+        run: |
+          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          test -n "$WALLET_BROWSER_CHROMIUM"
+          node scripts/controls/erc20-ui-smoke.cjs
+
+      - name: ERC20 browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: erc20-browser-node-${{ matrix.node-version }}
+          path: /tmp/8415-erc20-ui-evidence
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Contracts
         run: npm run test:evm
 
