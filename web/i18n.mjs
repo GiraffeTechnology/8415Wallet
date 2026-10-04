@@ -1,5 +1,6 @@
 /** Local presentation only. No provider, authentication, network or transaction calls. */
 import en from './locales/en.mjs';
+import design from './locales/design.mjs';
 import hans from './locales/zh-Hans.mjs';
 import hant from './locales/zh-Hant.mjs';
 import fr from './locales/fr.mjs';
@@ -13,7 +14,7 @@ import native3 from './locales/native-fr.mjs';
 import native4 from './locales/native-es.mjs';
 import native5 from './locales/native-ja.mjs';
 
-export const CATALOGS = Object.freeze({ en: Object.freeze({ ...en, ...native0, ...nativeFragments['en'] }), 'zh-Hans': Object.freeze({ ...hans, ...native1, ...nativeFragments['zh-Hans'] }), 'zh-Hant': Object.freeze({ ...hant, ...native2, ...nativeFragments['zh-Hant'] }), fr: Object.freeze({ ...fr, ...native3, ...nativeFragments['fr'] }), es: Object.freeze({ ...es, ...native4, ...nativeFragments['es'] }), ja: Object.freeze({ ...ja, ...native5, ...nativeFragments['ja'] }) });
+export const CATALOGS = Object.freeze({ en: Object.freeze({ ...en, ...native0, ...nativeFragments['en'], ...design['en'] }), 'zh-Hans': Object.freeze({ ...hans, ...native1, ...nativeFragments['zh-Hans'], ...design['zh-Hans'] }), 'zh-Hant': Object.freeze({ ...hant, ...native2, ...nativeFragments['zh-Hant'], ...design['zh-Hant'] }), fr: Object.freeze({ ...fr, ...native3, ...nativeFragments['fr'], ...design['fr'] }), es: Object.freeze({ ...es, ...native4, ...nativeFragments['es'], ...design['es'] }), ja: Object.freeze({ ...ja, ...native5, ...nativeFragments['ja'], ...design['ja'] }) });
 export const LOCALES = Object.freeze([
   Object.freeze({ id: 'en', label: 'EN', name: 'English' }),
   Object.freeze({ id: 'zh-Hans', label: '简', name: '简体中文' }),

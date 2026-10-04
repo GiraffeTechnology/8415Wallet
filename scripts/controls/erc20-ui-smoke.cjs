@@ -1,3 +1,4 @@
+const { installScreenNavigation } = require('./screen-navigation.cjs');
 // Actual Chromium, DOM and strict IndexedDB regression with a synthetic ERC-20
 // provider. No real wallet, user keys/signatures or network RPC; login uses a public test key; no device acceptance.
 const assert = require('node:assert/strict');
@@ -85,7 +86,7 @@ async function main() {
           return route.continue();
         });
         await installProvider(context);
-        const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
+        const page = installScreenNavigation(await context.newPage()); page.on('pageerror', error => errors.push(error.message));
         const idle = () => page.waitForFunction(() => !document.getElementById('asset-connect').disabled);
         const connect = async () => { await login(page);
           await page.click('#asset-connect'); await page.waitForFunction(() => document.getElementById('asset-identity').textContent.includes('Ethereum'));
@@ -162,7 +163,7 @@ async function main() {
       if (route.request().url() === `${origin}/web/release-config.json`) return route.fulfill({ status: 404, body: 'Missing config' });
       return route.continue();
     });
-    await installProvider(blocked); const blockedPage = await blocked.newPage(); await blockedPage.goto(origin);
+    await installProvider(blocked); const blockedPage = installScreenNavigation(await blocked.newPage()); await blockedPage.goto(origin);
     await blockedPage.click('#wallet-login');
     await blockedPage.waitForFunction(() => document.getElementById('wallet-login-status').textContent === 'LOGIN_RELEASE_CONFIG_REFUSED');
     assert.equal(await blockedPage.locator('#wallet-private').isVisible(), false);

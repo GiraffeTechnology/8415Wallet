@@ -12,7 +12,8 @@ import { reviewAgentRequest, recoveryGuidance } from '../dist/browser/browser.js
 import { BrowserPublicOperationStore } from './public-store.mjs';
 
 const el = id => document.getElementById(id);
-const renderResult = value => { paint(el('result'), jsonUi(value)); };
+const renderResult = value => { paint(el('result'), jsonUi(value)); paint(el('native-read-result'), jsonUi(value)); };
+const nativeView = (state, view = null) => document.dispatchEvent?.(new CustomEvent('wallet:native-view', { detail: { state, view } }));
 const display = value => { requireCurrentConnection(); renderResult(value); };
 const value = id => el(id).value.trim();
 const fail = code => { throw new ControlAdapterError(code); };
@@ -50,6 +51,7 @@ function clearSettlementReview() {
   el('settlement-ack').checked = false; paint(el('settlement-terms'), msg('ui.108'));
 }
 function clearConnection() {
+  nativeView('empty');
   clearConsent(false); clearSettlementReview(); settlementSession = null;
   paint(el('settlement-state'), msg('message.001'));
   clearAgentReview(); paint(el('recovery-guidance'), trustedMessage(recoveryGuidance(null)));
@@ -65,6 +67,7 @@ async function run(fn, reconnect = false) {
   operationRevision = connectionRevision;
   busy = true; document.querySelectorAll('button:not([data-auth-control]):not([data-ui-locale]),input,select').forEach(n => { n.disabled = true; });
   try { await walletLogin.check(); if (!releaseProfile) await releaseReady; if (!releaseProfile) fail('CONTROL_RELEASE_PROFILE_REFUSED'); await fn(); } catch (e) {
+    nativeView('error');
     // Provider, RPC and DOM exception text is never rendered, logged or persisted.
     renderResult(operationRevision !== connectionRevision ? 'CONTROL_CONNECTION_CHANGED' :
       e instanceof WalletLoginError ? e.code : e instanceof ControlAdapterError ? (e.code === 'CONTROL_PROVIDER_REQUEST_REJECTED' ? msg('message.004') : e.code) :
@@ -146,7 +149,7 @@ walletLogin.subscribe((authenticated, reason) => {
   if (authenticated) return;
   if (!['LOGIN_ACCOUNT_CHANGED', 'LOGIN_STARTING'].includes(reason)) signed = null;
   clearConnection(); provider = null;
-  for (const input of document.querySelectorAll('#standalone input, #linked input, #agent-controls-panel input, #control-recovery-panel input')) {
+  for (const input of document.querySelectorAll('#standalone input, #settlement-panel input, #account-panel input, #linked input, #agent-controls-panel input, #control-recovery-panel input')) {
     if (input.type === 'checkbox') input.checked = false; else input.value = input.type === 'file' ? '' : input.defaultValue ?? '';
   }
   paint(el('settlement-state'), msg('message.008'));
@@ -158,7 +161,8 @@ document.querySelectorAll('[data-read]').forEach(button => button.addEventListen
   if (!plainWallet || !deployment) fail('CONTROL_CONNECTION_REQUIRED');
   const wallet = plainWallet; await verifyControlDeployment(provider, deployment.token);
   requireCurrentConnection();
-  const tokenId = button.dataset.read === 'collisions' ? 0n : number('tokenId'); let output;
+  const tokenId = button.dataset.read === 'collisions' ? 0n : number('tokenId'); let output, assetObservation = null;
+  if (button.dataset.read === 'asset') nativeView('loading');
   switch (button.dataset.read) {
     case 'collisions': {
       const input = value('collision-token-ids');
@@ -174,7 +178,7 @@ document.querySelectorAll('[data-read]').forEach(button => button.addEventListen
       }
       break;
     }
-    case 'asset': output = nativeUi(renderAssetView, await wallet.assetView(tokenId)); break;
+    case 'asset': assetObservation = await wallet.assetView(tokenId); output = nativeUi(renderAssetView, assetObservation); break;
     case 'temporal': output = nativeUi(renderTemporalQuery, await wallet.temporalQuery(tokenId, number('instant'))); break;
     case 'history': output = nativeUi(renderHistory, await wallet.history(tokenId)); break;
     case 'registration': output = nativeUi(renderRegistration, await wallet.registration(tokenId)); break;
@@ -185,7 +189,8 @@ document.querySelectorAll('[data-read]').forEach(button => button.addEventListen
     case 'ownership': output = nativeUi(renderOwnershipHistory, await wallet.ownershipHistory(tokenId)); break;
     default: fail('CONTROL_ACTION_REFUSED');
   }
-  if (wallet !== plainWallet) fail('CONTROL_CONNECTION_CHANGED'); display(output);
+  if (wallet !== plainWallet) fail('CONTROL_CONNECTION_CHANGED'); requireCurrentConnection();
+  if (assetObservation) nativeView('ready', assetObservation); display(output);
 })));
 el('standalone-tab').addEventListener('click', () => { clearConsent(false); clearSettlementReview(); el('standalone').hidden = false; el('linked').hidden = true; });
 el('linked-tab').addEventListener('click', () => { if (!releaseProfile?.features.linkedResponsibilities) return; clearConsent(false); clearSettlementReview(); el('standalone').hidden = true; el('linked').hidden = false; });
@@ -240,6 +245,7 @@ document.querySelectorAll('[data-action]').forEach(button => button.addEventList
     }
     operation = { kind: 'control', action };
   }
+  document.dispatchEvent?.(new CustomEvent('wallet:summary-stale'));
   display(await s.execute(operation));
 })));
 el('consent-file').addEventListener('change', () => clearConsent());
@@ -271,6 +277,7 @@ el('forward').addEventListener('click', () => run(async () => {
   if (!releaseProfile.features.linkedResponsibilities) fail('CONTROL_RELEASE_PROFILE_REFUSED');
   const s = selected(); if (!signed) fail('CONTROL_IN_MEMORY_CONSENT_REQUIRED');
   const acceptance = signed; signed = null;
+  document.dispatchEvent?.(new CustomEvent('wallet:summary-stale'));
   display(await s.execute({ kind: 'control', action: { kind: 'forward', ...acceptance } }));
 }));
 el('recover').addEventListener('click', () => run(async () => { display(await selected().reconcile()); }));
@@ -319,6 +326,7 @@ el('agent-execute').addEventListener('click', () => run(async () => {
   const fresh = reviewAgentRequest(text, await agentContext());
   requireOperationProfile(fresh.operation);
   if (s !== session || fresh.digest !== prior.digest) fail('AGENT_REVIEW_CHANGED');
+  document.dispatchEvent?.(new CustomEvent('wallet:summary-stale'));
   display(await s.execute(fresh.operation));
 }));
 
@@ -346,6 +354,7 @@ el('settlement-prepare').addEventListener('click', () => run(async () => {
 el('settlement-send').addEventListener('click', () => run(async () => {
   const s = settlementSelected(); if (!settlementReview || !el('settlement-ack').checked) fail('SETTLEMENT_REVIEW_REQUIRED');
   const accepted = settlementReview; clearSettlementReview();
+  document.dispatchEvent?.(new CustomEvent('wallet:summary-stale'));
   display({ transactionHash: await s.submit(accepted, accepted.digest), protocolFinality: 'not-evaluated' });
 }));
 el('settlement-reconcile').addEventListener('click', () => run(async () => { display(await settlementSelected().reconcile()); }));

@@ -1,3 +1,4 @@
+const { installScreenNavigation } = require('./screen-navigation.cjs');
 // Deterministic browser/provider regression only. No genuine wallet, user private key,
 // or network RPC. Login uses a public synthetic test key. Does not establish production acceptance.
 const assert = require('node:assert/strict');
@@ -57,7 +58,7 @@ let browser;
       };
       state.emit = (event, account) => { state.actor = account || state.actor; for (const fn of events.get(event) || []) fn([state.actor]); };
     });
-    const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
+    const page = installScreenNavigation(await context.newPage()); page.on('pageerror', error => errors.push(error.message));
     await page.goto(origin); const idle = () => page.waitForFunction(() => !document.getElementById('asset-connect').disabled);
     const connect = async () => { await login(page); await page.click('#asset-connect'); await page.waitForFunction(() => document.getElementById('asset-identity').textContent.includes('Ethereum')); await idle(); };
     const prepare = async () => {

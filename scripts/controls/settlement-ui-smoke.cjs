@@ -1,3 +1,4 @@
+const { installScreenNavigation } = require('./screen-navigation.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -54,7 +55,7 @@ async function main() {
             if (answer.error) throw Object.assign(new Error('Local test provider refused'), answer.error); return answer.result; } };
         globalThis.__emitSettlementEvent = name => { for (const callback of listeners.get(name) || []) callback([]); };
       });
-      const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
+      const page = installScreenNavigation(await context.newPage()); page.on('pageerror', error => errors.push(error.message));
       const idle = () => page.waitForFunction(() => !document.getElementById('connect').disabled);
       const connect = async () => { await login(page);
         await page.setInputFiles('#deployment', { name: 'deployment.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(manifest)) });

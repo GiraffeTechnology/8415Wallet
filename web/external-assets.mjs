@@ -7,9 +7,13 @@ import { BrowserExternalAssetStore } from './external-store.mjs';
 const el = id => document.getElementById(id);
 const format = value => jsonUi(value);
 let session = null, provider = null, listeningProvider = null, review = null, busy = false, generation = 0;
-const output = value => { paint(el('asset-result'), typeof value === 'string' ? value : format(value)); };
-function dismiss() { review = null; el('asset-ack').checked = false; paint(el('asset-review-text'), msg('ui.055')); }
+const output = value => { paint(el('asset-result'), typeof value === 'string' ? value : format(value));
+  if (value && typeof value === 'object' && typeof value.balanceETH === 'string') document.dispatchEvent?.(new CustomEvent('wallet:asset-balance', { detail: value }));
+};
+function dismiss() { document.dispatchEvent?.(new CustomEvent('wallet:asset-review-cleared')); review = null; el('asset-ack').checked = false; paint(el('asset-review-text'), msg('ui.055')); }
 function invalidate() {
+  document.dispatchEvent?.(new CustomEvent('wallet:summary-stale', { detail: 'external' }));
+  paint(el('nft-result'), msg('design.noNft')); document.dispatchEvent?.(new CustomEvent('wallet:nft-view', { detail: null }));
   generation++; session = null; dismiss(); paint(el('asset-receive'), msg('message.022')); paint(el('asset-identity'), msg('message.023'));
   output(msg('message.024'));
 }
@@ -58,12 +62,22 @@ el('asset-connect').addEventListener('click', () => {
     output({ ...balance, balanceETH: formatWeiAsEth(balance.balanceWei), custody: msg('message.027') });
   });
 });
+el('nft-read').addEventListener('click', () => run(async g => {
+  paint(el('nft-result'), msg('design.loading')); document.dispatchEvent?.(new CustomEvent('wallet:nft-view', { detail: null }));
+  try {
+    const result = await selected().nftHolding(el('nft-standard').value, el('nft-contract').value.trim(), el('nft-token-id').value.trim()); checkCurrent(g);
+    paint(el('nft-result'), format(result)); document.dispatchEvent?.(new CustomEvent('wallet:nft-view', { detail: result }));
+  } catch (error) { paint(el('nft-result'), msg('design.readFailed')); throw error; }
+}));
+for (const id of ['nft-standard', 'nft-contract', 'nft-token-id']) el(id).addEventListener('input', () => {
+  paint(el('nft-result'), msg('design.noNft')); document.dispatchEvent?.(new CustomEvent('wallet:nft-view', { detail: null }));
+});
 el('asset-token-balance').addEventListener('click', () => run(async g => {
   const result = await selected().erc20Balance(el('asset-contract').value.trim()); checkCurrent(g);
   output({ ...result, amountUnit: msg('message.028'),
     metadataTrust: msg('message.029') });
 }));
-el('asset-balance').addEventListener('click', () => run(async g => { const result = await selected().balance(); checkCurrent(g); output({ ...result, balanceETH: formatWeiAsEth(result.balanceWei) }); }));
+el('asset-balance').addEventListener('click', () => run(async g => { document.dispatchEvent?.(new CustomEvent('wallet:summary-stale', { detail: 'eth' })); const result = await selected().balance(); checkCurrent(g); output({ ...result, balanceETH: formatWeiAsEth(result.balanceWei) }); }));
 for (const id of ['asset-kind', 'asset-recipient', 'asset-amount', 'asset-contract', 'asset-token-id', 'asset-request-file']) { el(id).addEventListener('change', dismiss); el(id).addEventListener('input', dismiss); }
 el('asset-dismiss').addEventListener('click', dismiss);
 async function prepare(text, g) {
@@ -72,6 +86,7 @@ async function prepare(text, g) {
     tokenCautions: prepared.asset === 'ERC-20' ? msg('message.033') : undefined, gas: msg('message.034'),
     custody: msg('message.035'), acceptance: msg('message.036') }));
   output(msg('message.037'));
+  document.dispatchEvent?.(new CustomEvent('wallet:asset-review', { detail: prepared }));
 }
 el('asset-prepare').addEventListener('click', () => run(async g => {
   const s = selected(), kind = el('asset-kind').value, recipient = el('asset-recipient').value.trim();
@@ -88,6 +103,7 @@ el('asset-review-file').addEventListener('click', () => run(async g => {
   const text = await f.text(); checkCurrent(g); await prepare(text, g);
 }));
 el('asset-send').addEventListener('click', () => run(async g => {
+  document.dispatchEvent?.(new CustomEvent('wallet:summary-stale'));
   const s = selected(); if (!review || !el('asset-ack').checked) throw new ControlAdapterError('ASSET_OWNER_REVIEW_REQUIRED');
   const confirmed = review; dismiss();
   output(msg('message.039'));
@@ -107,7 +123,7 @@ globalThis.addEventListener?.('pageshow', event => { if (event.persisted) invali
 walletLogin.subscribe(authenticated => {
   if (authenticated) return;
   invalidate(); provider = null;
-  for (const id of ['asset-recipient', 'asset-amount', 'asset-contract', 'asset-token-id', 'asset-request-file', 'asset-recovery-hash']) el(id).value = '';
+  for (const id of ['asset-recipient', 'asset-amount', 'asset-contract', 'asset-token-id', 'asset-request-file', 'asset-recovery-hash', 'nft-contract', 'nft-token-id']) el(id).value = '';
   paint(el('asset-state'), msg('message.042'));
   output(msg('message.011'));
 });
