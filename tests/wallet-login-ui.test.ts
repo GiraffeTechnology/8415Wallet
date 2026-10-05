@@ -1,3 +1,4 @@
+import { clearEnrollmentQr, renderEnrollmentQr } from '../web/enrollment-qr.mjs';
 import * as uiI18n from '../web/i18n.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -23,7 +24,7 @@ function fixture() {
     if (method === 'personal_sign') return signer.signMessage(getBytes(params[0]));
     throw new Error('Unexpected provider method');
   } };
-  const sdk = { ...uiI18n, WalletLogin, WalletLoginError, verifyMessage, getAddress, hashMessage, Interface,
+  const sdk = { ...uiI18n, clearEnrollmentQr, renderEnrollmentQr, WalletLogin, WalletLoginError, verifyMessage, getAddress, hashMessage, Interface,
     getReleaseProfile: () => config.promise, acquireWalletUi: () => Symbol(), releaseWalletUi() {} };
   const login = new Function('document', 'globalThis', 'setTimeout', 'clearTimeout', ...Object.keys(sdk), `${source}\nreturn walletLogin;`)(
     { getElementById: element, addEventListener: (event: string, callback: any) => lifecycle.set(event, callback) },
