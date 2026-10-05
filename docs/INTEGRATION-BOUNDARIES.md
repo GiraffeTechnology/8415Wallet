@@ -69,5 +69,5 @@ responsibility controls or turn a controlled-account contract into a general
 asset vault. Real assets stay in the user's external EOA; each prepared action
 requires a new owner review and genuine-wallet signing/submission. No agent has
 keys, a session grant, token approval or an autonomous send route. This companion
-is a development candidate with its own uncompleted genuine-provider/device
+is a beta with its own uncompleted genuine-provider/device
 and independent-security gates; chain support is not production acceptance.

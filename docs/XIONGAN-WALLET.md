@@ -1,7 +1,7 @@
-# Xiongan Wallet development candidate
+# Xiongan Wallet beta
 
 User-facing name: **Xiongan Wallet**. Built on 8415Wallet, with
-two distinct custody boundaries. Status: **NOT_INDEPENDENTLY_AUDITED**.
+two distinct custody boundaries. Status: **BETA_FUNCTIONAL_TESTING_NOT_INDEPENDENTLY_AUDITED**.
 This source is not release acceptance and is not a recommendation to fund it.
 
 ## Supported boundaries

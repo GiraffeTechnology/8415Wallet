@@ -16,15 +16,13 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { importGraph } from './shared.mjs';
 import { V3_DOCUMENTS, verifyBoundaryDocument, verifyDocumentEntries } from './v3-document-contract.mjs';
+import { BEFORE_GENERAL_RELEASE, BETA_COLLECTS, REQUIRED_NOTICE, STATUS, findAcceptanceClaim } from './release-contract.mjs';
 
 const root = process.cwd();
 const stage = join(root, 'dist', 'package-v3');
 const ENTRIES = ['src/index.ts', 'src/controls/index.ts', 'src/controls/fileOperationStore.ts',
   'src/browser.ts', 'src/cli/main.ts'];
-/** The candidate ships the control surface; what it must never ship is a claim. */
-const FORBIDDEN_CLAIMS = [/independently audited/i, /security[- ]approved/i, /production[- ]ready/i,
-  /release[- ]accepted/i];
-const REQUIRED_NOTICE = 'NOT_INDEPENDENTLY_AUDITED';
+
 
 const sources = importGraph(root, ENTRIES);
 const controls = sources.filter((f) => f.startsWith('src/controls/'));
@@ -40,8 +38,9 @@ verifyBoundaryDocument(readFileSync(join(root, 'docs/INTEGRATION-BOUNDARIES.md')
 // The notice is a shipped fact, not a build-time intention.
 const notice = readFileSync('PACKAGE-V3.md', 'utf8');
 if (!notice.includes(REQUIRED_NOTICE)) { console.error('PACKAGE_V3_STATUS_NOTICE_MISSING'); process.exit(1); }
-for (const claim of FORBIDDEN_CLAIMS) {
-  if (claim.test(notice.replace(/not independently audited/gi, '').replace(/NOT_INDEPENDENTLY_AUDITED/g, ''))) {
+{
+  const claim = findAcceptanceClaim(notice);
+  if (claim) {
     console.error('PACKAGE_V3_WOULD_CLAIM_ACCEPTANCE', String(claim));
     process.exit(1);
   }
@@ -91,7 +90,7 @@ const sha = createHash('sha256').update(readFileSync(join(stage, packed.filename
 
 writeFileSync(join(root, 'dist', 'v3-package-manifest.json'), `${JSON.stringify({
   artifact: packed.filename,
-  status: 'BETA_FUNCTIONAL_TESTING_NOT_INDEPENDENTLY_AUDITED',
+  status: STATUS,
   sha256: sha,
   entries: packed.entryCount,
   unpackedBytes: packed.unpackedSize,
@@ -103,12 +102,10 @@ writeFileSync(join(root, 'dist', 'v3-package-manifest.json'), `${JSON.stringify(
   // A beta's gates are not a release's gates. Execution, device journeys and
   // W-20 are what this build exists to collect, not what blocks it; listing
   // them as blockers would describe the beta as waiting for its own purpose.
-  betaCollects: ['public-chain execution with a genuine wallet',
-    'physical device journeys in a wallet application in-app browser',
-    'W-20 deployed same-token multi-wallet journey'],
+  betaCollects: BETA_COLLECTS,
   // Independent review bounds what the build may be used for rather than
   // blocking its publication.
-  beforeGeneralRelease: ['independent security review of the control kernel, adapters, verifiers, deployed contracts, recovery and optional payment integration'],
+  beforeGeneralRelease: BEFORE_GENERAL_RELEASE,
   // Stated precisely, because the obvious reading is wrong. The testnet
   // restriction is enforced at two call sites, web/app.mjs and the agent
   // request parser, and neither ships in this package. src/controls carries no
@@ -119,4 +116,4 @@ writeFileSync(join(root, 'dist', 'v3-package-manifest.json'), `${JSON.stringify(
 console.log(`${packed.filename}  ${packed.entryCount} entries  ${Math.round(packed.unpackedSize / 1024)} KB`);
 console.log(`sha256 ${sha}`);
 console.log(`${sources.length} source modules (${controls.length} control), 0 runtime dependencies`);
-console.log('status BETA_FUNCTIONAL_TESTING_NOT_INDEPENDENTLY_AUDITED');
+console.log(`status ${STATUS}`);

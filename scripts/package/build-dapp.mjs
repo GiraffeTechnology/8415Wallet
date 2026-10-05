@@ -16,27 +16,11 @@
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { lstatSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { BEFORE_GENERAL_RELEASE, BETA_COLLECTS, STATUS, findAcceptanceClaim } from './release-contract.mjs';
 import { dirname, join, relative, resolve } from 'node:path';
 
 const root = process.cwd();
 const VERSION = '3.0.0-beta';
-const STATUS = 'BETA_FUNCTIONAL_TESTING_NOT_INDEPENDENTLY_AUDITED';
-/**
- * A beta's gates are not a release's gates. Public-chain execution, device
- * journeys and W-20 are what this build exists to collect; listing them as
- * blockers would describe the beta as waiting for its own purpose, and nothing
- * would ever ship. They are stated as what the beta produces.
- *
- * Independent review is different in kind: it protects whoever uses the build,
- * not the release process. It does not block publishing a beta, so it is not a
- * blocker either -- it bounds what the build may be used for. What makes that
- * bound tolerable is where the mainnet reach actually is, which SCOPE records
- * rather than leaves to a reader's assumption.
- */
-const BETA_COLLECTS = ['public-chain execution with a genuine wallet',
-  'physical device journeys in a wallet application in-app browser',
-  'W-20 deployed same-token multi-wallet journey'];
-const BEFORE_GENERAL_RELEASE = ['independent security review of the control kernel, adapters, verifiers, deployed contracts, recovery and optional payment integration'];
 const SCOPE = {
   controlKernel: 'In THIS bundle the control panel is testnet only: web/app.mjs refuses a non-testnet deployment with CONTROL_TESTNET_REQUIRED, and the agent request parser refuses one with AGENT_TESTNET_REQUIRED. The restriction lives in these two call sites, NOT in src/controls, so it binds this page and does not bind a consumer who imports the control surface directly from the npm package.',
   assetTransfers: 'Ethereum mainnet, Base, Sepolia and Base Sepolia. This layer holds no key and sets no amount ceiling; the final authority is the confirmation dialog of the user own wallet.',
@@ -103,9 +87,17 @@ if (!/<meta http-equiv="Content-Security-Policy"/.test(page)) fail('DAPP_PAGE_CS
 
 for (const file of files) {
   if (!/\.(mjs|js|html|css)$/.test(file)) continue;
-  const text = readFileSync(join(root, file), 'utf8');
-  for (const claim of FORBIDDEN_CLAIMS) if (claim.test(text)) fail('DAPP_FORBIDDEN_CLAIM', `${file} :: ${claim}`);
+  const claim = findAcceptanceClaim(readFileSync(join(root, file), 'utf8'));
+  if (claim) fail('DAPP_FORBIDDEN_CLAIM', `${file} :: ${claim}`);
 }
+
+// The page states the release's status in prose and the manifest states it as a
+// token. They cannot share a constant, because the page ships as committed bytes
+// and is never generated. So the duplication is checked instead: a page that
+// still calls itself something else is a page that disagrees with its own
+// artifact, which is how "development candidate" survived next to a beta.
+if (!/\bbeta\b/i.test(page)) fail('DAPP_PAGE_STATUS_DISAGREES', 'the page does not state the beta status the manifest declares');
+if (!/not independently audited/i.test(page)) fail('DAPP_PAGE_DISCLAIMER_MISSING');
 
 let source = 'unknown';
 try { source = execFileSync('git', ['rev-parse', 'HEAD'], { cwd: root }).toString().trim(); } catch {}
