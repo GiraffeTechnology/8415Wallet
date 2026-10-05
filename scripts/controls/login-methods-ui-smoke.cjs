@@ -40,7 +40,7 @@ async function main() {
       time = Date.now(); const store = new MemoryCredentialStore();
       auth = createAuthService({ origin, tenant: config.tenant.id, accounts: [{ username: 'tester', passwordHash, wallets: [{ account: actor, chainId: '1' }] }], store, now: () => time });
       const context = await browser.newContext({ viewport: { width, height: width === 390 ? 844 : 1000 }, isMobile: width === 390 });
-      const errors = []; await context.route('**/*', route => route.request().url().startsWith(`${origin}/`) ? route.continue() : route.abort());
+      const errors = [], offOrigin = []; context.on('request', request => { if (!request.url().startsWith(`${origin}/`)) offOrigin.push(request.url()); }); await context.route('**/*', route => route.request().url().startsWith(`${origin}/`) ? route.continue() : route.abort());
       await installSyntheticLoginSigner(context);
       await context.addInitScript(() => {
         const state = globalThis.__authTest = { calls: [], actor: '0x7E5F4552091A69125d5DfCb7b8C2659029395Bdf', hold: false }, listeners = new Map();
@@ -72,6 +72,40 @@ async function main() {
       assert.equal(await page.inputValue('#auth-password'), '');
       assert.equal((await page.evaluate(() => globalThis.__authTest.calls)).includes('personal_sign'), false);
       await page.click('#asset-connect'); await page.waitForFunction(() => document.getElementById('asset-result').textContent.includes('balanceWei'));
+      const qrEmpty = async () => {
+        assert.equal(await page.textContent('#auth-enroll-secret'), '');
+        assert.equal(await page.evaluate(() => { const c = document.getElementById('auth-enroll-qr'); return c.hidden && c.width === 0 && c.height === 0; }), true);
+      };
+      const startSetup = async () => {
+        await page.click('#auth-enroll-start');
+        await page.waitForFunction(() => !document.getElementById('auth-enroll-qr').hidden);
+      };
+      const passwordAgain = async () => {
+        await page.waitForLoadState('networkidle');
+        await page.selectOption('#wallet-login-method', 'password');
+        await page.fill('#auth-username', 'tester'); await page.fill('#auth-password', password);
+        await page.click('#wallet-login'); await unlocked(); await idle();
+      };
+      await startSetup();
+      const cancelResponse = page.waitForResponse(response => response.url().endsWith('/auth/totp/enroll/cancel'));
+      await page.click('#auth-enroll-cancel'); await cancelResponse; await qrEmpty();
+      await startSetup(); time += 300001; await page.clock.fastForward(300001); await qrEmpty();
+      await startSetup(); await page.evaluate(() => dispatchEvent(new Event('pagehide'))); await qrEmpty();
+      assert.equal(await page.locator('#wallet-private').isVisible(), false); await passwordAgain();
+      await startSetup(); await page.evaluate(() => globalThis.__authTest.changeAccount()); await qrEmpty();
+      assert.equal(await page.locator('#wallet-private').isVisible(), false);
+      await page.evaluate(actor => { globalThis.__authTest.actor = actor; }, actor); await passwordAgain();
+      let releaseStart, startReceived;
+      const gate = new Promise(resolve => { releaseStart = resolve; });
+      const held = new Promise(resolve => { startReceived = resolve; });
+      await page.route('**/auth/totp/enroll/start', async route => {
+        const response = await route.fetch(); startReceived(); await gate; await route.fulfill({ response });
+      });
+      await page.click('#auth-enroll-start'); await held;
+      await page.click('#wallet-logout'); await qrEmpty();
+      const lateResponse = page.waitForResponse(response => response.url().endsWith('/auth/totp/enroll/start'));
+      releaseStart(); await lateResponse; await page.waitForLoadState('networkidle'); await qrEmpty();
+      await page.unroute('**/auth/totp/enroll/start'); await passwordAgain();
       await page.click('#auth-enroll-start'); await page.waitForFunction(() => document.getElementById('auth-enroll-secret').textContent.includes('otpauth:'));
       const text = await page.textContent('#auth-enroll-secret'), secret = text.match(/\n([A-Z2-7]{32})\n/)[1];
       // Synthetic only: inspect in-memory pixels, decode independently, save no QR/URI.
@@ -110,8 +144,8 @@ async function main() {
       assert.equal(await page.locator('#wallet-private').isVisible(), false);
       await page.selectOption('#wallet-login-method', 'ca'); await page.click('#wallet-login'); await idle();
       assert.equal(await page.locator('#wallet-private').isVisible(), false); assert.match(await page.textContent('#wallet-login-status'), /UNAVAILABLE/);
-      assert.deepEqual(errors, []);
-      evidence.push({ profile, width, password: true, totpEnrollment: true, localQrPixelRoundtrip: true, qrClearedAfterConfirm: true, localePreservesEnrollment: true, totpLogin: true, totpReplayRefused: true, recovery: true, registeredWallet: true, accountChangeLocks: true, reloadLocks: true, unavailableCaRefused: true });
+      assert.deepEqual(errors, []); assert.deepEqual(offOrigin, []);
+      evidence.push({ profile, width, password: true, totpEnrollment: true, localQrPixelRoundtrip: true, qrClearedAfterConfirm: true, qrCancelExpiryPagehideIdentityCleared: true, lateEnrollmentRefused: true, noOffOriginRequests: true, localePreservesEnrollment: true, totpLogin: true, totpReplayRefused: true, recovery: true, registeredWallet: true, accountChangeLocks: true, reloadLocks: true, unavailableCaRefused: true });
       await context.close();
     }
     fs.writeFileSync(path.join(out, 'results.json'), JSON.stringify({ synthetic: true, actualHttpService: true, evidence }, null, 2));
