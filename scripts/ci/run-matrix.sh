@@ -11,7 +11,7 @@ fi
 repo=$(git rev-parse --show-toplevel)
 head=$(git rev-parse HEAD)
 [[ -z $(git status --porcelain --untracked-files=no) ]]
-base=$(mktemp -d "${TMPDIR:-/tmp}/8415wallet-full-ci.XXXXXXXX")
+base=$(mktemp -d "${WALLET_CI_ROOT:-$(dirname "$repo")}/8415wallet-full-ci.XXXXXXXX")
 printf 'Exact commit: %s\nIsolated outputs: %s\n' "$head" "$base"
 status=0
 for major in 22 24; do
@@ -21,7 +21,13 @@ for major in 22 24; do
   git -C "$checkout" checkout --quiet --detach "$head"
   if [[ $major = 22 ]]; then node=$NODE22; else node=$NODE24; fi
   mkdir -p "$base/node-$major/bin"
-  ln -s "$node" "$base/node-$major/bin/node"
+  # A standalone exact-byte runtime avoids package-manager hardlinks and keeps
+  # the same executable identity for all commands in this isolated leg.
+  original_node=$node
+  cp -- "$original_node" "$base/node-$major/bin/node"
+  chmod 0755 "$base/node-$major/bin/node"
+  cmp -- "$original_node" "$base/node-$major/bin/node"
+  node="$base/node-$major/bin/node"
   (
     cd "$checkout"
     export PATH="$base/node-$major/bin:$PATH"

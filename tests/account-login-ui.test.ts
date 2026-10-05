@@ -13,7 +13,8 @@ function fixture(method: string) {
   const state = { hold: null as null | Promise<void>, fail: false, revoked: false };
   const timers = new Map<number, () => void>(), windowEvents = new Map<string, (event?: any) => unknown>();
   let timerId = 0;
-  const session = { id: 'a'.repeat(43), csrf: 'b'.repeat(43), tenant: 'xiongan', origin, account: signer.address, chainId: '1', kind: method, issuedAt: Date.now(), expiresAt: Date.now() + 900000 };
+  const issuedAt = Date.now();
+  const session = { id: 'a'.repeat(43), csrf: 'b'.repeat(43), tenant: 'xiongan', origin, account: signer.address, chainId: '1', kind: method, issuedAt, expiresAt: issuedAt + 900000 };
   const element = (id: string) => {
     if (!elements.has(id)) elements.set(id, { hidden: true, inert: true, textContent: '', value: '', checked: false, disabled: false,
       handlers: new Map(), addEventListener(event: string, handler: () => unknown) { this.handlers.set(event, handler); } });
@@ -105,4 +106,11 @@ for (const { id } of uiI18n.LOCALES) test(`locale ${id} cannot unlock login or r
   assert.equal(f.element('auth-enroll-secret').textContent, ''); assert.equal(f.element('auth-recovery-codes').textContent, '');
   assert.equal(f.element('wallet-private').hidden, true); assert.equal(f.element('wallet-private').inert, true); assert.throws(() => f.login.assert());
   uiI18n.setLocale('en', { persist: false });
+});
+
+test('UI session fixture uses one clock instant and never fabricates an overlong session on a clock tick', async () => {
+  const originalNow = Date.now; let tick = originalNow() - 1000, f: ReturnType<typeof fixture>;
+  try { Date.now = () => ++tick; f = fixture('totp'); } finally { Date.now = originalNow; }
+  assert.equal(f.session.expiresAt - f.session.issuedAt, 900000);
+  await f.click('wallet-login'); assert.equal(f.element('wallet-private').hidden, false);
 });
