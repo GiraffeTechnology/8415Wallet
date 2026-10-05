@@ -5,11 +5,14 @@ import { readFileSync } from 'node:fs';
 import { Wallet, verifyMessage, getAddress, hashMessage, Interface } from 'ethers';
 import { WalletLogin, WalletLoginError } from '../web/login-core.mjs';
 import { AccountAuthClient } from '../web/account-auth.mjs';
+import { clearEnrollmentQr, renderEnrollmentQr } from '../web/enrollment-qr.mjs';
 const source = readFileSync(new URL('../web/wallet-auth.mjs', import.meta.url), 'utf8')
   .replace(/^import[^\n]*\n/gm, '').replace(/^export \{[^\n]*\n/gm, '').replace('export const walletLogin', 'const walletLogin');
 function fixture(method: string) {
   const signer = Wallet.createRandom(), origin = 'https://wallet.example.invalid:18443', elements = new Map<string, any>(), requests: any[] = [], calls: string[] = [];
   const state = { hold: null as null | Promise<void>, fail: false, revoked: false };
+  const timers = new Map<number, () => void>(), windowEvents = new Map<string, (event?: any) => unknown>();
+  let timerId = 0;
   const session = { id: 'a'.repeat(43), csrf: 'b'.repeat(43), tenant: 'xiongan', origin, account: signer.address, chainId: '1', kind: method, issuedAt: Date.now(), expiresAt: Date.now() + 900000 };
   const element = (id: string) => {
     if (!elements.has(id)) elements.set(id, { hidden: true, inert: true, textContent: '', value: '', checked: false, disabled: false,
@@ -33,10 +36,12 @@ function fixture(method: string) {
   };
   class BoundClient extends AccountAuthClient { constructor({ tenant }: any) { super({ tenant, origin, fetcher }); } }
   const sdk = { ...uiI18n, WalletLogin, WalletLoginError, AccountAuthClient: BoundClient, verifyMessage, getAddress, hashMessage, Interface,
+    clearEnrollmentQr, renderEnrollmentQr,
     getReleaseProfile: async () => ({ tenant: { id: 'xiongan' } }), acquireWalletUi: () => Symbol(), releaseWalletUi() {} };
   const login = new Function('document', 'globalThis', 'setTimeout', 'clearTimeout', ...Object.keys(sdk), `${source}\nreturn walletLogin;`)(
-    { getElementById: element, addEventListener() {} }, { ethereum: provider, location: { origin }, addEventListener() {} }, () => 1, () => {}, ...Object.values(sdk));
-  return { element, state, session, login, requests, calls, click: (id: string) => element(id).handlers.get('click')(), change: () => element('wallet-login-method').handlers.get('change')() };
+    { getElementById: element, addEventListener() {} }, { ethereum: provider, location: { origin }, addEventListener(event: string, handler: (event?: any) => unknown) { windowEvents.set(event, handler); } },
+    (handler: () => void) => { timers.set(++timerId, handler); return timerId; }, (id: number) => timers.delete(id), ...Object.values(sdk));
+  return { element, state, session, login, requests, calls, timers, windowEvents, click: (id: string) => element(id).handlers.get('click')(), change: () => element('wallet-login-method').handlers.get('change')() };
 }
 for (const method of ['password', 'totp']) test(`actual ${method} UI handler clears credentials, requests only account access and unlocks verified identity`, async () => {
   const f = fixture(method); await f.click('wallet-login'); assert.equal(f.element('wallet-private').hidden, false);
@@ -68,6 +73,25 @@ test('actual enrollment UI discards a late secret after logout', async () => {
   const f = fixture('password'); await f.click('wallet-login'); let release!: () => void; f.state.hold = new Promise<void>(r => { release = r; });
   const pending = f.click('auth-enroll-start'); await new Promise(resolve => setImmediate(resolve)); f.click('wallet-logout'); release(); await pending;
   assert.equal(f.element('auth-enroll-secret').textContent, ''); assert.equal(f.element('wallet-private').hidden, true);
+  assert.equal(f.element('auth-enroll-qr').hidden, true); assert.equal(f.element('auth-enroll-qr').width, 0);
+});
+test('cancelling pending enrollment clears localized manual text and pixels before network completion', async () => {
+  const f = fixture('password'); await f.click('wallet-login'); await f.click('auth-enroll-start');
+  await f.click('auth-enroll-cancel');
+  assert.equal(f.element('auth-enroll-secret').textContent, ''); assert.equal(f.element('auth-enroll-qr').width, 0);
+  assert.equal(f.element('auth-enroll-qr').hidden, true);
+});
+test('enrollment expiry removes manual text and canvas backing pixels', async () => {
+  const f = fixture('password'); await f.click('wallet-login'); await f.click('auth-enroll-start');
+  const expiry = [...f.timers.values()].at(-1)!; expiry();
+  assert.equal(f.element('auth-enroll-secret').textContent, '');
+  assert.equal(f.element('auth-enroll-qr').width, 0); assert.equal(f.element('auth-enroll-qr-help').hidden, true);
+});
+for (const event of ['pagehide', 'pageshow']) test(`page lifecycle ${event} cannot retain enrollment text or pixels`, async () => {
+  const f = fixture('password'); await f.click('wallet-login'); await f.click('auth-enroll-start');
+  f.windowEvents.get(event)!({ persisted: true });
+  assert.equal(f.element('auth-enroll-secret').textContent, ''); assert.equal(f.element('auth-enroll-qr').width, 0);
+  assert.equal(f.element('wallet-private').hidden, true); assert.throws(() => f.login.assert());
 });
 for (const { id } of uiI18n.LOCALES) test(`locale ${id} cannot unlock login or revive enrollment secrets after logout`, async () => {
   uiI18n.setLocale('en', { persist: false }); const f = fixture('password');

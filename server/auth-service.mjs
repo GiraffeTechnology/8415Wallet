@@ -2,6 +2,7 @@
 import { randomToken, digest, equal, verifyPassword, matchTotp, newTotpSecret, provisioningUri, recoveryCodes } from './crypto.mjs';
 import { loginOrigin, loginMessage } from '../web/login-core.mjs';
 import { verifyMessage, getAddress } from 'ethers';
+import { validateAccountBindings } from './config-validation.mjs';
 const LIFE = 15 * 60_000, CHALLENGE = 2 * 60_000, ENROLL = 5 * 60_000;
 const chains = new Set(['1', '8453', '11155111', '84532', '560048', '31337']);
 export class AuthError extends Error {
@@ -27,6 +28,7 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
   const url = loginOrigin(origin);
   requireThat(typeof tenant === 'string' && /^[a-z][a-z0-9-]{0,47}$/.test(tenant), 'AUTH_CONFIG_REFUSED', 500);
   requireThat(Array.isArray(accounts) && accounts.length > 0 && accounts.length <= 10000 && store, 'AUTH_CONFIG_REFUSED', 500);
+  try { validateAccountBindings(accounts); } catch { throw new AuthError('AUTH_CONFIG_REFUSED', 500); }
   const users = new Map();
   for (const input of accounts) {
     requireThat(validUsername(input.username) && !users.has(input.username) && Array.isArray(input.wallets) && input.wallets.length > 0 && input.wallets.length <= 64,

@@ -1,5 +1,7 @@
 // Fixed UI catalog. Asset data and signed terms must never be catalog entries.
 export default Object.freeze({
+  "auth.qrHelp": "認証アプリでローカルにスキャンしてください。秘密に保ち、手動入力も利用できます。",
+  "auth.qrLabel": "認証アプリ設定用の秘密QRコード",
   "ui.002": "検証済みリリース設定を読み込み中…",
   "ui.003": "汎用ウォレット · ERC-8415 ネイティブ対応 · 保有者がリクエストを確認",
   "ui.004": "機能テスト用 Beta。独立監査は未実施です。ネイティブ ERC-8415 プロトコルと責任制御はテストネット専用です。外部アカウントからのメインネット送金にはご自身のウォレットでの確認が必要です。実際のウォレットと物理デバイスによる受入検証は未完了です。",

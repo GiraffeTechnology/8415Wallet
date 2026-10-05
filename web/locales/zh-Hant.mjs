@@ -1,5 +1,7 @@
 // Fixed UI catalog. Asset data and signed terms must never be catalog entries.
 export default Object.freeze({
+  "auth.qrHelp": "使用驗證器在本機掃碼。請保密；仍可手動輸入。",
+  "auth.qrLabel": "私密驗證器設定二維碼",
   "ui.002": "正在載入已驗證的發行設定…",
   "ui.003": "通用錢包 · 原生 ERC-8415 支援 · 由持有人審閱請求",
   "ui.004": "功能測試 Beta，尚未經過獨立稽核。原生 ERC-8415 協議及責任控制僅限測試網。外部帳戶的主網轉帳需要您在自己的錢包中確認；真實錢包及實體裝置驗收仍未完成。",

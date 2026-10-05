@@ -4,13 +4,20 @@ import { AccountAuthClient } from './account-auth.mjs';
 import { verifyMessage, getAddress, hashMessage, Interface } from '../dist/browser/vendor/ethers.js';
 import { getReleaseProfile } from './release-profile.mjs';
 import { acquireWalletUi, releaseWalletUi } from './ui-lock.mjs';
+import { clearEnrollmentQr, renderEnrollmentQr } from './enrollment-qr.mjs';
 
 export { WalletLoginError };
 export const walletLogin = new WalletLogin({ crypto: { verifyMessage, getAddress, hashMessage, Interface }, origin: () => globalThis.location.origin });
 const el = id => document.getElementById(id);
 let timer = null, signing = false, attemptRevision = 0, accountClient = null, enrollmentTimer = null;
+function clearEnrollment() {
+  clearTimeout(enrollmentTimer); enrollmentTimer = null;
+  paint(el('auth-enroll-secret'), ''); clearEnrollmentQr(el('auth-enroll-qr'));
+  el('auth-enroll-qr-help').hidden = true;
+}
 walletLogin.subscribe((session, reason) => {
   clearTimeout(timer);
+  clearEnrollment(); // Every session/identity transition removes pixels and localized secret bindings.
   el('auth-enrollment').hidden = !session?.serverId || !['password', 'wallet', 'ca'].includes(session?.kind);
   for (const id of ['auth-password', 'auth-code', 'auth-existing-code', 'auth-enroll-code']) el(id).value = '';
   if (!session) { clearTimeout(enrollmentTimer); paint(el('auth-enroll-secret'), ''); }
@@ -51,7 +58,7 @@ el('wallet-login').addEventListener('click', async () => {
     try { walletLogin.assert(); } catch { el('wallet-logout').hidden = true; }
   }
 });
-function cancelLogin() { attemptRevision++; walletLogin.logout(); }
+function cancelLogin() { attemptRevision++; clearEnrollment(); walletLogin.logout(); }
 el('wallet-logout').addEventListener('click', cancelLogin);
 globalThis.addEventListener('pagehide', cancelLogin);
 globalThis.addEventListener('pageshow', event => { if (event.persisted) cancelLogin(); });
@@ -74,22 +81,28 @@ async function enroll(action) {
   if (signing || !accountClient) return;
   const lock = acquireWalletUi(); if (lock === null) return;
   signing = true; const currentAttempt = attemptRevision;
+  if (action !== 'start') clearEnrollment(); // Clear before awaiting confirm/cancel.
   try {
     const binding = walletLogin.capture();
     await walletLogin.check(); walletLogin.assert(binding);
     if (action === 'start') {
       const result = await accountClient.startEnrollment(el('auth-existing-code').value, el('auth-existing-recovery').checked === true);
       walletLogin.assert(binding);
+      if (currentAttempt !== attemptRevision || !Number.isSafeInteger(result.expiresAt) || result.expiresAt <= Date.now()) throw new WalletLoginError('AUTH_SETUP_EXPIRED');
+      clearEnrollment();
       paint(el('auth-enroll-secret'), msg('auth.setupSecret', { secret: result.secret, uri: result.uri, expires: new Date(result.expiresAt).toISOString() }));
-      clearTimeout(enrollmentTimer); enrollmentTimer = setTimeout(() => { paint(el('auth-enroll-secret'), ''); }, Math.max(0, result.expiresAt - Date.now()));
+      try { renderEnrollmentQr(el('auth-enroll-qr'), result.uri); el('auth-enroll-qr-help').hidden = false; }
+      catch { clearEnrollmentQr(el('auth-enroll-qr')); /* Manual entry remains usable. */ }
+      enrollmentTimer = setTimeout(clearEnrollment, Math.max(0, result.expiresAt - Date.now()));
     } else if (action === 'confirm') {
       const result = await accountClient.confirmEnrollment(el('auth-enroll-code').value);
-      walletLogin.assert(binding); cancelLogin();
+      walletLogin.assert(binding); if (currentAttempt !== attemptRevision) throw new WalletLoginError('LOGIN_CANCELLED'); cancelLogin();
       paint(el('auth-recovery-codes'), result.recoveryCodes.join('\n')); el('auth-recovery-output').hidden = false;
     } else {
-      await accountClient.cancelEnrollment(); walletLogin.assert(binding); clearTimeout(enrollmentTimer); paint(el('auth-enroll-secret'), '');
+      await accountClient.cancelEnrollment(); walletLogin.assert(binding); clearEnrollment();
     }
   } catch (error) {
+    clearEnrollment();
     if (currentAttempt === attemptRevision) paint(el('wallet-login-status'), error instanceof WalletLoginError ? error.code : 'AUTH_SETUP_UNAVAILABLE');
   } finally {
     el('auth-existing-code').value = ''; el('auth-enroll-code').value = ''; signing = false; releaseWalletUi(lock);

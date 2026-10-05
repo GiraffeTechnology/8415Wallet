@@ -1,0 +1,7 @@
+{
+  "origin": "https://xiongan.8415wallet.com:9446",
+  "tenant": "xiongan",
+  "port": 18417,
+  "statePath": "/var/lib/8415wallet-auth-xiongan/credentials.enc",
+  "accounts": []
+}

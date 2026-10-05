@@ -8,6 +8,7 @@ const http = require('node:http');
 const { once } = require('node:events');
 const { chromium } = require('playwright-core');
 const { installSyntheticLoginSigner } = require('./synthetic-login.cjs');
+const decodeQr = require('../../tests/vendor/jsqr.cjs');
 const root = path.resolve(__dirname, '../..');
 const out = path.resolve(process.env.AUTH_UI_OUTPUT || '/tmp/8415-auth-methods-ui-evidence');
 async function main() {
@@ -73,9 +74,24 @@ async function main() {
       await page.click('#asset-connect'); await page.waitForFunction(() => document.getElementById('asset-result').textContent.includes('balanceWei'));
       await page.click('#auth-enroll-start'); await page.waitForFunction(() => document.getElementById('auth-enroll-secret').textContent.includes('otpauth:'));
       const text = await page.textContent('#auth-enroll-secret'), secret = text.match(/\n([A-Z2-7]{32})\n/)[1];
+      // Synthetic only: inspect in-memory pixels, decode independently, save no QR/URI.
+      await page.waitForFunction(() => !document.getElementById('auth-enroll-qr').hidden);
+      const qr = await page.evaluate(() => {
+        const canvas = document.getElementById('auth-enroll-qr');
+        return { width: canvas.width, height: canvas.height, pixels: Array.from(canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data) };
+      });
+      const decoded = decodeQr(new Uint8ClampedArray(qr.pixels), qr.width, qr.height);
+      assert.equal(decoded?.data === text.match(/otpauth:\/\/\S+/)[0], true, 'local QR must encode exact synthetic enrollment URI');
+      qr.pixels.fill(0);
+      const beforeLocale = await page.evaluate(() => {
+        const canvas = document.getElementById('auth-enroll-qr'); return { width: canvas.width, height: canvas.height };
+      });
+      await page.click('[data-ui-locale="zh-Hans"]'); await page.click('[data-ui-locale="en"]');
+      assert.deepEqual(await page.evaluate(() => { const canvas = document.getElementById('auth-enroll-qr'); return { width: canvas.width, height: canvas.height }; }), beforeLocale);
       await page.fill('#auth-enroll-code', hotp(secret, Math.floor(time / 30000))); await page.click('#auth-enroll-confirm');
       await page.waitForFunction(() => !document.getElementById('auth-recovery-output').hidden);
       assert.equal(await page.locator('#wallet-private').isVisible(), false); assert.equal(await page.textContent('#auth-enroll-secret'), '');
+      assert.equal(await page.evaluate(() => { const canvas = document.getElementById('auth-enroll-qr'); return canvas.hidden && canvas.width === 0 && canvas.height === 0; }), true);
       const recovery = (await page.textContent('#auth-recovery-codes')).split('\n'); assert.equal(recovery.length, 8);
       await page.click('#auth-recovery-dismiss'); assert.equal(await page.textContent('#auth-recovery-codes'), '');
       time += 30000; await page.clock.fastForward(30000);
@@ -95,7 +111,7 @@ async function main() {
       await page.selectOption('#wallet-login-method', 'ca'); await page.click('#wallet-login'); await idle();
       assert.equal(await page.locator('#wallet-private').isVisible(), false); assert.match(await page.textContent('#wallet-login-status'), /UNAVAILABLE/);
       assert.deepEqual(errors, []);
-      evidence.push({ profile, width, password: true, totpEnrollment: true, totpLogin: true, totpReplayRefused: true, recovery: true, registeredWallet: true, accountChangeLocks: true, reloadLocks: true, unavailableCaRefused: true });
+      evidence.push({ profile, width, password: true, totpEnrollment: true, localQrPixelRoundtrip: true, qrClearedAfterConfirm: true, localePreservesEnrollment: true, totpLogin: true, totpReplayRefused: true, recovery: true, registeredWallet: true, accountChangeLocks: true, reloadLocks: true, unavailableCaRefused: true });
       await context.close();
     }
     fs.writeFileSync(path.join(out, 'results.json'), JSON.stringify({ synthetic: true, actualHttpService: true, evidence }, null, 2));

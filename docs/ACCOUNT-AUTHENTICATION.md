@@ -173,6 +173,13 @@ An urgent certificate revocation also requires terminating existing sessions
 
 ## Verification
 
+New source preparation: see [Xiongan provisioning and local QR](AUTH-PROVISIONING-PREPARATION.md).
+The fixed operator initialization command, duplicate wallet/chain startup gate,
+local Canvas renderer and synthetic regression sources are prepared but not
+executed or activated. Real bindings and the independent store key still require
+approved secure-terminal confirmation. The existing invalid example is not a
+production configuration.
+
 - `npm run test:auth`: RFC vectors, password hashing, HTTP session/CSRF/origin/
   tenant boundaries, TOTP enrollment/replay/recovery/concurrency, encrypted
   persistence, server-backed display sessions, real synthetic CA signatures,

@@ -1,5 +1,7 @@
 // Fixed UI catalog. Asset data and signed terms must never be catalog entries.
 export default Object.freeze({
+  "auth.qrHelp": "Escanee localmente con su autenticador. Mantenga este código privado; la entrada manual sigue disponible.",
+  "auth.qrLabel": "Código QR privado de configuración del autenticador",
   "ui.002": "Cargando el perfil de versión verificado…",
   "ui.003": "Billetera de uso general · Compatibilidad nativa con ERC-8415 · Solicitudes revisadas por el titular",
   "ui.004": "Beta de pruebas funcionales, sin auditoría independiente. El protocolo nativo ERC-8415 y los controles de responsabilidad siguen limitados a redes de prueba. Las transferencias de cuentas externas en la red principal requieren su confirmación en su billetera; aún falta la aceptación con billeteras reales y dispositivos físicos.",
