@@ -30,6 +30,8 @@
       <label><input id="auth-existing-recovery" data-auth-control type="checkbox"><span data-i18n="ui.023">Current code is a recovery code</span></label>
       <button id="auth-enroll-start" data-auth-control type="button"><span data-i18n="ui.024">Start authenticator setup</span></button>
       <pre id="auth-enroll-secret"></pre>
+      <p id="auth-enroll-qr-help" hidden data-i18n="auth.qrHelp">Scan locally with your authenticator. Keep this code private; manual entry remains available.</p>
+      <canvas id="auth-enroll-qr" class="auth-enroll-qr" hidden role="img" data-i18n-aria="auth.qrLabel" aria-label="Private authenticator setup QR code"></canvas>
       <label><span data-i18n="ui.025">New authenticator's six-digit code</span> <input id="auth-enroll-code" data-auth-control inputmode="numeric" autocomplete="one-time-code" maxlength="6"></label>
       <button id="auth-enroll-confirm" data-auth-control type="button"><span data-i18n="ui.026">Verify and enable authenticator</span></button>
       <button id="auth-enroll-cancel" data-auth-control type="button"><span data-i18n="ui.027">Cancel setup</span></button>

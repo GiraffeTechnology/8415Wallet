@@ -1,5 +1,7 @@
 // Fixed UI catalog. Asset data and signed terms must never be catalog entries.
 export default Object.freeze({
+  "auth.qrHelp": "Scan locally with your authenticator. Keep this code private; manual entry remains available.",
+  "auth.qrLabel": "Private authenticator setup QR code",
   "ui.002": "Loading verified release profile…",
   "ui.003": "General-purpose wallet · Native ERC-8415 support · Owner-reviewed requests",
   "ui.004": "Functional-testing Beta. Not independently audited. Native ERC-8415 protocol and responsibility controls remain testnet-only. External-account mainnet transfers require your own wallet confirmation; genuine-wallet and physical-device acceptance remains outstanding.",

@@ -94,3 +94,11 @@ The browser UI supports English, Simplified Chinese, Traditional Chinese, French
 Spanish and Japanese through fixed source catalogs and a compact language control.
 Token metadata remains source-original. See [UI localization](docs/UI-LOCALIZATION.md)
 for privacy, transaction-value and verification boundaries.
+# Authentication deployment preparation
+
+The Xiongan account-service and browser-local authenticator QR preparation is
+documented in [AUTH-PROVISIONING-PREPARATION](docs/AUTH-PROVISIONING-PREPARATION.md).
+The service/proxy templates are **not activated**; the public template has no
+account binding and intentionally cannot start. New regression sources have not
+been run in this preparation. Existing UI deployment and test evidence are not
+promoted to genuine authentication acceptance.

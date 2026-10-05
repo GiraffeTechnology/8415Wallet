@@ -1,5 +1,7 @@
 // Fixed UI catalog. Asset data and signed terms must never be catalog entries.
 export default Object.freeze({
+  "auth.qrHelp": "Scannez localement avec votre application. Gardez ce code privé ; la saisie manuelle reste disponible.",
+  "auth.qrLabel": "Code QR privé de configuration de l’authentificateur",
   "ui.002": "Chargement du profil de version vérifié…",
   "ui.003": "Portefeuille généraliste · Prise en charge native d’ERC-8415 · Demandes examinées par le titulaire",
   "ui.004": "Bêta de test fonctionnel, sans audit indépendant. Le protocole natif ERC-8415 et les contrôles de responsabilité restent limités aux réseaux de test. Les transferts du compte externe sur le réseau principal nécessitent votre confirmation dans votre portefeuille ; la validation avec de vrais portefeuilles et appareils physiques reste à réaliser.",

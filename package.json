@@ -10,7 +10,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"tests/**/*.test.ts\"",
+    "test": "node --test \"tests/**/*.test.ts\" tests/auth-provisioning.test.mjs tests/auth-qr.test.mjs",
     "verify": "npm run typecheck && npm test && npm run test:evm",
     "wallet": "node src/cli/main.ts",
     "wallet:browser:build": "tsc -p tsconfig.browser.json && node scripts/package/build-login-vendor.mjs",
@@ -31,7 +31,8 @@
     "pack:dapp:verify": "node scripts/package/verify-dapp.mjs",
     "test:package:dapp": "node --test tests/dapp-release.test.mjs",
     "wallet:auth:serve": "node server/main.mjs",
-    "test:auth": "node --test tests/auth-service.test.ts tests/auth-crypto.test.ts tests/ca-verifier.test.ts tests/account-login.test.ts tests/account-login-ui.test.ts"
+    "wallet:auth:operator": "node server/operator-init.mjs",
+    "test:auth": "node --test tests/auth-service.test.ts tests/auth-crypto.test.ts tests/ca-verifier.test.ts tests/account-login.test.ts tests/account-login-ui.test.ts tests/auth-provisioning.test.mjs tests/auth-qr.test.mjs"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^3.1.3",

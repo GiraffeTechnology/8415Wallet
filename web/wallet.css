@@ -15,3 +15,6 @@
 /* Keep cancellation reachable outside routed and signed-out containers. */
 .workspace-bar:has(#wallet-logout:not([hidden])){flex-wrap:wrap}
 #wallet-logout{flex-shrink:0}
+/* Integer-pixel local QR with responsive desktop/mobile presentation. */
+.auth-enroll-qr { display: block; max-width: 100%; height: auto; image-rendering: pixelated; }
+.auth-enroll-qr[hidden] { display: none; }
