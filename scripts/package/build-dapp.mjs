@@ -73,7 +73,7 @@ const release = {
     recommendation: 'Use authorized test assets and testnets for Beta testing. Mainnet testing requires separate authorization.' },
   notes: ['Serve the complete tree with its web/ and dist/browser/ layout intact.',
     'A full confirmed deployment URL is required before hosting; null means no endpoint has been assigned.',
-    'CTYun and SIN TCP 443 are reserved for SSH; never bind a web listener or infer a replacement allocation.',
+    'Honor the deployment host reservedPorts configuration; preserve existing listeners and the exact browser origin.',
     'Preserve origin and browser operation journals across deployments and rollbacks.'],
 };
 writeFileSync(join(stage, 'RELEASE.json'), `${JSON.stringify(release, null, 2)}\n`);

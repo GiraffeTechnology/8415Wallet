@@ -39,8 +39,8 @@ test('zero address, numeric chain and empty binding are refused', () => {
 test('unknown client identity fields are not authentication configuration', () => {
   assert.throws(() => validateAuthConfig({ ...config(), operatorIdentifier: 'unverified' }), /AUTH_CONFIG_FIELD_REFUSED/);
 });
-test('port 443, noncanonical origin and traversal state path are refused', () => {
-  for (const delta of [{ port: 443 }, { origin: 'https://xiongan.8415wallet.com:9446/web/' }, { statePath: '/var/lib/../tmp/state' }]) {
+test('invalid port, noncanonical origin and traversal state path are refused', () => {
+  for (const delta of [{ port: 0 }, { origin: 'https://xiongan.8415wallet.com:9446/web/' }, { statePath: '/var/lib/../tmp/state' }]) {
     assert.throws(() => validateAuthConfig({ ...config(), ...delta }));
   }
 });

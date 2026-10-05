@@ -69,7 +69,10 @@ absent or mismatched. No token is stored in localStorage or IndexedDB.
   Password verification performs the same fixed-cost derivation for unknown
   accounts. Account attempts are bounded to 10 per 15 minutes, IP login traffic
   to 100, bootstrap requests to 60, and expensive password/CA work to two
-  concurrent operations. These are in-process bounds, not a distributed WAF.
+  concurrent operations. Behind the same-origin local proxy the remote-address
+  bucket is shared by the tenant, including Unix-socket clients; it is not an
+  independently verified per-end-user IP identity. Arbitrary forwarded IP headers
+  are not trusted. These are in-process bounds, not a distributed WAF.
 
 ## Authenticator enrollment and recovery
 
@@ -99,14 +102,23 @@ Never restore an older credential-store snapshot as a routine rollback: doing
 so could revive used TOTP counters/recovery codes. Re-enroll affected accounts
 and revoke sessions under the operator's approved recovery process instead.
 
-## Explicit deployment inputs, no deployment performed
+## Reusable installer and legacy manual deployment
+
+The current reusable DApp kit and tenant-scoped authentication installer are
+specified in [AUTH-INSTALL.md](AUTH-INSTALL.md) and [DAPP-INSTALL.md](DAPP-INSTALL.md).
+They bundle production dependencies, protect a per-tenant Unix listener from
+local port takeover, and reserve real first credential provisioning for the
+user's trusted terminal. Neither preparation nor package tests deploy a service.
+The following environment-variable setup describes the older manual developer
+entry; use the reusable installer for the bounded installation/update workflow.
 
 The template `config/auth.example.json` is deliberately invalid and contains no
 secret, port allocation or real account. Before an authorized installation:
 
 - Confirm the exact web origin, tenant, same-origin `/auth/` reverse-proxy route
-  and a free, approved loopback service port. **TCP 443 remains reserved for SSH.**
-  The service listens on 127.0.0.1 only and refuses port 443. Preserve the original
+  and transport. Legacy loopback mode must use a free port outside the host's
+  explicit reservedPorts configuration; the reusable installer uses a protected
+  local Unix socket with no backend TCP listener. Preserve the original
   Host header. Do not trust or forward client-supplied identity headers.
 - Supply an operator-owned account directory containing unique account names,
   salted password hashes as needed, independently verified wallet/chain pairs

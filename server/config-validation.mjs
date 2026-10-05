@@ -30,10 +30,13 @@ export function validateAccountBindings(accounts) {
 }
 export function validateAuthConfig(config) {
   if (!config || typeof config !== 'object' || Array.isArray(config)) fail('AUTH_CONFIG_REFUSED');
-  if (Object.keys(config).some(key => !['origin', 'tenant', 'port', 'statePath', 'accounts', 'ca'].includes(key))) fail('AUTH_CONFIG_FIELD_REFUSED');
+  if (Object.keys(config).some(key => !['origin', 'tenant', 'port', 'statePath', 'accounts', 'ca', 'reservedPorts', 'socketPath'].includes(key))) fail('AUTH_CONFIG_FIELD_REFUSED');
   const url = loginOrigin(config.origin);
   if (url.origin !== config.origin || typeof config.tenant !== 'string' || !/^[a-z][a-z0-9-]{0,47}$/.test(config.tenant)) fail('AUTH_ORIGIN_TENANT_REFUSED');
-  if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535 || config.port === 443) fail('AUTH_LOOPBACK_PORT_REFUSED');
+  if (config.socketPath !== undefined) {
+    if (config.port !== undefined || typeof config.socketPath !== 'string' || !/^\/[A-Za-z0-9_./-]+\.sock$/.test(config.socketPath) || normalize(config.socketPath) !== config.socketPath || Buffer.byteLength(config.socketPath) > 100) fail('AUTH_SOCKET_PATH_REFUSED');
+  } else if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) fail('AUTH_LOOPBACK_PORT_REFUSED');
+  if (config.reservedPorts !== undefined && (!Array.isArray(config.reservedPorts) || config.reservedPorts.some(port => !Number.isInteger(port) || port < 1 || port > 65535) || config.reservedPorts.includes(config.port))) fail('AUTH_RESERVED_PORT_REFUSED');
   if (typeof config.statePath !== 'string' || !isAbsolute(config.statePath) || normalize(config.statePath) !== config.statePath ||
     config.statePath.includes('\0')) fail('AUTH_STATE_PATH_REFUSED');
   return validateAccountBindings(config.accounts);

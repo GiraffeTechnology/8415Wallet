@@ -191,3 +191,38 @@ jobs:
           path: /tmp/8415-settlement-ui-evidence
           if-no-files-found: ignore
           retention-days: 7
+
+      - name: Authentication runtime package
+        run: npm run pack:auth
+
+      - name: Authentication runtime integrity
+        run: npm run pack:auth:verify
+
+      - name: Isolated installed authentication journey
+        run: npm run test:auth:installed
+
+      - name: Reproducible authentication runtime
+        shell: bash
+        run: |
+          sha256sum dist/8415wallet-auth-runtime-*.tar.gz > /tmp/auth-archive-sha256
+          npm run pack:auth
+          sha256sum --check /tmp/auth-archive-sha256
+          npm run pack:auth:verify
+
+      - name: Reusable DApp delivery kit
+        run: npm run pack:delivery
+
+      - name: Reusable DApp delivery integrity
+        run: npm run pack:delivery:verify
+
+      - name: Reusable DApp artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reusable-dapp-kit-node-${{ matrix.node-version }}
+          path: |
+            dist/8415wallet-dapp-delivery-*.tar.gz
+            dist/delivery-package-manifest.json
+            dist/auth-package-manifest.json
+          if-no-files-found: ignore
+          retention-days: 7
