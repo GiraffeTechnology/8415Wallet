@@ -2,7 +2,7 @@
 import { WalletLoginError } from './login-core.mjs';
 export class AccountAuthClient {
   #tenant; #fetch; #csrf = null; #session = null; #origin;
-  constructor({ tenant, origin = globalThis.location.origin, fetcher = globalThis.fetch }) { this.#tenant = tenant; this.#fetch = fetcher; this.#origin = origin; }
+  constructor({ tenant, origin = globalThis.location.origin, fetcher = globalThis.fetch.bind(globalThis) }) { this.#tenant = tenant; this.#fetch = fetcher; this.#origin = origin; }
   async request(path, body, { keepalive = false } = {}) {
     const response = await this.#fetch(new URL(`/auth/${path}`, this.#origin), { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', cache: 'no-store', keepalive,
       headers: { 'X-Wallet-Tenant': this.#tenant, ...(this.#csrf ? { 'X-Wallet-CSRF': this.#csrf } : {}), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },

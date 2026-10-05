@@ -90,6 +90,7 @@ async function main() {
       assert.equal(await projection.isFinalAsOf(1n,deadline+1n),false);
       await page.click('#settlement-ack-terminal'); await idle();
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),true);
+      await page.click('.nav-item[data-route="native"]');
       await page.locator('#standalone').screenshot({path:path.join(out,`standalone-${viewport.width}.png`)});
       assert.deepEqual(errors,[]); assert.deepEqual(externalRequests,[]);
       report.push({viewport,checks:'begin, checksum refusal, edit invalidation, no-ack, dismiss, numeric-4001, fresh review, submit, reload, reconcile, acknowledge, expired cancel, canonical receipt, no false finality, no horizontal overflow',sends,errors,externalRequests});
