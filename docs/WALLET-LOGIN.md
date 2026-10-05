@@ -21,9 +21,8 @@ The release profile must load and pass its configured-origin check before login.
 The challenge uses the current page origin, including scheme and explicit port,
 and the actual provider's selected account and chain. It accepts no user-typed
 account, origin, chain, claimed authentication flag or imported signature.
-Nonlocal insecure HTTP is refused. Serving remains subject to the existing
-confirmed-endpoint and SSH port reservation requirements; no deployment is
-performed by this change.
+Nonlocal insecure HTTP is refused. Serving remains subject to the deployment
+URL and reserved-port configuration; no deployment is performed by this change.
 
 ## Proof and lifetime
 

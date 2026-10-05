@@ -16,24 +16,21 @@ separate.
 
 ## Required deployment input
 
-Obtain the exact approved HTTPS URL, including hostname, allocated web port and
-entry path, for each target before deployment. Store it in the release/deployment
-configuration and use it verbatim in links, redirects, acceptance records and
-bookmarks. Do not construct a link from a bare hostname.
+Choose the HTTPS URL for each target before deployment: hostname, a web port
+that is free on the host and not reserved, and the entry path. Store it in the
+release/deployment configuration and use it verbatim in links, redirects,
+acceptance records and bookmarks. Do not construct a link from a bare hostname.
+No port allowlist from the product owner is required.
 
-TCP **443 is reserved for SSH** on CTYun and SIN, and must not be bound by a web
-server, reverse proxy, TLS listener or bridge. Do not stop or rebind SSH to make
-room. No replacement web port is chosen here. Missing allocation blocks the
-server deployment step, not the ability to build an unconfigured functional
-Beta package.
+Reserved ports are host configuration (`deployment.reservedPorts`). On CTYun
+hosts TCP 443 is reserved for SSH and must not be bound by a web server, reverse
+proxy, TLS listener or bridge; do not stop or rebind SSH. This CTYun rule does
+not apply to SIN unless the SIN host is explicitly configured that way.
 
-
-Distinguish a public TLS endpoint from the upstream server listener. A separately
-approved externally managed TLS front door can use a confirmed public HTTPS
-port while its SIN/CTYun upstream retains a confirmed non-443 listener. Record
-the two boundaries independently; an external public port does not authorize
-binding that port on a reserved origin host. No external proxy or new endpoint
-is selected by this handoff.
+Distinguish a public TLS endpoint from the upstream server listener. A separate
+TLS front door can publish a different public port than its upstream listener.
+Record the two boundaries independently, and keep each off its own host's
+reserved ports. No external proxy or new endpoint is selected by this handoff.
 
 The web origin is the complete scheme, hostname and port. Changing any one
 creates a different IndexedDB security boundary. A new hostname, alternate
@@ -51,13 +48,12 @@ outstanding transaction exists.
   web endpoint. A broken AAAA record can strand mobile clients.
 - Serve a publicly trusted certificate valid for the actual hostname; never
   bypass a browser certificate warning.
-- Use a certificate-validation method compatible with the port reservation.
-  HTTP-01 may use the existing approved port-80 challenge path. TLS-ALPN-01 on
-  port 443 is incompatible with its SSH reservation. The current operations
-  policy selects HTTP-01 over port 80; this handoff does not change that policy.
-- A port-80 redirect must target the exact full configured HTTPS URL/port,
-  preserving the requested path only within that approved origin. A redirect
-  to a hostname without its allocated port reaches 443 and is incorrect here.
+- Use a certificate-validation method compatible with the host's reserved
+  ports. Where 443 is reserved (CTYun hosts), use HTTP-01 over port 80;
+  TLS-ALPN-01 validates on 443.
+- A port-80 redirect must target the exact full configured HTTPS URL and port,
+  preserving the requested path only within that origin. A redirect to a
+  hostname without its port reaches the scheme default port instead.
 - Do not change SSH, firewalls, registrar accounts, DNSSEC, credentials,
   persistent permissions or network configuration as part of merely preparing
   this package. Those operations retain their separate authorization needs.

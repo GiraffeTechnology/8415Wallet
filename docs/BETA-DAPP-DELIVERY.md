@@ -159,25 +159,21 @@ there is no preview override. Build a separate explicit local configuration
 for loopback preview instead of changing a deployed release URL. Never put RPC keys, wallet keys, bearer
 tokens or account credentials in this public file.
 
-**TCP 443 is reserved for SSH on CTYun and SIN in this delivery.** The validator
-refuses that web port for either environment. Inspect the existing deployment
-and operations configuration and obtain the confirmed web allocation. Do not
-infer an alternative port, stop/rebind SSH, alter firewalls or install a proxy
-on a reserved listener. If the endpoint has not been supplied, deliver the
-unconfigured artifact and record the missing endpoint instead of inventing a
-link. The platform name alone must not be converted into a default-443 URL.
-
+**Ports are chosen, not allocated by the product owner.** Pick any port that is
+free on the target host and not reserved, and write it into the deployment URL.
+List the host's reserved ports in `deployment.reservedPorts`; the validator
+refuses a URL on a listed port. On CTYun hosts TCP 443 is reserved for SSH, so
+CTYun deployments list it; this is CTYun environment configuration, not a
+product rule. Do not stop or rebind SSH. If the endpoint has not been decided
+yet, deliver the unconfigured artifact; do not convert a bare platform name into
+a URL without its port.
 
 The configured URL is the **public browser endpoint**, which is not necessarily
-an origin server's listener. For direct CTYun/SIN hosting, the configured port
-must be the confirmed non-443 web listener. If operations explicitly approves
-a separate externally managed TLS front door, its public HTTPS endpoint may
-use 443 while its CTYun/SIN upstream still uses the separately approved non-443
-listener. Record both allocations and the actual TLS termination boundary in
-the deployment evidence. In that case `environment: "other"` describes the
-external public endpoint; it must never be used to disguise a CTYun/SIN web
-listener on the reserved port. No proxy, external service, DNS change, listener
-allocation or public URL is created or authorized by this package.
+an origin server's listener. A separate TLS front door may publish a different
+public port than the upstream listener; record both and the actual TLS
+termination boundary in the deployment evidence, and keep each off its host's
+reserved ports. No proxy, external service, DNS change, listener or public URL
+is created by this package.
 
 ```sh
 npm run pack:dapp:v2 -- --config /path/to/confirmed-public-config.json

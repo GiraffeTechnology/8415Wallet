@@ -22,21 +22,21 @@ packaging path so its bytes and identity appear in the manifest.
 
 ## 2. Confirm the origin and port
 
-The deployment URL includes HTTPS, hostname, the explicitly allocated web port
-and `/web/index.html` (or an explicitly configured equivalent entry path).
-Use the complete URL in every link and smoke test. Do not guess a replacement
-port or substitute a bare hostname.
+The deployment URL includes HTTPS, hostname, the chosen web port and
+`/web/index.html` (or an explicitly configured equivalent entry path). Choose a
+port that is free on the host and not reserved; no allowlist from the product
+owner is required. Use the complete URL in every link and smoke test; do not
+substitute a bare hostname.
 
-TCP 443 is reserved for SSH on CTYun and SIN. Do not bind HTTP/HTTPS, a reverse
-proxy, TLS listener or bridge there; do not alter SSH to free it. If the approved
-web allocation is missing, stop the server step and obtain that value. The
-package remains a valid unconfigured Beta deliverable.
+Reserved ports are host configuration (`deployment.reservedPorts`). On CTYun
+hosts TCP 443 is reserved for SSH: do not bind HTTP/HTTPS, a reverse proxy, TLS
+listener or bridge there, and do not alter SSH to free it. This CTYun rule does
+not apply to SIN unless the SIN host is explicitly configured that way.
 
-The browser URL identifies the public TLS endpoint. If a separately approved
-external front door terminates public HTTPS on 443, that does not change the
-SIN/CTYun upstream reservation: the origin listener still requires its own
-confirmed non-443 allocation. Keep public endpoint and origin listener records
-separate. This document provisions neither a proxy nor a port.
+The browser URL identifies the public TLS endpoint. A separate TLS front door
+can publish a different public port than the origin listener; keep both off
+their hosts' reserved ports and record them separately. This document
+provisions neither a proxy nor a port.
 
 Scheme, host and port define the browser origin. A change strands browser
 journals at the prior origin. Preserve an origin with unresolved operations;

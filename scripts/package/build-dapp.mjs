@@ -72,8 +72,8 @@ const release = {
     externalAssets: 'ETH, ERC-20, ERC-721 and ERC-1155 on Ethereum, Base, Sepolia and Base Sepolia; no private-key custody; each transfer requires the user wallet confirmation',
     recommendation: 'Use authorized test assets and testnets for Beta testing. Mainnet testing requires separate authorization.' },
   notes: ['Serve the complete tree with its web/ and dist/browser/ layout intact.',
-    'A full confirmed deployment URL is required before hosting; null means no endpoint has been assigned.',
-    'CTYun and SIN TCP 443 are reserved for SSH; never bind a web listener or infer a replacement allocation.',
+    'A full deployment URL with its chosen port is required before hosting; null means no endpoint has been configured.',
+    'Choose any free port the host does not reserve; list host-reserved ports in deployment.reservedPorts (CTYun hosts reserve TCP 443 for SSH).',
     'Preserve origin and browser operation journals across deployments and rollbacks.'],
 };
 writeFileSync(join(stage, 'RELEASE.json'), `${JSON.stringify(release, null, 2)}\n`);

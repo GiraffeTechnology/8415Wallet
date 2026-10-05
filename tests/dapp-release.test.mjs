@@ -51,12 +51,20 @@ test('Xiongan is V2 and unknown or malformed profiles cannot silently become V3'
   assert.throws(() => resolveReleaseProfile({ ...fixture('v2'), extra: true }), /PROFILE_REFUSED/);
   assert.throws(() => resolveReleaseProfile({ ...fixture('v2'), product: 'Other' }), /PROFILE_REFUSED/);
 });
-test('configuration requires a complete confirmed entry URL and explicit port', () => {
+test('configuration requires a complete entry URL with its explicit chosen port', () => {
   const url = 'https://wallet.example.invalid:18443/tenant/v2/web/index.html';
   assert.equal(validateDeploymentConfig({ environment: 'ctyun', url }).url, url);
-  for (const environment of ['ctyun', 'sin']) {
-    assert.throws(() => validateDeploymentConfig({ environment, url: 'https://wallet.example.invalid:443/web/index.html' }), /SSH_PORT_RESERVED/);
+  for (const environment of ['ctyun', 'sin', 'other']) {
     assert.throws(() => validateDeploymentConfig({ environment, url: 'https://wallet.example.invalid/web/index.html' }), /EXPLICIT_PORT_REQUIRED/);
+  }
+  // Any port is accepted unless the deployment lists it as reserved by the host.
+  const reserved = { environment: 'ctyun', url: 'https://wallet.example.invalid:19022/web/index.html', reservedPorts: [19022] };
+  assert.throws(() => validateDeploymentConfig(reserved), /RESERVED_PORT_REFUSED/);
+  assert.deepEqual(validateDeploymentConfig({ ...reserved, url }).reservedPorts, [19022]);
+  assert.equal(validateDeploymentConfig({ environment: 'sin', url: 'https://wallet.example.invalid:19022/web/index.html' }).url,
+    'https://wallet.example.invalid:19022/web/index.html');
+  for (const reservedPorts of [[0], [65536], ['19022'], 19022, Array(33).fill(1)]) {
+    assert.throws(() => validateDeploymentConfig({ environment: 'other', url, reservedPorts }), /RESERVED_PORTS_REFUSED/);
   }
   for (const url of ['https://wallet.example.invalid:0/web/index.html', 'https://wallet.example.invalid:65536/web/index.html',
     'https://user:pass@wallet.example.invalid:18443/web/index.html', 'https://wallet.example.invalid:18443/web/index.html?secret=x',

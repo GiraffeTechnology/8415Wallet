@@ -30,14 +30,16 @@ test('compatibility matrix separates implemented operations from universal valid
   assert.match(text, /upgradeable proxy implementation/);
 });
 
-test('native PRD requirements and the all-server SSH reservation remain intact', () => {
+test('native PRD requirements and the CTYun-only SSH reservation remain intact', () => {
   const prd = read('docs/ERC-8415-Wallet-PRD.md');
   for (const marker of ['# 1.', '# 2.', '# 3.', '# 4.', '# 5.', '# 6.', '# 7.', '# 8.', '# 9.']) assert.ok(prd.includes(marker), marker);
   for (let n = 1; n <= 24; n++) assert.ok(prd.includes(`| W-${String(n).padStart(2, '0')} |`));
   for (const identifier of ['0x6309e170', '0xf4a7d71b', 'beginSettlement', 'finalizeSettlement', 'cancelSettlement', '128']) assert.ok(prd.includes(identifier), identifier);
   const instructions = prose(read('AGENTS.md'));
-  assert.match(instructions, /On every server this project deploys to, TCP port 443 is reserved for SSH/);
-  assert.match(instructions, /Do not guess a replacement port/);
-  assert.match(instructions, /Recording this rule does not authorize server access/);
-  assert.doesNotMatch(instructions, /constraint applies only to CTYun/);
+  assert.match(instructions, /Configure available ports yourself/);
+  assert.match(instructions, /Reserved ports are the only exception/);
+  assert.match(instructions, /On CTYun hosts, TCP port 443 is reserved for SSH. This applies to CTYun hosts only/);
+  assert.match(instructions, /Recording these rules does not authorize server access/);
+  assert.doesNotMatch(instructions, /On every server this project deploys to/);
+  assert.doesNotMatch(instructions, /Do not guess a replacement port/);
 });

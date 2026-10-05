@@ -17,28 +17,40 @@ const fail = code => { throw new Error(code); };
 const exact = (value, keys) => value && typeof value === 'object' && !Array.isArray(value) &&
   Object.keys(value).sort().join(',') === keys.split(',').sort().join(',');
 
+// Ports the target host keeps for other services. This is environment
+// configuration (for example SSH on CTYun hosts), never a product default.
+function reservedPortList(value) {
+  if (value === undefined) return [];
+  if (!Array.isArray(value) || value.length > 32 ||
+      !value.every(port => Number.isInteger(port) && port >= 1 && port <= 65535)) fail('RELEASE_RESERVED_PORTS_REFUSED');
+  return [...new Set(value)].sort((a, b) => a - b);
+}
+
 export function validateDeploymentConfig(value) {
-  if (!exact(value, 'environment,url') || !['unconfigured', 'local', 'ctyun', 'sin', 'other'].includes(value.environment)) fail('RELEASE_DEPLOYMENT_SCHEMA_REFUSED');
+  if (!(exact(value, 'environment,url') || exact(value, 'environment,url,reservedPorts')) ||
+      !['unconfigured', 'local', 'ctyun', 'sin', 'other'].includes(value.environment)) fail('RELEASE_DEPLOYMENT_SCHEMA_REFUSED');
+  const reservedPorts = reservedPortList(value.reservedPorts);
+  const withReserved = config => freeze(value.reservedPorts === undefined ? config : { ...config, reservedPorts });
   if (value.url === null) {
     if (value.environment !== 'unconfigured') fail('RELEASE_DEPLOYMENT_URL_REQUIRED');
-    return freeze({ environment: 'unconfigured', url: null });
+    return withReserved({ environment: 'unconfigured', url: null });
   }
   if (typeof value.url !== 'string' || value.url.length > 2048 || value.environment === 'unconfigured') fail('RELEASE_DEPLOYMENT_URL_REFUSED');
   let url;
   try { url = new URL(value.url); } catch { fail('RELEASE_DEPLOYMENT_URL_REFUSED'); }
   if (url.username || url.password || url.search || url.hash || /[\s\\]/.test(value.url)) fail('RELEASE_DEPLOYMENT_URL_REFUSED');
-  // A confirmed allocation is mandatory. URL.port hides an explicitly written
-  // default port, so inspect the supplied authority rather than infer one.
+  // The chosen port is part of the origin and must be written out. URL.port
+  // hides an explicitly written default port, so inspect the supplied authority.
   const portMatch = value.url.match(/^https?:\/\/(?:\[[0-9a-fA-F:]+\]|[^\/:?#]+):([0-9]+)\//);
   if (!portMatch || !/^[1-9][0-9]{0,4}$/.test(portMatch[1]) || Number(portMatch[1]) > 65535) fail('RELEASE_EXPLICIT_PORT_REQUIRED');
-  if (['ctyun', 'sin'].includes(value.environment) && Number(portMatch[1]) === 443) fail('RELEASE_SSH_PORT_RESERVED');
+  if (reservedPorts.includes(Number(portMatch[1]))) fail('RELEASE_RESERVED_PORT_REFUSED');
   const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
   if (value.environment === 'local' ? !local || !['http:', 'https:'].includes(url.protocol) : local || url.protocol !== 'https:') fail('RELEASE_SECURE_URL_REQUIRED');
   if (!url.pathname.endsWith('/web/index.html')) fail('RELEASE_ENTRY_URL_REQUIRED');
   const rawPath = value.url.match(/^https?:\/\/[^/]+(\/[^?#]*)$/)?.[1];
   if (!rawPath || rawPath !== url.pathname || rawPath.includes('%') || rawPath.includes('//')) fail('RELEASE_CANONICAL_PATH_REQUIRED');
   // Keep the explicit authority exactly; no default port or endpoint is invented.
-  return freeze({ environment: value.environment, url: value.url });
+  return withReserved({ environment: value.environment, url: value.url });
 }
 
 export function resolveReleaseProfile(value) {

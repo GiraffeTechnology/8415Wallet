@@ -26,7 +26,7 @@ npm run pack:dapp:all
 
 The package manifests record exact source commit/tree, PRD hash, runtime hashes, profile, entry point and build commands. A shared runtime is explicit: V2 enables its standalone feature profile; V3 additionally enables linked responsibility controls.
 
-The local reference server is `npm run wallet:browser:serve`. Its loopback address is for development only. Deployed URLs must contain the confirmed scheme, hostname, port and entry path. TCP 443 is reserved for SSH on CTYun and SIN; do not guess a replacement port or rewrite an origin used by an unresolved browser journal.
+The local reference server is `npm run wallet:browser:serve`. Its loopback address is for development only. Deployed URLs must contain the scheme, hostname, chosen port and entry path. Pick any free port that the host does not reserve (list host-reserved ports in the deployment's `reservedPorts`; on CTYun hosts 443 is reserved for SSH), and do not rewrite an origin used by an unresolved browser journal.
 
 ## Protocol and custody boundaries
 

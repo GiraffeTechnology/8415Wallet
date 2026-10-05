@@ -494,33 +494,45 @@ callback/refund, recovery, independent security audit and deployed UI evidence. 
 baseline, local EVM, public-testnet and UI results separately; a documentation
 change or one completed leg is not full acceptance.
 
-## TCP port 443 reservation
+## Port selection
 
-On every server this project deploys to, TCP port 443 is reserved for SSH. Do
-not configure HTTP, HTTPS, web servers, reverse proxies or TLS listeners to
-bind TCP port 443, and do not stop, rebind, replace or otherwise disrupt SSH to
-free it.
+Configure available ports yourself. Do not ask the product owner for a port
+allocation or allowlist, and do not block work waiting for one. Reserved ports
+are the only exception.
 
-Before selecting a web or bridge port, inspect the existing deployment and
-operations configuration and reuse an explicitly confirmed allocation. Do not
-guess a replacement port. If the allocation is unclear, report the missing
-configuration rather than changing a service binding.
+- Pick a port that is free on the target host and not reserved, and pass it
+  through configuration. Do not hard-code a default port.
+- Reserved ports are ports the deployment host keeps for other services. They
+  are environment configuration (the release deployment's `reservedPorts`, or
+  the service's reserved-port setting), not product rules. Do not hard-code a
+  reserved port in product code, templates, tests or documentation examples.
+- Publish the chosen port rather than letting dependants guess it: record it in
+  the deployment configuration, or have the service print it and write it to a
+  port file that proxies and bridges read.
 
 A web origin is scheme, host and port, so the port a wallet is served on is
 part of its origin. Moving a served wallet to a different port strands every
 IndexedDB operation journal written under the old one, including an operation
-left in `outcome-unknown` — the record the recovery path exists to find. Settle
-the port before a deployment carries genuine wallet use, and treat a later move
-as data loss rather than as a configuration change.
+left in `outcome-unknown` — the record the recovery path exists to find. Choose
+the wallet's web port once, record it in the release deployment URL, and keep
+it before a deployment carries genuine wallet use; treat a later move as data
+loss rather than as a configuration change. Internal loopback services that no
+browser origin depends on may pick a new free port on each start.
 
-The bare hostname reaches port 443 and therefore SSH, so a wallet served on
-another port is reachable only with the port spelled out, and the port becomes
-part of what a user verifies in the address bar. That is a cost of this
-reservation, not a defect to work around. HSTS does not mitigate it, because it
-upgrades the scheme and not the port.
+### CTYun hosts
 
-Certificate issuance must use the HTTP-01 challenge over port 80. TLS-ALPN-01
-validates on TCP 443 and is unavailable under this reservation.
+On CTYun hosts, TCP port 443 is reserved for SSH. This applies to CTYun hosts
+only and is not a product constraint: express it through the reserved-port
+configuration of CTYun deployments, not in product code. Do not bind HTTP,
+HTTPS, web servers, reverse proxies or TLS listeners to 443 there, and do not
+stop, rebind, replace or otherwise disrupt SSH to free it. Do not extend this to
+SIN or other environments without an explicit instruction.
 
-Recording this rule does not authorize server access or changes to SSH,
+On a CTYun host the bare hostname reaches port 443 and therefore SSH, so a
+wallet served there is reachable only with its port spelled out. HSTS does not
+mitigate this, because it upgrades the scheme and not the port. Certificate
+issuance there must use the HTTP-01 challenge over port 80; TLS-ALPN-01
+validates on TCP 443.
+
+Recording these rules does not authorize server access or changes to SSH,
 firewalls, credentials, network settings or security settings.
