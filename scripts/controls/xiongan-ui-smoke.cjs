@@ -10,7 +10,7 @@ const { installSyntheticLoginSigner, login } = require('./synthetic-login.cjs');
 const root = path.resolve(__dirname, '../..');
 const out = path.resolve(process.env.XIONGAN_SMOKE_OUTPUT || '/tmp/xiongan-ui-evidence');
 fs.mkdirSync(out, { recursive: true });
-const port = 18415, origin = `http://127.0.0.1:${port}`;
+const port = Number(process.env.XIONGAN_UI_PORT || '18415'), origin = `http://127.0.0.1:${port}`;
 const server = spawn(process.execPath, [path.join(__dirname, 'serve-browser.cjs')], { env: { ...process.env, WALLET_BROWSER_PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'] });
 let browser;
 (async () => {
