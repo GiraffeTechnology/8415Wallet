@@ -131,6 +131,7 @@ if (mount) {
   el('clearing-cancel-review').addEventListener('click', clearReview);
   el('clearing-send').addEventListener('click', () => run(async guard => {
     if (!review || !el('clearing-acknowledge').checked) throw new ControlAdapterError('CLEARING_OWNER_REVIEW_REQUIRED');
+    document.dispatchEvent?.(new CustomEvent('wallet:summary-stale'));
     const approved = review; clearReview(); const hash = await selected().submit(approved, approved.digest); guard();
     el('clearing-recovery-hash').value = hash; result({ transactionHash: hash, status: 'submitted', registerFinalityEstablished: false });
   }));

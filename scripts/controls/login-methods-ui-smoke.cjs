@@ -1,3 +1,4 @@
+const { installScreenNavigation } = require('./screen-navigation.cjs');
 // Actual UI + actual HTTP auth service; ephemeral synthetic accounts only.
 // No real user credential, email, transaction, hardware or deployment acceptance.
 const assert = require('node:assert/strict');
@@ -25,7 +26,7 @@ async function main() {
     const relative = req.url === '/' ? 'web/index.html' : req.url.slice(1), full = path.resolve(root, relative);
     if (!full.startsWith(`${root}/web/`) && !full.startsWith(`${root}/dist/browser/`)) { res.writeHead(404); res.end(); return; }
     try {
-      res.setHeader('Content-Type', full.endsWith('.html') ? 'text/html' : full.endsWith('.css') ? 'text/css' : full.endsWith('.json') ? 'application/json' : 'text/javascript');
+      res.setHeader('Content-Type', full.endsWith('.html') ? 'text/html' : full.endsWith('.css') ? 'text/css' : full.endsWith('.json') ? 'application/json' : full.endsWith('.jpg') ? 'image/jpeg' : full.endsWith('.svg') ? 'image/svg+xml' : 'text/javascript');
       res.end(fs.readFileSync(full));
     } catch { res.writeHead(404); res.end(); }
   });
@@ -58,7 +59,7 @@ async function main() {
         };
         state.changeAccount = () => { state.actor = `0x${'2'.repeat(40)}`; for (const fn of listeners.get('accountsChanged') ?? []) fn(); };
       });
-      const page = await context.newPage(); await page.clock.install({ time }); page.on('pageerror', error => errors.push(error.message));
+      const page = installScreenNavigation(await context.newPage()); await page.clock.install({ time }); page.on('pageerror', error => errors.push(error.message));
       const idle = () => page.waitForFunction(() => !document.getElementById('wallet-login').disabled);
       const unlocked = () => page.waitForFunction(() => !document.getElementById('wallet-private').hidden);
       await page.goto(`${origin}/web/index.html`); await page.waitForFunction(() => document.getElementById('release-profile').textContent.includes('8415wallet'));

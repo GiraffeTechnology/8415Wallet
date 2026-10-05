@@ -1,3 +1,4 @@
+const { installScreenNavigation } = require('./screen-navigation.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -54,7 +55,7 @@ async function main() {
             if (answer.error) throw Object.assign(new Error('Local test provider refused'), answer.error); return answer.result; } };
         globalThis.__emitSettlementEvent = name => { for (const callback of listeners.get(name) || []) callback([]); };
       });
-      const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
+      const page = installScreenNavigation(await context.newPage()); page.on('pageerror', error => errors.push(error.message));
       const idle = () => page.waitForFunction(() => !document.getElementById('connect').disabled);
       const connect = async () => { await login(page);
         await page.setInputFiles('#deployment', { name: 'deployment.json', mimeType: 'application/json', buffer: Buffer.from(JSON.stringify(manifest)) });
@@ -89,6 +90,7 @@ async function main() {
       assert.equal(await projection.isFinalAsOf(1n,deadline+1n),false);
       await page.click('#settlement-ack-terminal'); await idle();
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth),true);
+      await page.click('.nav-item[data-route="native"]');
       await page.locator('#standalone').screenshot({path:path.join(out,`standalone-${viewport.width}.png`)});
       assert.deepEqual(errors,[]); assert.deepEqual(externalRequests,[]);
       report.push({viewport,checks:'begin, checksum refusal, edit invalidation, no-ack, dismiss, numeric-4001, fresh review, submit, reload, reconcile, acknowledge, expired cancel, canonical receipt, no false finality, no horizontal overflow',sends,errors,externalRequests});

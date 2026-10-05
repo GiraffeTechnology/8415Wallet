@@ -28,7 +28,7 @@ el('wallet-login').addEventListener('click', async () => {
   const currentAttempt = ++attemptRevision;
   signing = true; el('wallet-login').disabled = true; el('wallet-logout').hidden = false;
   try {
-    const profile = await getReleaseProfile();
+    const profile = await getReleaseProfile().catch(() => { throw new WalletLoginError('LOGIN_RELEASE_CONFIG_REFUSED'); });
     if (currentAttempt !== attemptRevision) throw new WalletLoginError('LOGIN_CANCELLED');
     paint(el('wallet-login-status'), msg('message.018'));
     const method = el('wallet-login-method').value || 'wallet-local';

@@ -1,3 +1,4 @@
+const { installScreenNavigation } = require('./screen-navigation.cjs');
 // Real Chromium page, synthetic provider only. Never a genuine-wallet/device claim.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -17,7 +18,7 @@ async function main() {
     if (req.url === '/web/release-config.json') { res.setHeader('Content-Type', 'application/json'); res.end(JSON.stringify({ ...config, profile })); return; }
     const relative = req.url === '/' ? 'web/index.html' : req.url.slice(1), full = path.resolve(root, relative);
     if (!full.startsWith(`${root}/web/`) && !full.startsWith(`${root}/dist/browser/`)) { res.writeHead(404); res.end(); return; }
-    try { res.setHeader('Content-Type', full.endsWith('.html') ? 'text/html' : full.endsWith('.css') ? 'text/css' : full.endsWith('.json') ? 'application/json' : 'text/javascript'); res.end(fs.readFileSync(full)); }
+    try { res.setHeader('Content-Type', full.endsWith('.html') ? 'text/html' : full.endsWith('.css') ? 'text/css' : full.endsWith('.json') ? 'application/json' : full.endsWith('.jpg') ? 'image/jpeg' : full.endsWith('.svg') ? 'image/svg+xml' : 'text/javascript'); res.end(fs.readFileSync(full)); }
     catch { res.writeHead(404); res.end(); }
   });
   server.listen(0, '127.0.0.1'); await once(server, 'listening');
@@ -47,7 +48,7 @@ async function main() {
             throw new Error(`Unexpected synthetic method: ${method}`);
           } };
       });
-      const page = await context.newPage(), errors = [];
+      const page = installScreenNavigation(await context.newPage()), errors = [];
       page.on('pageerror', error => errors.push(error.message));
       await page.goto(`${origin}/web/index.html`);
       await page.waitForFunction(() => document.getElementById('release-profile').textContent.includes('8415wallet'));
