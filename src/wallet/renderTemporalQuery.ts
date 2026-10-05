@@ -10,12 +10,12 @@ import { wrapText } from './wrap.ts';
  * are different questions. The tradeable position is last and labelled as
  * such, so it cannot be read as the answer.
  */
-export function renderTemporalQuery(view: TemporalView): string {
+export function renderTemporalQuery(view: TemporalView, translate: (text: string) => string = text => text): string {
   const lines: string[] = [];
-  const write = (text = '') => lines.push(text);
-  const field = (label: string, value: string) => write(`  ${label.padEnd(18)}${value}`);
+  const write = (text = '') => lines.push(translate(text));
+  const field = (label: string, value: string) => lines.push(`  ${translate(label).padEnd(18)}${label === 'Reason' ? value : translate(value)}`);
   const wrap = (text: string) => {
-    for (const line of wrapText(text, 74)) write(`    ${line}`);
+    for (const line of wrapText(translate(text), 74)) write(`    ${line}`);
   };
 
   write(`Token ${view.tokenId}  ·  ${view.identity.address}  ·  chain ${view.identity.chainId}`);
@@ -97,11 +97,11 @@ export function renderTemporalQuery(view: TemporalView): string {
  * themselves are never reordered, and each carries its version so the
  * admission order stays readable.
  */
-export function renderHistory(view: HistoryView): string {
+export function renderHistory(view: HistoryView, translate: (text: string) => string = text => text): string {
   const lines: string[] = [];
-  const write = (text = '') => lines.push(text);
+  const write = (text = '') => lines.push(translate(text));
   const wrap = (text: string, indent = '    ') => {
-    for (const line of wrapText(text, 74)) write(`${indent}${line}`);
+    for (const line of wrapText(translate(text), 74)) write(`${indent}${line}`);
   };
 
   write(`PROJECTION HISTORY  ·  token ${view.tokenId}  ·  ${view.entries.length} entries`);

@@ -1,3 +1,5 @@
+import * as nativeI18n from '../web/native-i18n.mjs';
+import * as uiI18n from '../web/i18n.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -34,7 +36,7 @@ function fixture() {
   }
   const provider = { request() {}, on(name: string, fn: () => void) { events.set(name, fn); } };
   let authChanged: ((session: any) => void) | null = null;
-  const sdk = {
+  const sdk = { ...uiI18n, ...nativeI18n,
     // Authentication is isolated in wallet-login.test.ts and the full browser suite.
     walletLogin: { assert() {}, check: async () => {}, provider: () => provider, subscribe(listener: (session: any) => void) { authChanged = listener; } }, WalletLoginError: class extends Error {}, LegacyClearingSession: Session, BrowserLegacyClearingStore: class {}, parseLegacyClearingDeployment, CLEARING_NOTES, ControlAdapterError,
     getReleaseProfile: () => hooks.profile(), controlRpc: () => { connects++; return hooks.connect(); }, acquireWalletUi: () => Symbol(), releaseWalletUi() {} };

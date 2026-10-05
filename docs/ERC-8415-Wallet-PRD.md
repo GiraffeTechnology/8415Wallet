@@ -28,11 +28,22 @@ not the Kit — is the product.
 
 Assets, balances, holdings and history require verified wallet login before
 display; the public DApp entry remains open. Connection alone is insufficient.
-The static Beta uses an origin/account/chain-bound, expiring in-memory proof,
-with fresh login after reload and invalidation on logout or identity changes.
-This UI privacy requirement does not make public chain data confidential or
-replace server-side authorization for any future private API. See
-`WALLET-LOGIN.md` for the implemented scope and acceptance cases.
+Login supports password, authenticator-generated TOTP (Google Authenticator /
+FreeOTP), local private-key challenge signing, and hardware CA token proof.
+The owner replaced email OTP with authenticator codes on 2026-10-04; no email
+OTP is required. Password/TOTP and registered account-token routes require
+server-side verification, independently provisioned wallet bindings, CSRF and
+revocable sessions. TOTP enrollment requires confirmation, encrypted secret
+storage, one-use codes and bounded recovery. Hardware CA requires a real device
+signing adapter and certificate trust/expiry/revocation checks, with the tested
+vendor/middleware scope stated explicitly. No key or seed is uploaded.
+
+The static local-wallet route retains an origin/account/chain-bound, expiring
+in-memory proof. Both routes require fresh UI login after reload and invalidate
+on logout or identity changes. Login grants no transaction authority. This UI
+privacy requirement does not make public chain data confidential or replace
+entitlement checks for any future private API. See `WALLET-LOGIN.md` and
+`ACCOUNT-AUTHENTICATION.md` for implemented scope and acceptance cases.
 
 The product name is **8415wallet** and its UI platform domain is
 **8415wallet.com**. **Xiongan is a V2 tenant**. V2 and V3 are separate versioned

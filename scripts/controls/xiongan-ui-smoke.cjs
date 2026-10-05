@@ -1,3 +1,4 @@
+const { installScreenNavigation } = require('./screen-navigation.cjs');
 // Deterministic browser/provider regression only. No genuine wallet, user private key,
 // or network RPC. Login uses a public synthetic test key. Does not establish production acceptance.
 const assert = require('node:assert/strict');
@@ -9,7 +10,7 @@ const { installSyntheticLoginSigner, login } = require('./synthetic-login.cjs');
 const root = path.resolve(__dirname, '../..');
 const out = path.resolve(process.env.XIONGAN_SMOKE_OUTPUT || '/tmp/xiongan-ui-evidence');
 fs.mkdirSync(out, { recursive: true });
-const port = 18415, origin = `http://127.0.0.1:${port}`;
+const port = Number(process.env.XIONGAN_UI_PORT || '18415'), origin = `http://127.0.0.1:${port}`;
 const server = spawn(process.execPath, [path.join(__dirname, 'serve-browser.cjs')], { env: { ...process.env, WALLET_BROWSER_PORT: String(port) }, stdio: ['ignore', 'pipe', 'pipe'] });
 let browser;
 (async () => {
@@ -57,7 +58,7 @@ let browser;
       };
       state.emit = (event, account) => { state.actor = account || state.actor; for (const fn of events.get(event) || []) fn([state.actor]); };
     });
-    const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
+    const page = installScreenNavigation(await context.newPage()); page.on('pageerror', error => errors.push(error.message));
     await page.goto(origin); const idle = () => page.waitForFunction(() => !document.getElementById('asset-connect').disabled);
     const connect = async () => { await login(page); await page.click('#asset-connect'); await page.waitForFunction(() => document.getElementById('asset-identity').textContent.includes('Ethereum')); await idle(); };
     const prepare = async () => {

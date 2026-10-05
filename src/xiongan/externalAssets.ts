@@ -10,6 +10,9 @@ export type AssetTransaction = { from: string; to: string; chainId: string; valu
 export type Erc20Metadata = { name: string | null; symbol: string | null; decimals: number | null };
 export type Erc20Balance = { chainId: string; account: string; contract: string; balanceRaw: string;
   displayBalance: string | null; metadata: Erc20Metadata; codeHash: string; blockNumber: string; blockHash: string };
+export type NftStandard = 'ERC-721' | 'ERC-1155';
+export type NftHolding = { chainId: string; account: string; contract: string; tokenId: string;
+  standard: NftStandard; owner: string | null; balanceRaw: string; codeHash: string; blockNumber: string; blockHash: string };
 export type AssetReview = { requestText: string; requestId: string; claimedAgent: string; expiresAt: string;
   chain: string; asset: string; recipient: string; amount: string; tokenId: string | null;
   transaction: AssetTransaction; codeHash: string | null; tokenMetadata: Erc20Metadata | null;
@@ -149,6 +152,44 @@ export class ExternalAssetSession {
       displayBalance: metadata.decimals === null ? null : formatTokenUnits(balanceRaw, metadata.decimals),
       metadata, codeHash: hashControlBytes(code), blockNumber, blockHash });
   }
+  async #nftInterface(standard: NftStandard, contract: string, block: string): Promise<void> {
+    // ERC-165 discovery includes its invalid-interface negative probe.
+    for (const [iid, expected] of [['0x01ffc9a7', true], ['0xffffffff', false], [standard === 'ERC-721' ? '0x80ac58cd' : '0xd9b67a26', true]] as const) {
+      const result = await this.#rpc('eth_call', [{ to: contract, data: encodeCall('supportsInterface(bytes4)', ['bytes4'], [iid]) }, block]);
+      check(result === `0x${'0'.repeat(63)}${expected ? '1' : '0'}`, 'ASSET_NFT_INTERFACE_REFUSED');
+    }
+  }
+  /** One explicit contract/token pair on the selected chain, without discovery,
+   * metadata, transaction authority or journal access. ERC-721 owner is a separate
+   * observation from this account's 0/1 holding; ERC-1155 has no singular owner.
+   * This is a pinned chain snapshot, never a register or legal-title claim. */
+  async nftHolding(standard: NftStandard, contractInput: string, tokenIdInput: string): Promise<NftHolding> {
+    check(standard === 'ERC-721' || standard === 'ERC-1155', 'ASSET_NFT_STANDARD_REFUSED');
+    const contract = inputAddr(contractInput), id = uint(tokenIdInput);
+    await this.#identity();
+    const header = obj(await this.#rpc('eth_getBlockByNumber', ['latest', false]));
+    const blockNumber = hex(quantity(header.number)), blockHash = hash(header.hash);
+    const code = await this.#rpc('eth_getCode', [contract, blockNumber]);
+    check(controlHex(code) && code.length > 2, 'ASSET_TOKEN_CODE_REQUIRED');
+    await this.#nftInterface(standard, contract, blockNumber);
+    let owner: string | null = null, balanceRaw: string;
+    if (standard === 'ERC-721') {
+      const raw = await this.#rpc('eth_call', [{ to: contract, data: encodeCall('ownerOf(uint256)', ['uint256'], [id]) }, blockNumber]);
+      check(controlHex(raw, 32) && /^0x0{24}/.test(raw) && !/^0x0+$/.test(raw), 'ASSET_NFT_OWNER_REFUSED');
+      owner = addr(`0x${raw.slice(26)}`);
+      balanceRaw = owner === this.actor ? '1' : '0';
+    } else {
+      const raw = await this.#rpc('eth_call', [{ to: contract,
+        data: encodeCall('balanceOf(address,uint256)', ['address', 'uint256'], [this.actor, id]) }, blockNumber]);
+      check(controlHex(raw, 32), 'ASSET_NFT_BALANCE_REFUSED');
+      balanceRaw = BigInt(raw).toString();
+    }
+    const again = obj(await this.#rpc('eth_getBlockByNumber', [blockNumber, false]));
+    check(hex(quantity(again.number)) === blockNumber && hash(again.hash) === blockHash, 'ASSET_SNAPSHOT_REORGED');
+    await this.#identity(); this.#connectionGuard();
+    return Object.freeze({ chainId: this.chainId, account: this.actor, contract, tokenId: id.toString(), standard,
+      owner, balanceRaw, codeHash: hashControlBytes(code), blockNumber, blockHash });
+  }
   async prepare(text: string): Promise<AssetReview> {
     const { r, chainId, actor, expiresAt, action } = parseRequest(text);
     check(chainId === this.chainId && actor === this.actor, 'ASSET_REQUEST_BINDING_REFUSED');
@@ -182,10 +223,7 @@ export class ExternalAssetSession {
       to = inputAddr(action.contract); const id = uint(action.tokenId); tokenId = id.toString();
       const code = await this.#rpc('eth_getCode', [to, block]); check(controlHex(code) && code.length > 2, 'ASSET_TOKEN_CODE_REQUIRED'); codeHash = hashControlBytes(code);
       const call = (input: string) => this.#rpc('eth_call', [{ to, data: input }, block]);
-      // ERC-165 discovery includes its invalid-interface negative probe.
-      for (const [iid, expected] of [['0x01ffc9a7', true], ['0xffffffff', false], [action.kind === 'erc721-transfer' ? '0x80ac58cd' : '0xd9b67a26', true]] as const) {
-        check(await call(encodeCall('supportsInterface(bytes4)', ['bytes4'], [iid])) === `0x${'0'.repeat(63)}${expected ? '1' : '0'}`, 'ASSET_NFT_INTERFACE_REFUSED');
-      }
+      await this.#nftInterface(action.kind === 'erc721-transfer' ? 'ERC-721' : 'ERC-1155', to, block);
       if (action.kind === 'erc721-transfer') {
         check(await call(encodeCall('ownerOf(uint256)', ['uint256'], [id])) === `0x${'0'.repeat(24)}${actor.slice(2)}`, 'ASSET_NFT_NOT_OWNED');
         data = encodeCall('safeTransferFrom(address,address,uint256)', ['address', 'address', 'uint256'], [actor, recipient, id]); asset = 'ERC-721'; amount = '1';

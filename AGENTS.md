@@ -35,6 +35,49 @@ standalone use.
 
 ---
 
+## Account login methods (owner update, 2026-10-04)
+
+Support password, authenticator TOTP (Google Authenticator/FreeOTP), local
+private-key challenge signing and configured hardware CA challenge signing.
+The latest instruction explicitly cancels email OTP. Never add an email-code
+transport or suggest that connecting a provider alone authenticates an account.
+
+Read `docs/ACCOUNT-AUTHENTICATION.md` and `docs/WALLET-LOGIN.md` before changing
+authentication. Passwords/TOTP require server verification and revocable sessions;
+client-only flags cannot implement them. Preserve origin/tenant/account/chain
+binding, CSRF, one-use challenge/TOTP/recovery handling, encrypted credential
+state and enrollment confirmation. New account/CA bindings come from independently
+verified operator configuration, never untrusted client fields. No private key,
+seed phrase, hardware PIN, live authenticator seed or production store key belongs
+in source, logs, artifacts or a page form. Synthetic test credentials are local
+fixtures only. No production provisioning, deployment or transaction is implied.
+
+The local wallet route retains EOA/ERC-1271 support; the new server wallet route
+currently verifies EOA signatures. Hardware CA integration uses a defined bridge
+plus certificate-chain/purpose/time/revocation verification, not a checkbox or
+universal-driver claim. Record device/middleware acceptance separately. Login and
+transaction approval remain separate. Keep the immutable earlier release ZIP
+unchanged; updated artifacts need their own exact source identity after review.
+
+---
+
+## Interface localization (owner update, 2026-10-04)
+
+Keep the compact six-choice UI language control, with English as the default and
+locale IDs en, zh-Hans, zh-Hant, fr, es and ja. The owner explicitly authorizes
+multilingual fixed UI catalogs and selector labels; identifiers, engineering
+documents and PR prose remain English. Token names, descriptions and metadata
+must retain their original decoded source strings and be safely rendered as text.
+Do not translate signed terms, raw transaction values, addresses or protocol
+identifiers. Switching language must not reload, reauthenticate, reset consent,
+repeat provider requests, or send transactions. Native labels and first-party
+protocol explanations belong to the presentation layer; keep finality, contest,
+freshness and legal identity distinct. See docs/UI-LOCALIZATION.md. The approved
+Figma layout is a separate implementation scope; localization alone is not a
+claim that it was ported. Preserve the original logo; do not redraw it.
+
+---
+
 ## Source of Truth
 
 The implementing agent MUST read, in this order:

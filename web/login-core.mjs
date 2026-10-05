@@ -37,13 +37,14 @@ export async function verifyLoginSignature(provider, challenge, signature, crypt
 }
 export class WalletLogin {
   #crypto; #origin; #now; #random; #epoch = 0; #session = null; #provider = null;
-  #pending = null; #signing = false; #usedNonces = new Set(); #listeners = new Set(); #removeListeners = null; #observerGeneration = 0; #abort = null; #contractProof = null;
+  #pending = null; #signing = false; #usedNonces = new Set(); #listeners = new Set(); #removeListeners = null; #observerGeneration = 0; #abort = null; #contractProof = null; #server = null; #revoking = Promise.resolve();
   constructor({ crypto, origin, now = Date.now, random = bytes => globalThis.crypto.getRandomValues(bytes) }) {
     this.#crypto = crypto; this.#origin = origin; this.#now = now; this.#random = random;
   }
   subscribe(listener) { this.#listeners.add(listener); return () => this.#listeners.delete(listener); }
   #notify(reason) { for (const listener of this.#listeners) listener(this.#session, reason); }
   logout(reason = 'LOGIN_REQUIRED') {
+    if (this.#server) { const server = this.#server; this.#server = null; this.#revoking = Promise.resolve(server.logout()).catch(() => {}); }
     this.#epoch++; this.#pending = null; this.#session = null; this.#provider = null;
     this.#abort?.abort(); this.#abort = null; this.#contractProof = null;
     // Continue observing chain/disconnect while locked so an account-switch
@@ -74,6 +75,11 @@ export class WalletLogin {
     try {
       const current = await this.#identity(provider); this.assert(binding);
       insist(current.account === session.account && current.chainId === session.chainId, 'LOGIN_ACCOUNT_OR_CHAIN_CHANGED');
+      if (this.#server) {
+        const current = await this.#server.check(); this.assert(binding);
+        insist(current.id === session.serverId && current.origin === session.origin && current.tenant === session.tenant &&
+          current.account === session.account && current.chainId === session.chainId && current.expiresAt === session.expiresAt && current.kind === session.kind, 'LOGIN_SERVER_SESSION_CHANGED');
+      }
       if (this.#contractProof) {
         const proof = this.#contractProof;
         insist(await verifyLoginSignature(provider, proof.challenge, proof.signature, this.#crypto) === 'eip1271', 'LOGIN_CONTRACT_SIGNATURE_REFUSED');
@@ -86,7 +92,7 @@ export class WalletLogin {
     return session;
   }
   /** Only requests account access and the clearly scoped personal_sign challenge. */
-  async signIn(provider) {
+  async signIn(provider, server = null) {
     insist(!this.#signing, 'LOGIN_ALREADY_PENDING');
     insist(provider && typeof provider.request === 'function', 'LOGIN_PROVIDER_REQUIRED');
     this.logout('LOGIN_STARTING'); this.#signing = true; const epoch = this.#epoch;
@@ -97,9 +103,27 @@ export class WalletLogin {
     for (const [event, callback] of callbacks) provider.on?.(event, callback);
     this.#removeListeners = () => { for (const [event, callback] of callbacks) provider.removeListener?.(event, callback); };
     try {
+      await this.#revoking; current();
       await provider.request({ method: 'eth_requestAccounts', params: [] }); current();
       const identity = await this.#identity(provider); current(); watching = true;
       const origin = this.#origin(); loginOrigin(origin);
+      if (server) {
+        insist(typeof server.authenticate === 'function' && typeof server.check === 'function' && typeof server.logout === 'function', 'LOGIN_SERVER_REQUIRED');
+        const verified = await server.authenticate(identity, provider); current();
+        const time = this.#now();
+        insist(verified && typeof verified.id === 'string' && /^[A-Za-z0-9_-]{43}$/.test(verified.id) &&
+          verified.origin === origin && verified.account === identity.account && verified.chainId === identity.chainId &&
+          typeof verified.tenant === 'string' && /^[a-z][a-z0-9-]{0,47}$/.test(verified.tenant) &&
+          ['password', 'totp', 'recovery', 'wallet', 'ca'].includes(verified.kind) &&
+          Number.isSafeInteger(verified.issuedAt) && Number.isSafeInteger(verified.expiresAt) && verified.issuedAt <= time &&
+          time < verified.expiresAt && verified.expiresAt - verified.issuedAt <= LOGIN_LIFETIME_MS, 'LOGIN_SERVER_SESSION_REFUSED');
+        const latest = await this.#identity(provider); current();
+        insist(latest.account === identity.account && latest.chainId === identity.chainId, 'LOGIN_ACCOUNT_OR_CHAIN_CHANGED');
+        this.#abort = new AbortController(); this.#provider = provider; this.#server = server;
+        this.#session = Object.freeze({ id: epoch, serverId: verified.id, tenant: verified.tenant, ...identity, origin,
+          issuedAt: verified.issuedAt, expiresAt: verified.expiresAt, kind: verified.kind });
+        this.#notify('LOGIN_VERIFIED'); return this.#session;
+      }
       const nonce = Array.from(this.#random(new Uint8Array(32)), byte => byte.toString(16).padStart(2, '0')).join('');
       insist(/^[0-9a-f]{64}$/.test(nonce) && !this.#usedNonces.has(nonce) && this.#usedNonces.size < 1024, 'LOGIN_NONCE_REFUSED');
       this.#usedNonces.add(nonce);
@@ -122,6 +146,7 @@ export class WalletLogin {
       this.#session = Object.freeze({ id: epoch, account: challenge.account, chainId: challenge.chainId, origin, issuedAt, expiresAt, kind });
       this.#notify('LOGIN_VERIFIED'); return this.#session;
     } catch (error) {
+      if (server) await Promise.resolve(server.logout()).catch(() => {});
       if (epoch === this.#epoch) this.logout('LOGIN_REQUIRED');
       if (error?.code === 4001 || error?.code === '4001') throw new WalletLoginError('LOGIN_REJECTED');
       if (error instanceof WalletLoginError) throw error;
