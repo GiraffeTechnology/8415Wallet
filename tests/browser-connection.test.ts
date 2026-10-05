@@ -1,3 +1,5 @@
+import * as nativeI18n from '../web/native-i18n.mjs';
+import * as uiI18n from '../web/i18n.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -33,7 +35,7 @@ function fixture(profile = 'v3') {
     request: async () => [address], chain: async () => '0x88bb0', verify: async () => undefined,
     status: async () => ({ status: 'idle' }), read: async () => 'current asset',
     prepare: async () => ({ digest, consent: {} }), accept: async () => 'memory-only-signature',
-    execute: async () => ({ submitted: true }), settlementPrepare: async () => ({ digest }), settlementSubmit: async () => digest, collisions: async () => ({ scopeNote: 'only these tokens', collisions: [] }),
+    execute: async () => ({ submitted: true }), settlementPrepare: async () => ({ digest, summary: 'Review settlement', preflight: { checks: [], blocking: [], unverifiable: [], consequences: [] } }), settlementSubmit: async () => digest, collisions: async () => ({ scopeNote: 'only these tokens', collisions: [] }),
   };
   let executions = 0, prepares = 0, accepts = 0, settlementSends = 0;
   let collisionIds: bigint[] = [];
@@ -49,7 +51,7 @@ function fixture(profile = 'v3') {
     return selector === '[data-action]' ? actions : selector === '[data-read]' ? reads : [...elements.values()];
   } };
   let authenticationChanged: ((session: any, reason: string) => void) | null = null;
-  const sdk = {
+  const sdk = { ...uiI18n, ...nativeI18n,
     // Authentication is isolated in wallet-login.test.ts and the full browser suite.
     walletLogin: { assert() {}, check: async () => {}, provider: () => provider, subscribe(listener: (session: any, reason: string) => void) { authenticationChanged = listener; } }, WalletLoginError: class extends Error {},
     ResponsibilityWalletSession: Session, ControlAdapterError, isAddressInput, TransactionWouldRevertError: class extends Error {},
@@ -61,8 +63,8 @@ function fixture(profile = 'v3') {
       collisions(ids: bigint[]) { collisionIds = ids; return hooks.collisions(); }
     },
     RpcErc8415Reader: class {}, Eip1193ReadTransport: class {}, BrowserPublicOperationStore: class {},
-    renderAssetView: (v: unknown) => v,
-    renderCollisions: (v: unknown) => v,
+    renderAssetView: (v: unknown) => typeof v === 'string' ? v : JSON.stringify(v),
+    renderCollisions: (v: unknown) => JSON.stringify(v),
     CollisionScanError: class extends Error {},
     verifyControlDeployment: () => hooks.verify(),
     controlRpc: (_p: unknown, method: string) => method === 'eth_requestAccounts' ? hooks.request() : hooks.chain(),

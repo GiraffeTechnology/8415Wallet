@@ -10,11 +10,11 @@ import { wrapText } from './wrap.ts';
  * three closures are not interchangeable and only one of them admitted
  * anything.
  */
-export function renderSettlementLog(view: SettlementLogView): string {
+export function renderSettlementLog(view: SettlementLogView, translate: (text: string) => string = text => text): string {
   const lines: string[] = [];
-  const write = (text = '') => lines.push(text);
+  const write = (text = '') => lines.push(translate(text));
   const wrap = (text: string, indent = '      ') => {
-    for (const line of wrapText(text, 72)) write(`${indent}${line}`);
+    for (const line of wrapText(translate(text), 72)) write(`${indent}${line}`);
   };
 
   write(`SETTLEMENT HISTORY  ·  token ${view.tokenId}`);
@@ -54,11 +54,11 @@ export function renderSettlementLog(view: SettlementLogView): string {
 }
 
 /** Render the risk surfaces, as findings with their meaning and no verdict. */
-export function renderRiskSurfaces(view: RiskSurfaceView): string {
+export function renderRiskSurfaces(view: RiskSurfaceView, translate: (text: string) => string = text => text): string {
   const lines: string[] = [];
-  const write = (text = '') => lines.push(text);
+  const write = (text = '') => lines.push(translate(text));
   const wrap = (text: string, indent = '      ') => {
-    for (const line of wrapText(text, 72)) write(`${indent}${line}`);
+    for (const line of wrapText(translate(text), 72)) write(`${indent}${line}`);
   };
 
   write(`RISK SURFACES  ·  token ${view.tokenId}  ·  as of ${formatInstant(view.observedAt)}`);

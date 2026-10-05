@@ -72,6 +72,38 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Multilingual wallet browser privacy and review invariants
+        shell: bash
+        run: |
+          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          test -n "$WALLET_BROWSER_CHROMIUM"
+          node scripts/controls/i18n-ui-smoke.cjs
+
+      - name: Multilingual wallet browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallet-i18n-browser-node-${{ matrix.node-version }}
+          path: /tmp/8415-i18n-ui-evidence
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Approved wallet UI browser journeys
+        shell: bash
+        run: |
+          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          test -n "$WALLET_BROWSER_CHROMIUM"
+          node scripts/controls/approved-ui-smoke.cjs
+
+      - name: Approved wallet UI browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallet-approved-ui-node-${{ matrix.node-version }}
+          path: /tmp/8415-approved-ui-evidence
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Xiongan synthetic browser recovery
         shell: bash
         run: |

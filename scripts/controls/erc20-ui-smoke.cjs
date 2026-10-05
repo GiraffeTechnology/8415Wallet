@@ -1,3 +1,4 @@
+const { installScreenNavigation } = require('./screen-navigation.cjs');
 // Actual Chromium, DOM and strict IndexedDB regression with a synthetic ERC-20
 // provider. No real wallet, user keys/signatures or network RPC; login uses a public test key; no device acceptance.
 const assert = require('node:assert/strict');
@@ -85,7 +86,7 @@ async function main() {
           return route.continue();
         });
         await installProvider(context);
-        const page = await context.newPage(); page.on('pageerror', error => errors.push(error.message));
+        const page = installScreenNavigation(await context.newPage()); page.on('pageerror', error => errors.push(error.message));
         const idle = () => page.waitForFunction(() => !document.getElementById('asset-connect').disabled);
         const connect = async () => { await login(page);
           await page.click('#asset-connect'); await page.waitForFunction(() => document.getElementById('asset-identity').textContent.includes('Ethereum'));
@@ -99,7 +100,7 @@ async function main() {
         const sends = () => page.evaluate(() => __erc20Test.sends);
         await page.goto(origin); await connect();
         assert.ok((await page.textContent('#release-profile')).includes(profile === 'v2' ? '2.2.0-beta' : '3.0.0-beta'));
-        assert.equal(await page.locator('#linked-tab').isVisible(), profile === 'v3');
+        assert.equal(await page.locator('.nav-item[data-route="linked"]').isVisible(), profile === 'v3');
         await page.fill('#asset-contract', contract); await page.click('#asset-token-balance'); await idle();
         const balance = JSON.parse(await page.textContent('#asset-result'));
         assert.equal(balance.chainId, '1'); assert.equal(balance.contract, contract); assert.equal(balance.account, actor);
@@ -145,6 +146,7 @@ async function main() {
         assert.match(await page.textContent('#asset-result'), /"state": "confirmed"/); assert.equal(await sends(), 3);
         await page.click('#asset-ack-terminal'); await idle(); assert.match(await page.textContent('#asset-state'), /"status": "idle"/);
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+        await page.click('.nav-item[data-route="overview"]'); await page.click('[data-route="transfer"]:visible');
         await page.locator('#asset-panel').screenshot({ path: path.join(out, `erc20-${profile}-${viewport.width}.png`) });
         assert.deepEqual(errors, []); assert.deepEqual(externalRequests, []);
         evidence.push({ profile, viewport, provider: 'synthetic-test-login-no-user-signing-no-rpc', sends: 3,
@@ -162,7 +164,7 @@ async function main() {
       if (route.request().url() === `${origin}/web/release-config.json`) return route.fulfill({ status: 404, body: 'Missing config' });
       return route.continue();
     });
-    await installProvider(blocked); const blockedPage = await blocked.newPage(); await blockedPage.goto(origin);
+    await installProvider(blocked); const blockedPage = installScreenNavigation(await blocked.newPage()); await blockedPage.goto(origin);
     await blockedPage.click('#wallet-login');
     await blockedPage.waitForFunction(() => document.getElementById('wallet-login-status').textContent === 'LOGIN_RELEASE_CONFIG_REFUSED');
     assert.equal(await blockedPage.locator('#wallet-private').isVisible(), false);

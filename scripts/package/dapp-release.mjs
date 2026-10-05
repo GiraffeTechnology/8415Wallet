@@ -71,9 +71,9 @@ export function stagePublicWeb(root, source, stage) {
   for (const file of walk(root, 'web')) {
     if (!paths.has(file)) throw new Error(`DAPP_UNTRACKED_SOURCE_STAGE_REQUIRED: ${file}`);
   }
-  const extensions = new Set(['.html', '.mjs', '.js', '.css', '.json', '.svg', '.png', '.jpg', '.jpeg', '.webp', '.ico', '.woff', '.woff2']);
+  const extensions = new Set(['.html', '.mjs', '.js', '.css', '.json', '.svg', '.png', '.jpg', '.jpeg', '.webp', '.ico', '.woff', '.woff2', '.ttf']);
   for (const entry of entries) {
-    if (entry.path.split('/').some(part => part.startsWith('.')) || !extensions.has(extname(entry.path))) throw new Error(`DAPP_NONPUBLIC_WEB_FILE_REFUSED: ${entry.path}`);
+    if (entry.path.split('/').some(part => part.startsWith('.')) || (!extensions.has(extname(entry.path)) && entry.path !== 'web/assets/license-dm-sans.txt')) throw new Error(`DAPP_NONPUBLIC_WEB_FILE_REFUSED: ${entry.path}`);
     mkdirSync(dirname(join(stage, entry.path)), { recursive: true });
     writeFileSync(join(stage, entry.path), execFileSync('git', ['cat-file', 'blob', entry.object], { cwd: root, maxBuffer: 1 << 26 }));
     chmodSync(join(stage, entry.path), 0o644);
