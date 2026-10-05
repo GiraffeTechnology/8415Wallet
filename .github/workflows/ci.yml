@@ -43,7 +43,7 @@ jobs:
       - name: Verified wallet login browser privacy
         shell: bash
         run: |
-          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          export WALLET_BROWSER_CHROMIUM="${WALLET_BROWSER_CHROMIUM:-$(command -v google-chrome || command -v chromium)}"
           test -n "$WALLET_BROWSER_CHROMIUM"
           node scripts/controls/login-ui-smoke.cjs
 
@@ -59,7 +59,7 @@ jobs:
       - name: Account authentication browser journeys
         shell: bash
         run: |
-          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          export WALLET_BROWSER_CHROMIUM="${WALLET_BROWSER_CHROMIUM:-$(command -v google-chrome || command -v chromium)}"
           test -n "$WALLET_BROWSER_CHROMIUM"
           node scripts/controls/login-methods-ui-smoke.cjs
 
@@ -75,7 +75,7 @@ jobs:
       - name: Multilingual wallet browser privacy and review invariants
         shell: bash
         run: |
-          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          export WALLET_BROWSER_CHROMIUM="${WALLET_BROWSER_CHROMIUM:-$(command -v google-chrome || command -v chromium)}"
           test -n "$WALLET_BROWSER_CHROMIUM"
           node scripts/controls/i18n-ui-smoke.cjs
 
@@ -91,7 +91,7 @@ jobs:
       - name: Approved wallet UI browser journeys
         shell: bash
         run: |
-          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          export WALLET_BROWSER_CHROMIUM="${WALLET_BROWSER_CHROMIUM:-$(command -v google-chrome || command -v chromium)}"
           test -n "$WALLET_BROWSER_CHROMIUM"
           node scripts/controls/approved-ui-smoke.cjs
 
@@ -107,7 +107,7 @@ jobs:
       - name: Xiongan synthetic browser recovery
         shell: bash
         run: |
-          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          export WALLET_BROWSER_CHROMIUM="${WALLET_BROWSER_CHROMIUM:-$(command -v google-chrome || command -v chromium)}"
           test -n "$WALLET_BROWSER_CHROMIUM"
           npm run wallet:xiongan:smoke
 
@@ -126,7 +126,7 @@ jobs:
       - name: ERC20 browser recovery
         shell: bash
         run: |
-          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          export WALLET_BROWSER_CHROMIUM="${WALLET_BROWSER_CHROMIUM:-$(command -v google-chrome || command -v chromium)}"
           test -n "$WALLET_BROWSER_CHROMIUM"
           node scripts/controls/erc20-ui-smoke.cjs
 
@@ -179,7 +179,7 @@ jobs:
       - name: Standalone settlement browser recovery
         shell: bash
         run: |
-          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          export WALLET_BROWSER_CHROMIUM="${WALLET_BROWSER_CHROMIUM:-$(command -v google-chrome || command -v chromium)}"
           test -n "$WALLET_BROWSER_CHROMIUM"
           HARDHAT_CONFIG=hardhat.rehearsal.config.cjs node scripts/controls/settlement-ui-smoke.cjs
 
