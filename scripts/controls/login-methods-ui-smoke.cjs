@@ -90,6 +90,8 @@ async function main() {
       const cancelResponse = page.waitForResponse(response => response.url().endsWith('/auth/totp/enroll/cancel'));
       await page.click('#auth-enroll-cancel'); await cancelResponse; await qrEmpty();
       await startSetup(); time += 300001; await page.clock.fastForward(300001); await qrEmpty();
+      // Enrollment expiry also ages out the five-minute independent-login prerequisite.
+      await passwordAgain();
       await startSetup(); await page.evaluate(() => dispatchEvent(new Event('pagehide'))); await qrEmpty();
       assert.equal(await page.locator('#wallet-private').isVisible(), false); await passwordAgain();
       await startSetup(); await page.evaluate(() => globalThis.__authTest.changeAccount()); await qrEmpty();
