@@ -102,12 +102,21 @@ and revoke sessions under the operator's approved recovery process instead.
 ## Explicit deployment inputs, no deployment performed
 
 The template `config/auth.example.json` is deliberately invalid and contains no
-secret, port allocation or real account. Before an authorized installation:
+secret, fixed port or real account. Before an authorized installation:
 
-- Confirm the exact web origin, tenant, same-origin `/auth/` reverse-proxy route
-  and a free, approved loopback service port. **TCP 443 remains reserved for SSH.**
-  The service listens on 127.0.0.1 only and refuses port 443. Preserve the original
-  Host header. Do not trust or forward client-supplied identity headers.
+- Set the exact web origin, tenant and same-origin `/auth/` reverse-proxy route.
+  The service listens on 127.0.0.1 only and picks its own port: leave `port`
+  `null` to bind a free OS-assigned port, or request one (a busy request falls
+  back to a free port). Ports listed in `reservedPorts` (host configuration, for
+  example 443 for SSH on CTYun hosts) are never used. Set `portFile`; the
+  service writes the chosen port there and the reverse proxy reads its upstream
+  from it. No port allocation from the product owner is required.
+- Preserve the original Host header. Set `trustedProxyHeader` (for example
+  `x-real-ip`) and have the local proxy **overwrite** that header with the
+  connection's client address; the service honours it only on loopback
+  connections, so per-client rate limits are not shared by every user. Without
+  it, every proxied client shares one address bucket. Do not trust or forward
+  any other client-supplied identity header.
 - Supply an operator-owned account directory containing unique account names,
   salted password hashes as needed, independently verified wallet/chain pairs
   and explicitly authorized certificate fingerprints. No endpoint automatically

@@ -138,3 +138,28 @@ test('a failed credential write leaves the store unhealthy rather than risking r
   const store = new FailedStore(); await assert.rejects(store.transaction('tester', () => ({ lastStep: 1 })), /storage failure/);
   await assert.rejects(store.read('tester'), /UNHEALTHY/); await assert.rejects(store.transaction('tester', () => ({})), /UNHEALTHY/);
 });
+test('behind the local proxy, rate limits follow the client the proxy names', async t => {
+  const f = await fixture({ trustedProxyHeader: 'x-real-ip' }); t.after(f.close);
+  const first = f.client(), second = f.client();
+  for (let i = 0; i < 60; i++) assert.equal((await first.call('bootstrap', undefined, { 'X-Real-IP': '203.0.113.1' })).status, 200);
+  assert.equal((await first.call('bootstrap', undefined, { 'X-Real-IP': '203.0.113.1' })).status, 429);
+  // Another client is not locked out by the first one exhausting its bucket.
+  assert.equal((await second.call('bootstrap', undefined, { 'X-Real-IP': '203.0.113.2' })).status, 200);
+  // A malformed proxy value falls back to the connection address, not a fresh bucket per value.
+  assert.equal((await second.call('bootstrap', undefined, { 'X-Real-IP': 'not-an-address' })).status, 200);
+});
+
+test('without a configured proxy header, client-supplied address headers are ignored', async t => {
+  const f = await fixture(); t.after(f.close);
+  const c = f.client();
+  for (let i = 0; i < 60; i++) assert.equal((await c.call('bootstrap', undefined, { 'X-Real-IP': `203.0.113.${i + 1}` })).status, 200);
+  assert.equal((await c.call('bootstrap', undefined, { 'X-Real-IP': '198.51.100.7' })).status, 429);
+});
+
+test('the trusted proxy header name is validated', () => {
+  const accounts = [{ username: 'tester', wallets: [{ account: Wallet.createRandom().address, chainId: '1' }] }];
+  for (const trustedProxyHeader of ['X-Real-IP', 'cookie', 'x-', 42]) {
+    assert.throws(() => createAuthService({ origin: 'http://127.0.0.1:18080', tenant: 'xiongan', accounts,
+      store: new MemoryCredentialStore(), trustedProxyHeader }), /AUTH_CONFIG_REFUSED/);
+  }
+});

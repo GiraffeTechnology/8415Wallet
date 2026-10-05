@@ -2,6 +2,7 @@
 import { randomToken, digest, equal, verifyPassword, matchTotp, newTotpSecret, provisioningUri, recoveryCodes } from './crypto.mjs';
 import { loginOrigin, loginMessage } from '../web/login-core.mjs';
 import { verifyMessage, getAddress } from 'ethers';
+import { isIP } from 'node:net';
 const LIFE = 15 * 60_000, CHALLENGE = 2 * 60_000, ENROLL = 5 * 60_000;
 const chains = new Set(['1', '8453', '11155111', '84532', '560048', '31337']);
 export class AuthError extends Error {
@@ -23,8 +24,20 @@ function cookies(request) {
   }
   return result;
 }
-export function createAuthService({ origin, tenant, accounts, store, verifyCa = null, now = Date.now }) {
+const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
+export function createAuthService({ origin, tenant, accounts, store, verifyCa = null, now = Date.now, trustedProxyHeader = null }) {
   const url = loginOrigin(origin);
+  requireThat(trustedProxyHeader === null || (typeof trustedProxyHeader === 'string' && /^x-[a-z0-9-]{1,40}$/.test(trustedProxyHeader)),
+    'AUTH_CONFIG_REFUSED', 500);
+  // Behind the same-origin proxy every connection comes from loopback, so per-address
+  // limits would be shared by all clients. Only the local proxy may name the client,
+  // through one configured header that it overwrites; anything else is ignored.
+  function clientAddress(req) {
+    const socketAddress = req.socket.remoteAddress ?? 'unknown';
+    if (!trustedProxyHeader || !LOOPBACK.has(socketAddress)) return socketAddress;
+    const named = req.headers[trustedProxyHeader];
+    return typeof named === 'string' && isIP(named.trim()) ? named.trim() : socketAddress;
+  }
   requireThat(typeof tenant === 'string' && /^[a-z][a-z0-9-]{0,47}$/.test(tenant), 'AUTH_CONFIG_REFUSED', 500);
   requireThat(Array.isArray(accounts) && accounts.length > 0 && accounts.length <= 10000 && store, 'AUTH_CONFIG_REFUSED', 500);
   const users = new Map();
@@ -113,7 +126,7 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
     requireThat(req.headers['x-wallet-tenant'] === tenant, 'AUTH_TENANT_REFUSED', 403);
     requireThat(!req.headers['sec-fetch-site'] || ['same-origin', 'none'].includes(req.headers['sec-fetch-site']), 'AUTH_ORIGIN_REFUSED', 403);
     requireThat(req.url?.startsWith('/auth/') && !req.url.includes('?'), 'AUTH_ROUTE_REFUSED', 404);
-    const path = req.url.slice(6), ip = req.socket.remoteAddress ?? 'unknown';
+    const path = req.url.slice(6), ip = clientAddress(req);
     if (req.method === 'GET' && path === 'capabilities') return { schema: '8415wallet-auth/1', tenant, origin,
       methods: ['password', 'totp', 'wallet', ...(verifyCa ? ['ca'] : [])], totp: { algorithm: 'SHA1', digits: 6, period: 30 }, hardwareCa: verifyCa ? 'bridge-v1' : null };
     if (req.method === 'GET' && path === 'bootstrap') {
@@ -162,7 +175,7 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
       throw new AuthError('AUTH_ROUTE_REFUSED', 404);
     }
     const bootstrap = preauthFor(req), selected = identity(body);
-    limit(`ip:${ip}`, 100); // Proxy headers are intentionally not trusted.
+    limit(`ip:${ip}`, 100); // Client headers are trusted only from the configured local proxy.
     if (path === 'password' || path === 'totp') {
       requireThat(validUsername(body.username)); limit(`account:${body.username}`, 10);
       const user = boundUser(body.username, selected); let revision;

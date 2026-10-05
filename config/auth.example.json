@@ -1,13 +1,21 @@
 {
-  "origin": "https://replace-with-confirmed-origin.invalid:REPLACE_WITH_CONFIRMED_PORT",
+  "origin": "https://replace-with-web-origin.invalid:REPLACE_WITH_CHOSEN_WEB_PORT",
   "tenant": "platform",
   "port": null,
+  "portFile": "/replace-with-private-state-directory/auth.port",
+  "reservedPorts": [],
+  "trustedProxyHeader": "x-real-ip",
   "statePath": "/replace-with-private-state-directory/credentials.enc",
   "accounts": [
     {
       "username": "replace-account-name",
       "passwordHash": "REPLACE_WITH_SCRYPT_V1_HASH_FROM_SECURE_PROVISIONING",
-      "wallets": [{ "account": "REPLACE_WITH_INDEPENDENTLY_VERIFIED_WALLET_ADDRESS", "chainId": "1" }],
+      "wallets": [
+        {
+          "account": "REPLACE_WITH_INDEPENDENTLY_VERIFIED_WALLET_ADDRESS",
+          "chainId": "1"
+        }
+      ],
       "caFingerprints": []
     }
   ]
