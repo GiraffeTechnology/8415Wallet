@@ -32,17 +32,18 @@ export function validateDeploymentConfig(value) {
   let url;
   try { url = new URL(value.url); } catch { fail('RELEASE_DEPLOYMENT_URL_REFUSED'); }
   if (url.username || url.password || url.search || url.hash || /[\s\\]/.test(value.url)) fail('RELEASE_DEPLOYMENT_URL_REFUSED');
-  // A confirmed allocation is mandatory. URL.port hides an explicitly written
-  // default port, so inspect the supplied authority rather than infer one.
-  const portMatch = value.url.match(/^https?:\/\/(?:\[[0-9a-fA-F:]+\]|[^\/:?#]+):([0-9]+)\//);
-  if (!portMatch || !/^[1-9][0-9]{0,4}$/.test(portMatch[1]) || Number(portMatch[1]) > 65535) fail('RELEASE_EXPLICIT_PORT_REQUIRED');
-  if (hasReservations && value.reservedPorts.includes(Number(portMatch[1]))) fail('RELEASE_RESERVED_PORT');
+  // Validate any supplied port without requiring URL syntax to spell out the
+  // protocol default. Reservations apply to the effective endpoint port.
+  const authority = value.url.match(/^https?:\/\/(?:\[[0-9a-fA-F:]+\]|[^\/:?#]+)(?::([0-9]+))?\//);
+  if (!authority || (authority[1] !== undefined && (!/^[1-9][0-9]{0,4}$/.test(authority[1]) || Number(authority[1]) > 65535))) fail('RELEASE_DEPLOYMENT_PORT_REFUSED');
+  const port = Number(authority[1] ?? (url.protocol === 'https:' ? 443 : 80));
+  if (hasReservations && value.reservedPorts.includes(port)) fail('RELEASE_RESERVED_PORT');
   const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
   if (value.environment === 'local' ? !local || !['http:', 'https:'].includes(url.protocol) : local || url.protocol !== 'https:') fail('RELEASE_SECURE_URL_REQUIRED');
   if (!url.pathname.endsWith('/web/index.html')) fail('RELEASE_ENTRY_URL_REQUIRED');
   const rawPath = value.url.match(/^https?:\/\/[^/]+(\/[^?#]*)$/)?.[1];
   if (!rawPath || rawPath !== url.pathname || rawPath.includes('%') || rawPath.includes('//')) fail('RELEASE_CANONICAL_PATH_REQUIRED');
-  // Keep the explicit authority exactly; no default port or endpoint is invented.
+  // Keep the configured URL exactly; no endpoint or replacement port is invented.
   return freeze({ environment: value.environment, url: value.url, ...(hasReservations ? { reservedPorts: [...value.reservedPorts] } : {}) });
 }
 

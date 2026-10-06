@@ -155,7 +155,7 @@ operator-reviewed list of exact mail endpoint IPv4/IPv6 addresses, not a subnet,
 DNS name or URL. No production IP/port is assigned in this kit. TLS remains
 implicit TLS >=1.2 with normal certificate/hostname validation and fixed SNI;
 the installed sender resolves only those pins, with no arbitrary DNS fallback.
-Port 443 is refused for this sender. The application uses only the selected port;
+The application uses only the deployment-selected port (1 through 65535);
 systemd IP filtering is address-level, so the operator must consider that scope
 when approving the drop-in.
 

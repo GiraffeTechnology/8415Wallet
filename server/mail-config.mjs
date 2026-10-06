@@ -7,7 +7,7 @@ export function validateMailConfig(value = { transport: 'disabled' }) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) fail();
   const keys = Object.keys(value).sort().join(',');
   if (value.transport === 'disabled' && keys === 'transport') return Object.freeze({ transport: 'disabled' });
-  if (value.transport !== 'smtp' || keys !== 'addresses,port,transport' || !Number.isInteger(value.port) || value.port < 1 || value.port > 65535 || value.port === 443 ||
+  if (value.transport !== 'smtp' || keys !== 'addresses,port,transport' || !Number.isInteger(value.port) || value.port < 1 || value.port > 65535 ||
       !Array.isArray(value.addresses) || !value.addresses.length || value.addresses.length > 8) fail();
   const addresses = value.addresses.map(address => {
     if (typeof address !== 'string' || address !== address.trim() || !isIP(address) || address.includes('%') || address.includes('/') ||

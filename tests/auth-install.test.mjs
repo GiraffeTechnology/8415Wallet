@@ -60,6 +60,9 @@ test('tenant paths are separate and reject traversal or interpolation', () => {
 test('OS-selected loopback ports honor explicit reservations', async () => {
   const port = await selectPort([]); assert.ok(port > 0 && port <= 65535);
   const next = await selectPort([port]); assert.notEqual(next, port);
+  const occupied = createServer(); occupied.listen(0, '127.0.0.1'); await once(occupied, 'listening');
+  try { assert.notEqual(await selectPort([]), occupied.address().port); }
+  finally { await new Promise(resolve => occupied.close(resolve)); }
   await assert.rejects(selectPort([0]), /RESERVED_PORTS_REFUSED/);
 });
 test('reserved ports are host configuration rather than a product-wide fixed list', () => {

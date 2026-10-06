@@ -36,8 +36,7 @@ test('native PRD requirements hold, and port reservations stay out of them', () 
   for (let n = 1; n <= 24; n++) assert.ok(prd.includes(`| W-${String(n).padStart(2, '0')} |`));
   for (const identifier of ['0x6309e170', '0xf4a7d71b', 'beginSettlement', 'finalizeSettlement', 'cancelSettlement', '128']) assert.ok(prd.includes(identifier), identifier);
   // Which ports an environment reserves is deployment configuration, not a
-  // product requirement, so the product instructions must not carry it and the
-  // deployment document must.
+  // product requirement. Product instructions must not prescribe a fixed list.
   const instructions = prose(read('AGENTS.md'));
   assert.doesNotMatch(instructions, /\b443\b/);
   assert.doesNotMatch(instructions, /reserved for SSH|port reservation/);
@@ -47,6 +46,7 @@ test('native PRD requirements hold, and port reservations stay out of them', () 
   assert.match(instructions, /A web origin is scheme, host \*\*and port\*\*/);
   assert.match(instructions, /strands them all/);
 
-  const deployment = read('docs/deployment/SIN-STATIC-DEPLOYMENT-REQUIREMENTS.md');
-  assert.match(deployment, /TCP 443 is reserved for SSH/);
+  const installer = prose(read('docs/DAPP-INSTALL.md'));
+  assert.match(installer, /deployment\.reservedPorts/);
+  assert.doesNotMatch(installer, /For CTYun the list includes 443|CTYun reserves TCP 443/);
 });

@@ -77,7 +77,7 @@ function replies(socket) {
  * No SMTP operation is attempted merely by creating this sender.
  */
 export function createSmtpOtpSender({ port, username, password, addresses, connect = tls.connect, timeoutMs = 10000 }) {
-  if (!Number.isInteger(port) || port < 1 || port > 65535 || port === 443 ||
+  if (!Number.isInteger(port) || port < 1 || port > 65535 ||
     typeof username !== 'string' || !username || Buffer.byteLength(username) > 256 || /[\x00-\x1f\x7f]/.test(username) ||
     typeof password !== 'string' || !password || Buffer.byteLength(password) > 1024 || /[\x00\r\n]/.test(password) ||
     typeof connect !== 'function' || !Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 30000) throw refused();
