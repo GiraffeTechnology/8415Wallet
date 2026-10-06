@@ -13,11 +13,19 @@ test('installed mail defaults disabled and refuses arbitrary destinations, TLS m
   assert.equal(createOtpSenderFromEnvironment({}, validateMailConfig()), null);
   for (const value of [null, [], { transport: 'other' }, { transport: 'disabled', port: 465 },
     { ...selected, host: 'other.invalid' }, { ...selected, from: 'other@example.invalid' }, { ...selected, tls: false },
-    ...[0, 443, 65536, '465'].map(port => ({ ...selected, port })),
+    ...[-1, 0, 65536, '465'].map(port => ({ ...selected, port })),
     ...[[], ['mail.8415wallet.com'], ['0.0.0.0'], ['::'], ['0:0:0:0:0:0:0:0'], ['::1'], ['127.0.0.1'], ['192.0.2.0/24'],
       ['::ffff:127.0.0.1'], ['169.254.169.254'], ['224.0.0.1'], ['ff02::1'], ['fe80::1%eth0'], ['192.0.2.40', '192.0.2.40'],
       ['2001:db8::40', '2001:0db8:0:0:0:0:0:40']].map(addresses => ({ ...selected, addresses }))]) {
     assert.throws(() => validateMailConfig(value), /AUTH_MAIL_CONFIG_REFUSED/);
+  }
+});
+
+test('SMTP ports are deployment-selected and retain exact installed configuration matching', () => {
+  for (const port of [1, 443, 465, 65535]) {
+    const config = validateMailConfig({ ...selected, port });
+    assert.equal(config.port, port);
+    assert.equal(typeof createOtpSenderFromEnvironment({ ...credentials, WALLET_AUTH_SMTP_PORT: String(port) }, config), 'function');
   }
 });
 

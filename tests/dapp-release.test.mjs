@@ -51,15 +51,17 @@ test('Xiongan is V2 and unknown or malformed profiles cannot silently become V3'
   assert.throws(() => resolveReleaseProfile({ ...fixture('v2'), extra: true }), /PROFILE_REFUSED/);
   assert.throws(() => resolveReleaseProfile({ ...fixture('v2'), product: 'Other' }), /PROFILE_REFUSED/);
 });
-test('configuration requires a complete confirmed entry URL and explicit port', () => {
+test('configuration accepts standard HTTPS syntax and enforces deployment-selected ports', () => {
   const url = 'https://wallet.example.invalid:18443/tenant/v2/web/index.html';
   assert.equal(validateDeploymentConfig({ environment: 'ctyun', url }).url, url);
-  for (const environment of ['ctyun', 'sin']) {
+  for (const environment of ['ctyun', 'sin', 'other']) {
     assert.equal(validateDeploymentConfig({ environment, url: 'https://wallet.example.invalid:443/web/index.html' }).url, 'https://wallet.example.invalid:443/web/index.html');
     assert.throws(() => validateDeploymentConfig({ environment, reservedPorts: [443], url: 'https://wallet.example.invalid:443/web/index.html' }), /RESERVED_PORT/);
-    assert.throws(() => validateDeploymentConfig({ environment, url: 'https://wallet.example.invalid/web/index.html' }), /EXPLICIT_PORT_REQUIRED/);
+    const standard = 'https://wallet.example.invalid/web/index.html';
+    assert.equal(validateDeploymentConfig({ environment, url: standard }).url, standard);
+    assert.throws(() => validateDeploymentConfig({ environment, reservedPorts: [443], url: standard }), /RESERVED_PORT/);
   }
-  for (const url of ['https://wallet.example.invalid:0/web/index.html', 'https://wallet.example.invalid:65536/web/index.html',
+  for (const url of ['https://wallet.example.invalid:/web/index.html', 'https://wallet.example.invalid:0443/web/index.html', 'https://wallet.example.invalid:0/web/index.html', 'https://wallet.example.invalid:65536/web/index.html',
     'https://user:pass@wallet.example.invalid:18443/web/index.html', 'https://wallet.example.invalid:18443/web/index.html?secret=x',
     'https://wallet.example.invalid:18443/web/index.html#section', 'http://wallet.example.invalid:18080/web/index.html',
     'https://wallet.example.invalid:18443/', 'https://localhost:18443/web/index.html']) {
@@ -153,6 +155,14 @@ test('configured origin and entry cannot silently move recovery journals', () =>
   assert.throws(() => verifyReleaseLocation(profile, undefined), /LOCATION_REQUIRED/);
   assert.equal(verifyReleaseLocation(resolveReleaseProfile(fixture('v2'))).id, 'v2');
 });
+test('standard HTTPS and explicit default-port URLs have the same configured origin', () => {
+  const config = fixture('v2');
+  config.deployment = { environment: 'sin', url: 'https://wallet.example.invalid/web/index.html' };
+  const profile = resolveReleaseProfile(config);
+  assert.equal(verifyReleaseLocation(profile, { href: 'https://wallet.example.invalid:443/web/index.html' }), profile);
+  assert.throws(() => verifyReleaseLocation(profile, { href: 'https://wallet.example.invalid:9443/web/index.html' }), /LOCATION_MISMATCH/);
+});
+
 test('noncanonical and encoded endpoint paths are refused', () => {
   for (const path of ['/v2/../web/index.html', '/%76%32/web/index.html', '//web/index.html']) {
     assert.throws(() => validateDeploymentConfig({ environment: 'other', url: `https://wallet.example.invalid:18443${path}` }), /CANONICAL_PATH_REQUIRED/);

@@ -21,8 +21,8 @@ in the public kit.
 - Select an explicit tenant, profile, public config and dedicated absolute
   target directory. Confirm the existing full entry URL including its allocated
   port and `/web/index.html` suffix. Preserve the deployment’s configured port
-  reservations; CTYun reserves TCP 443 for SSH. This is not a product-wide 443
-  prohibition. Never infer a replacement port or change the browser origin.
+  reservations and existing listeners; no reservation is inferred from the
+  environment name. Never infer a replacement port or change the browser origin.
 - These commands do not authorize deployment. Production SSH/deployment remains
   with the separately authorized deployment operator. They never configure TLS,
   firewall, SSH, listeners, accounts or unrelated services.
@@ -93,8 +93,8 @@ node deploy/dapp/install.mjs plan \
 
 The optional `--reserved-ports` writes `deployment.reservedPorts`; provide the
 confirmed comma-separated list, or `none` for an explicitly empty list. The
-selected entry port must not be in that list. For CTYun the list includes 443;
-other deployments use their own actual reservations. Omitting the option
+selected effective entry port must not be in that list. Standard HTTPS URLs
+may omit the default port; their effective port is still checked. Omitting the option
 retains the existing public schema without inventing a reservation.
 
 Use `v3` explicitly for the V3 profile. `--environment local` accepts loopback

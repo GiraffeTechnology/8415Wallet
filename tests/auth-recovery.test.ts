@@ -248,10 +248,10 @@ function fakeSmtp(options: any = {}) {
 }
 const emailMessage = () => ({ to: 'reserved@example.invalid', code: '12345678', purpose: 'reset', expiresAt: initialNow + 300000,
   tenant: 'xiongan', origin: 'https://wallet.example.invalid' });
-test('fake SMTP proves fixed sender/host, verified implicit TLS, authenticated envelope and bounded reset-only content', async () => {
-  const smtp = fakeSmtp(), send = createSmtpOtpSender({ port: 465, username: 'synthetic-user', password: 'synthetic-password', connect: smtp.connect });
+for (const port of [443, 465]) test(`fake SMTP on configured port ${port} preserves fixed host, verified TLS and bounded reset content`, async () => {
+  const smtp = fakeSmtp(), send = createSmtpOtpSender({ port, username: 'synthetic-user', password: 'synthetic-password', connect: smtp.connect });
   assert.equal(smtp.connection.length, 0); assert.deepEqual(await send(emailMessage()), { accepted: true });
-  assert.deepEqual(smtp.connection[0], { host: OTP_HOST, port: 465, servername: OTP_HOST, minVersion: 'TLSv1.2', rejectUnauthorized: true });
+  assert.deepEqual(smtp.connection[0], { host: OTP_HOST, port, servername: OTP_HOST, minVersion: 'TLSv1.2', rejectUnauthorized: true });
   assert.match(smtp.wire.join(''), new RegExp(`MAIL FROM:<${OTP_FROM}>`));
   assert.match(smtp.wire.join(''), /RCPT TO:<reserved@example.invalid>/); assert.match(smtp.wire.join(''), /AUTH PLAIN /);
   assert.match(smtp.wire.join(''), /cannot log you in or approve a transaction/);
@@ -275,7 +275,7 @@ test('SMTP rejects invalid TLS, missing AUTH and rejected delivery without fallb
 });
 test('mail adapter refuses header/SMTP injection, login-purpose OTP and incomplete runtime configuration', async () => {
   assert.equal(createOtpSenderFromEnvironment({}), null);
-  for (const env of [{ WALLET_AUTH_SMTP_PORT: '465' }, { WALLET_AUTH_SMTP_PORT: '443', WALLET_AUTH_SMTP_USERNAME: 'test', WALLET_AUTH_SMTP_PASSWORD: 'test' }]) {
+  for (const env of [{ WALLET_AUTH_SMTP_PORT: '465' }, { WALLET_AUTH_SMTP_PORT: '0', WALLET_AUTH_SMTP_USERNAME: 'test', WALLET_AUTH_SMTP_PASSWORD: 'test' }]) {
     assert.throws(() => createOtpSenderFromEnvironment(env), /EMAIL_UNAVAILABLE/);
   }
   for (const address of ['victim@example.invalid\r\nBcc: attacker@example.invalid', 'x@localhost', 'a..b@example.invalid', 'a@-bad.invalid', '<x@example.invalid>']) assert.throws(() => normalizeEmail(address));

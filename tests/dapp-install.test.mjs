@@ -182,7 +182,7 @@ test('public CLI config, plan, install and rollback complete without dependency 
 
 test('generic installer accepts 443 when unreserved and refuses explicitly reserved deployment ports', t => {
   const f = fixture(t), publicConfig = config();
-  publicConfig.deployment = { environment: 'other', url: 'https://wallet.example.invalid:443/web/index.html', reservedPorts: [22, 18443] };
+  publicConfig.deployment = { environment: 'ctyun', url: 'https://wallet.example.invalid/web/index.html', reservedPorts: [22, 18443] };
   const installed = installDapp({ ...f.input, config: publicConfig }); assert.equal(installed.entryUrl, publicConfig.deployment.url);
   publicConfig.deployment.reservedPorts = [443];
   assert.throws(() => installDapp({ ...f.input, config: publicConfig, target: join(f.root, 'other') }), /RESERVED_PORT/);

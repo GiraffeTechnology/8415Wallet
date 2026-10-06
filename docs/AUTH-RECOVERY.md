@@ -130,8 +130,9 @@ provide all three runtime inputs through its approved secret/configuration
 mechanism:
 
 - `WALLET_AUTH_SMTP_PORT`: its explicitly configured **implicit-TLS SMTP
-  submission** port. There is no guessed runtime port or plaintext fallback;
-  port 443 is refused, preserving the repository's SSH reservation.
+  submission** port (1 through 65535). There is no guessed runtime port or
+  plaintext fallback. The configured remote SMTP endpoint is independent of
+  local host listener reservations.
 - `WALLET_AUTH_SMTP_USERNAME`: existing authorized SMTP account identifier.
 - `WALLET_AUTH_SMTP_PASSWORD`: existing SMTP secret, supplied at runtime and
   never entered into the page, source, command-line arguments, logs or artifacts.
