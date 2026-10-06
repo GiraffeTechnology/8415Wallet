@@ -11,7 +11,8 @@ of the general-purpose 8415wallet product.
 The local-wallet route described below is preserved. The account service adds
 password, RFC 6238 authenticator TOTP (Google Authenticator/FreeOTP), registered
 EOA challenge-signature and hardware CA certificate-proof methods. Email OTP
-was explicitly cancelled by the owner. These routes use real server verification,
+remains excluded from login. The owner separately authorized reserved-email OTP
+for security resets on 2026-10-06; see `AUTH-RECOVERY.md`. These routes use real server verification,
 fixed tenant/account/wallet bindings, HttpOnly sessions and live revocation
 checks. See [Account authentication](ACCOUNT-AUTHENTICATION.md) for implementation,
 enrollment/recovery, operational constraints and the hardware bridge boundary.

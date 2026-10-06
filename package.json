@@ -32,7 +32,7 @@
     "test:package:dapp": "node --test tests/dapp-release.test.mjs",
     "wallet:auth:serve": "node server/main.mjs",
     "wallet:auth:operator": "node server/operator-init.mjs",
-    "test:auth": "node --test tests/auth-service.test.ts tests/auth-crypto.test.ts tests/ca-verifier.test.ts tests/account-login.test.ts tests/account-login-ui.test.ts tests/auth-provisioning.test.mjs tests/auth-qr.test.mjs"
+    "test:auth": "node --test tests/auth-service.test.ts tests/auth-recovery.test.ts tests/auth-crypto.test.ts tests/ca-verifier.test.ts tests/account-login.test.ts tests/account-login-ui.test.ts tests/auth-provisioning.test.mjs tests/auth-qr.test.mjs"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^3.1.3",

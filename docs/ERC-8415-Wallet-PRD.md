@@ -31,7 +31,11 @@ display; the public DApp entry remains open. Connection alone is insufficient.
 Login supports password, authenticator-generated TOTP (Google Authenticator /
 FreeOTP), local private-key challenge signing, and hardware CA token proof.
 The owner replaced email OTP with authenticator codes on 2026-10-04; no email
-OTP is required. Password/TOTP and registered account-token routes require
+OTP is required for login. The 2026-10-06 management update permits several
+bound login methods to remain enabled concurrently, with at least one independent
+method retained. Reset-only reserved-email OTP and security-answer verification
+are additional checks, not replacement identity or login methods; see
+`AUTH-RECOVERY.md`. Password/TOTP and registered account-token routes require
 server-side verification, independently provisioned wallet bindings, CSRF and
 revocable sessions. TOTP enrollment requires confirmation, encrypted secret
 storage, one-use codes and bounded recovery. Hardware CA requires a real device

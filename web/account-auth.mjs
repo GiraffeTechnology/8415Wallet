@@ -56,10 +56,32 @@ export class AccountAuthClient {
     if (!this.#csrf) return;
     try { await this.request('logout', {}, { keepalive: true }); } finally { this.#csrf = null; this.#session = null; }
   }
-  async startEnrollment(existingCode, recovery = false) {
+  async account() {
     if (!this.#session) throw new WalletLoginError('LOGIN_REQUIRED');
-    return this.request('totp/enroll/start', { existingCode, recovery });
+    const value = await this.request('account');
+    if (value.schema !== '8415wallet-account/1' || value.tenant !== this.#tenant || value.origin !== this.#origin ||
+      value.username !== this.#session.username || value.account !== this.#session.account || value.chainId !== this.#session.chainId ||
+      !['password', 'wallet', 'ca', 'totp'].every(method => typeof value.methods?.[method]?.enabled === 'boolean' && typeof value.methods?.[method]?.bound === 'boolean') ||
+      typeof value.authenticator?.enrolled !== 'boolean' || typeof value.management?.freshIndependentLogin !== 'boolean' ||
+      typeof value.management?.existingCodeRequired !== 'boolean' ||
+      !(value.management.reauthenticateBy === null || Number.isSafeInteger(value.management.reauthenticateBy)) ||
+      !value.recovery || typeof value.recovery.configured !== 'boolean' || typeof value.recovery.emailOtpAvailable !== 'boolean' ||
+      (value.recovery.configured && (typeof value.recovery.emailMasked !== 'string' || !['recovery-phrase', 'first-school', 'childhood-place'].includes(value.recovery.questionId))) ||
+      value.authenticator.enrolled !== value.methods.totp.bound || value.management.existingCodeRequired !== value.authenticator.enrolled)
+      throw new WalletLoginError('LOGIN_SERVICE_BINDING_REFUSED');
+    return value;
   }
-  async confirmEnrollment(code) { const result = await this.request('totp/enroll/confirm', { code }); this.#session = null; return result; }
-  async cancelEnrollment() { return this.request('totp/enroll/cancel', {}); }
+  async recovery(action, body = {}) {
+    if (!['enroll/start', 'enroll/confirm', 'reset/start', 'reset/confirm', 'cancel'].includes(action)) throw new WalletLoginError('AUTH_ROUTE_REFUSED');
+    return this.request(`recovery/${action}`, body);
+  }
+  async setMethods(enabledMethods, existingCode, recovery = false) {
+    return this.request('account/methods', { enabledMethods, existingCode, recovery });
+  }
+  async startEnrollment(existingCode, recovery = false, purpose, resetProof) {
+    if (!this.#session) throw new WalletLoginError('LOGIN_REQUIRED');
+    return this.request('totp/enroll/start', { existingCode, recovery, ...(purpose ? { purpose } : {}), ...(resetProof ? { resetProof } : {}) });
+  }
+  async confirmEnrollment(code, enrollmentId) { const result = await this.request('totp/enroll/confirm', { code, enrollmentId }); this.#session = null; return result; }
+  async cancelEnrollment(enrollmentId) { return this.request('totp/enroll/cancel', enrollmentId ? { enrollmentId } : {}); }
 }

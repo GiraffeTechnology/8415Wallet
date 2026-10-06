@@ -1,9 +1,11 @@
 # Wallet interface localization
 
-The interface has a compact, always-visible six-choice language control. English
+The interface has a compact, always-visible six-choice native language dropdown, following the observed language-menu pattern
+on cchsc.ca (read-only reference checked 2026-10-06). English
 is the default. Supported locale identifiers are `en`, `zh-Hans`, `zh-Hant`,
 `fr`, `es` and `ja`. The short labels are paired with native-language accessible
-names and the active choice is exposed with `aria-pressed`. The document's
+names and the active option is exposed through the native select value. Keyboard arrows,
+Enter and native mobile selection remain supported. The document's
 `lang` follows the selected locale.
 
 ## Fixed presentation catalogs
@@ -20,7 +22,8 @@ English; blocked local storage does not prevent switching. The only persisted
 preference is `8415wallet.ui.locale.v1`. Locale selection is not an authentication
 session and never restores account access after reload.
 
-Switching updates existing text nodes and accessible labels. It does not rebuild
+Switching updates existing text nodes, accessible labels and the language select
+value. It never edits account, recovery, transaction or consent inputs. It does not rebuild
 forms, navigate, read a provider, rerun a transaction, reset a consent checkbox,
 change a review digest, or modify submitted values. Cached presentation data is
 re-rendered without refreshing a chain observation. Existing expiry and logout

@@ -3,7 +3,9 @@ import { randomToken, digest, equal, verifyPassword, matchTotp, newTotpSecret, p
 import { loginOrigin, loginMessage } from '../web/login-core.mjs';
 import { verifyMessage, getAddress } from 'ethers';
 import { validateAccountBindings } from './config-validation.mjs';
+import { createRecoveryService, RecoveryError } from './recovery-service.mjs';
 const LIFE = 15 * 60_000, CHALLENGE = 2 * 60_000, ENROLL = 5 * 60_000;
+const accountMethods = ['password', 'wallet', 'ca', 'totp'];
 const chains = new Set(['1', '8453', '11155111', '84532', '560048', '31337']);
 export class AuthError extends Error {
   constructor(code = 'AUTH_REFUSED', status = 401) { super(code); this.status = status; }
@@ -24,7 +26,7 @@ function cookies(request) {
   }
   return result;
 }
-export function createAuthService({ origin, tenant, accounts, store, verifyCa = null, now = Date.now }) {
+export function createAuthService({ origin, tenant, accounts, store, verifyCa = null, sendOtp = null, now = Date.now }) {
   const url = loginOrigin(origin);
   requireThat(typeof tenant === 'string' && /^[a-z][a-z0-9-]{0,47}$/.test(tenant), 'AUTH_CONFIG_REFUSED', 500);
   requireThat(Array.isArray(accounts) && accounts.length > 0 && accounts.length <= 10000 && store, 'AUTH_CONFIG_REFUSED', 500);
@@ -41,6 +43,7 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
   const secure = url.protocol === 'https:', sessionName = secure ? '__Host-8415session' : '8415session-local', preauthName = secure ? '__Host-8415preauth' : '8415preauth-local';
   const sessions = new Map(), preauth = new Map(), challenges = new Map(), enrollments = new Map(), limits = new Map();
   let expensive = 0;
+  let recoveryService = null;
   const stamp = () => { const time = now(); requireThat(Number.isSafeInteger(time) && time >= 0, 'AUTH_CLOCK_REFUSED', 503); return time; };
   function sweep() {
     const time = stamp();
@@ -65,12 +68,44 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
     const user = validUsername(name) ? users.get(name) : null;
     return user?.wallets.some(wallet => wallet.account === selected.account && wallet.chainId === selected.chainId) ? user : null;
   };
-  async function sessionFor(req) {
+  function localSession(req) {
     sweep(); const token = cookies(req).get(sessionName), session = token ? sessions.get(digest(token)) : null;
     requireThat(session && equal(req.headers['x-wallet-csrf'], session.csrf));
-    const credential = await store.read(`${tenant}:${session.username}`);
-    requireThat((credential?.revision ?? 0) === session.revision);
     return session;
+  }
+  function activeSession(session) {
+    sweep(); requireThat(sessions.get(session.key) === session);
+  }
+  function revokeSession(session) {
+    sessions.delete(session.key); enrollments.delete(session.id); session.enrollmentGeneration++; recoveryService?.cancel(session);
+  }
+  function revokeAccount(username) {
+    for (const current of sessions.values()) if (current.username === username) revokeSession(current);
+  }
+  function methodStates(user, credential) {
+    const bindings = { password: Boolean(user.passwordHash), wallet: user.wallets.length > 0,
+      ca: user.caFingerprints.length > 0, totp: Boolean(credential?.secret) };
+    return Object.fromEntries(accountMethods.map(method => [method, { available: method !== 'ca' || Boolean(verifyCa), bound: bindings[method],
+      enabled: bindings[method] && (method !== 'ca' || Boolean(verifyCa)) &&
+        (credential?.enabledMethods === undefined || (Array.isArray(credential.enabledMethods) && credential.enabledMethods.includes(method))) }]));
+  }
+  async function credentialFor(session) {
+    const credential = await store.read(`${tenant}:${session.username}`);
+    // A read may wait behind other work. Never revive a session revoked while it waited.
+    activeSession(session); requireThat((credential?.revision ?? 0) === session.revision);
+    return credential;
+  }
+  async function sessionFor(req) {
+    const session = localSession(req); await credentialFor(session); return session;
+  }
+  const independent = session => ['password', 'wallet', 'ca'].includes(session.kind);
+  function recentIndependent(session) {
+    activeSession(session);
+    requireThat(independent(session) && stamp() - session.issuedAt < ENROLL, 'AUTH_RECENT_INDEPENDENT_LOGIN_REQUIRED', 403);
+  }
+  function currentEnrollment(session, pending) {
+    recentIndependent(session);
+    requireThat(pending && enrollments.get(session.id) === pending && pending.generation === session.enrollmentGeneration);
   }
   function preauthFor(req) {
     sweep(); const token = cookies(req).get(preauthName), state = token ? preauth.get(digest(token)) : null;
@@ -81,25 +116,33 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
     const credential = await store.read(`${tenant}:${user.username}`), time = stamp(), token = randomToken(); capacity(sessions);
     preauthFor(req); // Logout/cancellation also revokes an in-flight login.
     requireThat(expectedRevision === undefined || expectedRevision === (credential?.revision ?? 0));
-    const prior = cookies(req).get(sessionName); if (prior) sessions.delete(digest(prior));
+    requireThat(methodStates(user, credential)[kind === 'recovery' ? 'totp' : kind]?.enabled);
+    const prior = sessions.get(digest(cookies(req).get(sessionName) ?? '')); if (prior) revokeSession(prior);
     const session = { ...selected, username: user.username, id: randomToken(), csrf: randomToken(), kind,
-      issuedAt: time, expiresAt: time + LIFE, revision: credential?.revision ?? 0 };
-    sessions.set(digest(token), session); res.setHeader('Set-Cookie', cookie(sessionName, token, LIFE / 1000));
+      key: digest(token), enrollmentGeneration: 0, issuedAt: time, expiresAt: time + LIFE, revision: credential?.revision ?? 0 };
+    sessions.set(session.key, session); res.setHeader('Set-Cookie', cookie(sessionName, token, LIFE / 1000));
     return publicSession(session);
   }
-  async function consumeCode(username, code, recovery = false) {
+  function withConsumedCode(value, code, recovery = false) {
+    requireThat(value?.secret); const next = structuredClone(value);
+    if (recovery) {
+      requireThat(typeof code === 'string' && /^[a-f0-9]{4}(?:-[a-f0-9]{4}){7}$/.test(code));
+      const hash = digest(`${value.recoverySalt}:${code}`), index = value.recoveryHashes.findIndex(v => equal(v, hash));
+      requireThat(index >= 0); next.recoveryHashes.splice(index, 1);
+    } else {
+      const step = matchTotp(value.secret, code, stamp(), value.lastStep); requireThat(step !== null); next.lastStep = step;
+    }
+    return next;
+  }
+  async function consumeCode(username, code, recovery = false, { expectedRevision, validate, authorize, login = false } = {}) {
     let accepted = false, revision;
     await store.transaction(`${tenant}:${username}`, value => {
-      if (!value?.secret) throw new AuthError();
-      const next = structuredClone(value);
-      if (recovery) {
-        requireThat(typeof code === 'string' && /^[a-f0-9]{4}(?:-[a-f0-9]{4}){7}$/.test(code));
-        const hash = digest(`${value.recoverySalt}:${code}`), index = value.recoveryHashes.findIndex(v => equal(v, hash));
-        requireThat(index >= 0); next.recoveryHashes.splice(index, 1);
-      } else {
-        const step = matchTotp(value.secret, code, stamp(), value.lastStep); requireThat(step !== null); next.lastStep = step;
-      }
-      accepted = true; revision = next.revision; return next;
+      validate?.();
+      requireThat(expectedRevision === undefined || (value?.revision ?? 0) === expectedRevision);
+      if (login) requireThat(methodStates(users.get(username), value).totp.enabled);
+      const next = withConsumedCode(value, code, recovery);
+      // Independent reset proof is consumed only after the existing code matches.
+      authorize?.(value); accepted = true; revision = next.revision; return next;
     });
     requireThat(accepted); return revision;
   }
@@ -110,6 +153,10 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
     try { const value = JSON.parse(Buffer.concat(chunks).toString('utf8')); requireThat(value && typeof value === 'object' && !Array.isArray(value)); return value; }
     catch { throw new AuthError('AUTH_REQUEST_REFUSED', 400); }
   }
+  recoveryService = createRecoveryService({ origin, tenant, store, sendOtp, now,
+    assertRecent: recentIndependent, credentialFor, revokeAccount,
+    consumeExistingCode: (session, code, recovery, authorize) => consumeCode(session.username, code, recovery,
+      { expectedRevision: session.revision, validate: () => recentIndependent(session), authorize }) });
   async function route(req, res) {
     requireThat(req.headers.host === url.host, 'AUTH_ORIGIN_REFUSED', 403);
     requireThat(req.headers['x-wallet-tenant'] === tenant, 'AUTH_TENANT_REFUSED', 403);
@@ -126,42 +173,98 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
       res.setHeader('Set-Cookie', cookie(preauthName, token, LIFE / 1000)); return { csrf };
     }
     if (req.method === 'GET' && path === 'session') return publicSession(await sessionFor(req));
+    if (req.method === 'GET' && path === 'account') {
+      const session = localSession(req), credential = await credentialFor(session), user = users.get(session.username);
+      const enrolled = Boolean(credential?.secret), pending = enrollments.get(session.id);
+      return { schema: '8415wallet-account/1', tenant, origin, username: session.username, account: session.account, chainId: session.chainId,
+        methods: methodStates(user, credential), recovery: recoveryService.status(credential),
+        authenticator: { enrolled, pending: Boolean(pending), expiresAt: pending?.expiresAt ?? null, replacement: pending?.purpose === 'replace' },
+        management: { freshIndependentLogin: independent(session) && stamp() - session.issuedAt < ENROLL,
+          reauthenticateBy: independent(session) ? session.issuedAt + ENROLL : null, existingCodeRequired: enrolled } };
+    }
     requireThat(req.method === 'POST', 'AUTH_ROUTE_REFUSED', 404);
     requireThat(req.headers.origin === origin, 'AUTH_ORIGIN_REFUSED', 403);
     const body = await readBody(req);
     if (path === 'logout') {
-      // A cancelled pre-auth attempt may need to revoke a late-issued session.
-      try { await sessionFor(req); } catch { preauthFor(req); }
-      const token = cookies(req).get(sessionName); if (token) sessions.delete(digest(token));
+      // Revoke locally before any await, including a delayed credential read/write.
+      // A valid bootstrap can also revoke a late-issued login in the same browser.
+      try { localSession(req); } catch { preauthFor(req); }
+      const session = sessions.get(digest(cookies(req).get(sessionName) ?? '')); if (session) revokeSession(session);
       const state = cookies(req).get(preauthName); if (state) preauth.delete(digest(state));
       res.setHeader('Set-Cookie', [cookie(sessionName, '', 0), cookie(preauthName, '', 0)]); return { loggedOut: true };
     }
+    if (path.startsWith('recovery/')) {
+      const result = await recoveryService.handler(path, body, localSession(req));
+      if (result.loggedOut) res.setHeader('Set-Cookie', cookie(sessionName, '', 0));
+      return result;
+    }
+    if (path === 'account/methods') {
+      const session = localSession(req); recentIndependent(session); limit(`methods:${session.username}`, 10);
+      requireThat(Array.isArray(body.enabledMethods) && body.enabledMethods.length <= accountMethods.length &&
+        body.enabledMethods.every(method => accountMethods.includes(method)) &&
+        new Set(body.enabledMethods).size === body.enabledMethods.length, 'AUTH_METHODS_REFUSED', 400);
+      const desired = accountMethods.filter(method => body.enabledMethods.includes(method));
+      await credentialFor(session);
+      await store.transaction(`${tenant}:${session.username}`, prior => {
+        recentIndependent(session); requireThat((prior?.revision ?? 0) === session.revision);
+        const user = users.get(session.username), available = methodStates(user, { ...prior, enabledMethods: undefined });
+        requireThat(desired.every(method => available[method].enabled), 'AUTH_METHOD_UNAVAILABLE', 409);
+        requireThat(desired.some(method => ['password', 'wallet', 'ca'].includes(method)), 'AUTH_INDEPENDENT_METHOD_REQUIRED', 409);
+        const changedTotp = Boolean(prior?.secret) && methodStates(user, prior).totp.enabled !== desired.includes('totp');
+        const next = changedTotp ? withConsumedCode(prior, body.existingCode, body.recovery === true) : { ...prior };
+        return { ...next, enabledMethods: desired, revision: session.revision + 1 };
+      });
+      revokeAccount(session.username); res.setHeader('Set-Cookie', cookie(sessionName, '', 0));
+      return { updated: true, loggedOut: true };
+    }
     if (path.startsWith('totp/enroll/')) {
-      const session = await sessionFor(req);
-      requireThat(['password', 'wallet', 'ca'].includes(session.kind) && stamp() - session.issuedAt < ENROLL, 'AUTH_RECENT_INDEPENDENT_LOGIN_REQUIRED', 403);
-      limit(`enroll:${session.username}`, 10);
+      const session = localSession(req);
+      if (path === 'totp/enroll/cancel') {
+        const pending = enrollments.get(session.id);
+        requireThat(body.enrollmentId === undefined || body.enrollmentId === (pending?.id ?? session.committingEnrollment), 'AUTH_SETUP_STATE_CHANGED', 409);
+        session.enrollmentGeneration++; enrollments.delete(session.id);
+        return { cancelled: !session.committingEnrollment, confirmationInProgress: Boolean(session.committingEnrollment) };
+      }
+      requireThat(['totp/enroll/start', 'totp/enroll/confirm'].includes(path), 'AUTH_ROUTE_REFUSED', 404);
+      recentIndependent(session); limit(`enroll:${session.username}`, 10);
       if (path === 'totp/enroll/start') {
-        const credential = await store.read(`${tenant}:${session.username}`);
-        if (credential?.secret) await consumeCode(session.username, body.existingCode, body.recovery === true);
-        capacity(enrollments); const secret = newTotpSecret(), time = stamp();
-        enrollments.set(session.id, { username: session.username, secret, issuedAt: time, expiresAt: time + ENROLL, attempts: 0 });
-        return { secret, uri: provisioningUri(secret, tenant, session.username), expiresAt: time + ENROLL };
+        requireThat(!session.committingEnrollment, 'AUTH_SETUP_STATE_CHANGED', 409);
+        // Reserve before awaiting storage. A later start/cancel/logout supersedes this request.
+        const generation = ++session.enrollmentGeneration; enrollments.delete(session.id);
+        const validate = () => { recentIndependent(session); requireThat(session.enrollmentGeneration === generation); };
+        const credential = await credentialFor(session); validate();
+        const purpose = credential?.secret ? 'replace' : 'initial';
+        requireThat(body.purpose === undefined || body.purpose === purpose, 'AUTH_SETUP_STATE_CHANGED', 409);
+        if (credential?.secret) await consumeCode(session.username, body.existingCode, body.recovery === true,
+          { expectedRevision: session.revision, validate, authorize: prior => recoveryService.consumeProof(session, body.resetProof, prior) });
+        validate(); capacity(enrollments); const secret = newTotpSecret(), time = stamp(), id = randomToken();
+        const expiresAt = Math.min(time + ENROLL, session.issuedAt + ENROLL);
+        enrollments.set(session.id, { id, username: session.username, secret, generation, purpose, revision: session.revision,
+          issuedAt: time, expiresAt, attempts: 0 });
+        return { enrollmentId: id, purpose, secret, uri: provisioningUri(secret, tenant, session.username), expiresAt };
       }
-      if (path === 'totp/enroll/cancel') { enrollments.delete(session.id); return { cancelled: true }; }
-      if (path === 'totp/enroll/confirm') {
-        sweep(); const pending = enrollments.get(session.id);
-        requireThat(pending && pending.username === session.username && ++pending.attempts <= 5);
-        const step = matchTotp(pending.secret, body.code, stamp()); requireThat(step !== null);
-        // Consume before an asynchronous write: concurrent confirmations cannot
-        // activate different recovery sets or reuse the same enrollment.
-        enrollments.delete(session.id); const recovery = recoveryCodes();
-        await store.transaction(`${tenant}:${session.username}`, prior => ({ secret: pending.secret, lastStep: step,
-          recoverySalt: recovery.salt, recoveryHashes: recovery.hashes, revision: (prior?.revision ?? 0) + 1 }));
-        for (const [key, current] of sessions) if (current.username === session.username) sessions.delete(key);
-        res.setHeader('Set-Cookie', cookie(sessionName, '', 0));
-        return { enrolled: true, recoveryCodes: recovery.codes, loggedOut: true };
-      }
-      throw new AuthError('AUTH_ROUTE_REFUSED', 404);
+      const pending = enrollments.get(session.id);
+      requireThat(body.enrollmentId === undefined || body.enrollmentId === pending?.id, 'AUTH_SETUP_STATE_CHANGED', 409);
+      await credentialFor(session); currentEnrollment(session, pending);
+      if (pending.attempts >= 5) { enrollments.delete(session.id); throw new AuthError(); }
+      pending.attempts++;
+      const step = matchTotp(pending.secret, body.code, stamp());
+      if (step === null) { if (pending.attempts === 5) enrollments.delete(session.id); throw new AuthError(); }
+      const recovery = recoveryCodes();
+      await store.transaction(`${tenant}:${session.username}`, prior => {
+        // Linearize confirmation at transaction entry, not at an earlier read.
+        // Cancel/logout or another confirmed enrollment while queued must win.
+        currentEnrollment(session, pending);
+        requireThat((prior?.revision ?? 0) === pending.revision && pending.revision === session.revision);
+        const currentStep = matchTotp(pending.secret, body.code, stamp()); requireThat(currentStep !== null);
+        enrollments.delete(session.id); session.committingEnrollment = pending.id;
+        return { ...prior, secret: pending.secret, lastStep: currentStep, recoverySalt: recovery.salt,
+          recoveryHashes: recovery.hashes, ...(prior?.enabledMethods === undefined ? {} :
+            { enabledMethods: [...new Set([...prior.enabledMethods, 'totp'])] }), revision: pending.revision + 1 };
+      });
+      revokeAccount(session.username);
+      res.setHeader('Set-Cookie', cookie(sessionName, '', 0));
+      return { enrolled: true, recoveryCodes: recovery.codes, loggedOut: true };
     }
     const bootstrap = preauthFor(req), selected = identity(body);
     limit(`ip:${ip}`, 100); // Proxy headers are intentionally not trusted.
@@ -174,7 +277,7 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
         try { verified = await verifyPassword(body.password, user?.passwordHash); } finally { expensive--; }
         requireThat(verified && user);
       } else {
-        requireThat(user); revision = await consumeCode(user.username, body.code, body.recovery === true);
+        requireThat(user); revision = await consumeCode(user.username, body.code, body.recovery === true, { login: true });
       }
       return issue(req, res, user, selected, path === 'totp' && body.recovery === true ? 'recovery' : path, revision);
     }
@@ -216,7 +319,7 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
     res.setHeader('Pragma', 'no-cache'); res.setHeader('X-Content-Type-Options', 'nosniff');
     // No Access-Control-Allow-Origin: only the configured same-origin UI can read.
     try { const result = await route(req, res); res.statusCode = 200; res.end(JSON.stringify(result)); }
-    catch (error) { res.statusCode = error instanceof AuthError ? error.status : 503;
-      res.end(JSON.stringify({ error: error instanceof AuthError ? error.message : 'AUTH_UNAVAILABLE' })); }
+    catch (error) { const expected = error instanceof AuthError || error instanceof RecoveryError; res.statusCode = expected ? error.status : 503;
+      res.end(JSON.stringify({ error: expected ? error.message : 'AUTH_UNAVAILABLE' })); }
   };
 }
