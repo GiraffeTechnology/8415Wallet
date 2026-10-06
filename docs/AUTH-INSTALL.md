@@ -218,3 +218,85 @@ possible and retains the new release and operation lock with an explicit recover
 error. The operator must inspect and fix/advance generation-2 code, preserving
 current credentials and counters. Never delete state, rekey, restore stale
 ciphertext or remove retained locks merely to pass an installer check.
+
+## Existing PR58 TCP deployments: bounded import, never initialize again
+
+An already initialized account must retain its original key and ciphertext.
+`prepare`/`operator-activate` are for a new independent tenant, not an upgrade.
+The package now includes `deploy/auth-xiongan/migrate-legacy.mjs` for the exact
+reviewed PR58 runtime at commit `a942495d6b6913a0026a6c2a8ce27eed9e9098f2`.
+It recognizes pinned source blobs, protected Node/source/configuration ownership,
+the fixed legacy service-entry contract, and one unshared existing nginx include.
+The supplied paths and service name are observations from the host, never defaults
+to guess. A different runtime, custom unit/drop-in, inline auth location, CA
+configuration, unknown include syntax, shared proxy, or existing managed receipt
+is refused for a separately reviewed migration. PR58 supports the Xiongan tenant
+only. Never copy its identity, key or state to a platform/default tenant.
+
+The authorized deployment operator first inventories the actual unit, resolved
+runtime/Node paths, config/key/state locations and exact existing TLS nginx site.
+The operator checks the new package using the approved external digest and its
+manifest, then runs this read-only preflight from that verified package:
+
+```
+node deploy/auth-xiongan/migrate-legacy.mjs check \
+  --package VERIFIED_NEW_PACKAGE_DIRECTORY --node RESOLVED_NODE_EXECUTABLE \
+  --tenant xiongan --origin EXISTING_EXACT_HTTPS_ORIGIN \
+  --source-commit a942495d6b6913a0026a6c2a8ce27eed9e9098f2 \
+  --legacy-source RESOLVED_OLD_RUNTIME_DIRECTORY \
+  --legacy-service EXACT_EXISTING_SERVICE_NAME \
+  --legacy-config EXACT_PRIVATE_AUTH_JSON --legacy-key EXACT_PRIVATE_STORE_KEY \
+  --legacy-state EXACT_PRIVATE_CIPHERTEXT_PATH \
+  --legacy-proxy EXACT_OLD_INCLUDED_NGINX_FILE --nginx-site EXACT_EXISTING_SITE
+```
+
+No secret value is a CLI argument. The tool authenticates the AES-GCM envelope
+and validates tenant/account/email-directory bindings in memory; it prints only
+counts and status. A missing ciphertext file is allowed only with explicit
+`--allow-empty-state yes` for a verified never-enrolled, wallet-only legacy store;
+the existing independent key is still mandatory. This does not create accounts
+or invent credentials. No assistant should run these commands against private
+production credentials; real execution belongs to the approved host operator.
+
+After the operator has explicit authorization for the service/network-hardening
+change, replace `check` with `migrate`, keeping every argument identical. The
+trusted terminal requires `MIGRATE-PR58-FORWARD-ONLY` confirmation. It stops only
+the named service, confirms no remaining process/writer lock, makes and hashes
+private key/config/ciphertext/unit/proxy/site snapshots, and atomically switches
+the existing account service to the protected Unix runtime. Existing key and
+ciphertext remain at their original paths and byte-identical before startup.
+Password, TOTP counter, consumed recovery values, verified mail and account data
+are preserved. Backups remain private root-owned 0700/0600 files on that host;
+never upload or attach them. The original listener, UI origin, TLS, SSH, firewall
+and unrelated services remain outside this command's scope. Mail remains disabled
+until the separately authorized SMTP configuration process above.
+
+A pre-start ordinary failure restores only code/configuration/proxy files;
+credential state is never restored. A retained generation-2 transition is
+forward-only, even when startup or nginx reload failed. The runtime's persistent
+configuration fence prevents reboot from starting a partially installed candidate.
+The operator fixes the reported host condition, preserves current credentials,
+and executes:
+
+```
+node deploy/auth-xiongan/migrate-legacy.mjs resume --tenant xiongan
+```
+
+Resume requires the same trusted-terminal confirmation, revalidates protected
+backups, current authenticated state, exact candidate and nginx include graph,
+and starts only the verified generation-2 runtime. It never restarts legacy code
+or copies old ciphertext over consumed counters. A safely restored pre-start
+attempt can be retried with the complete `migrate` command; each completed backup
+is retained separately. Conflicting/unknown writer locks, damaged or missing
+current state, unknown changes or unfinished snapshot writes require operator
+inspection, not deletion of locks or secret files. Repeated successful resume
+reports already imported. Normal managed `upgrade` works after import; legacy
+proxy rollback and a generation-1 code downgrade remain refused.
+
+Synthetic tests cover known-source/binding/permission/refusal checks, exact byte
+preservation, empty stores, stop/writer conflicts, pre-start restoration and
+forward recovery after start/probe/nginx failures. The installed package journey
+uses actual legacy TCP and new Unix services, consumes real synthetic TOTP and
+recovery values before import and checks replay rejection plus password/verified
+mail afterward. These fixtures contain no production credentials and do not
+claim an actual host migration, genuine user/device acceptance or an audit.

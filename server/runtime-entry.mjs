@@ -29,8 +29,10 @@ for (const leaf of [credentialDirectory, configDirectory, `/var/lib/${name}`]) {
   for (const path of ancestors) await directory(path, path === leaf);
 }
 const configPath = `${configDirectory}/auth.json`;
-try { await lstat(`${configDirectory}/mail-config.lock`); throw Error('AUTH_MAIL_CONFIG_UPDATE_IN_PROGRESS'); }
-catch (error) { if (error.code !== 'ENOENT') throw error; }
+for (const lock of ['mail-config.lock', 'migration-config.lock']) {
+  try { await lstat(`${configDirectory}/${lock}`); throw Error('AUTH_CONFIG_TRANSITION_IN_PROGRESS'); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+}
 const config = JSON.parse(await privateFile(configPath, 1_000_000));
 validateAuthConfig(config);
 if (config.tenant !== tenant || config.statePath !== `/var/lib/${name}/credentials.enc` || config.socketPath !== `/run/${name}/auth.sock` || config.port !== undefined) throw Error('AUTH_SERVICE_CONFIG_BINDING_REFUSED');

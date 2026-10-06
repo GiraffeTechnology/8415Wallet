@@ -32,7 +32,7 @@ export function validateAuthStateTransition(current, candidate, { rollback = fal
   // This is the one reviewed forward edge. Unknown future generations fail closed.
   fail(!rollback && from === LEGACY_AUTH_STATE_SEMANTICS && to === AUTH_STATE_SEMANTICS, 'STATE_SEMANTICS_TRANSITION_REFUSED');
 }
-export const sourcePathAllowed = path => /^(?:server\/[a-z][a-z0-9-]*\.mjs|web\/login-core\.mjs|deploy\/auth-xiongan\/(?:install\.mjs|8415wallet-auth-xiongan\.service|auth-location\.nginx\.conf)|docs\/AUTH-INSTALL\.md|scripts\/package\/verify-auth\.mjs|LICENSE)$/.test(path);
+export const sourcePathAllowed = path => /^(?:server\/[a-z][a-z0-9-]*\.mjs|web\/login-core\.mjs|deploy\/auth-xiongan\/(?:(?:install|migrate-legacy)\.mjs|8415wallet-auth-xiongan\.service|auth-location\.nginx\.conf)|docs\/AUTH-INSTALL\.md|scripts\/package\/verify-auth\.mjs|LICENSE)$/.test(path);
 export function safePath(path) {
   return typeof path === 'string' && path.length > 0 && path.length <= 240 && /^[A-Za-z0-9_@.+/=-]+$/.test(path)
     && path.split('/').every(part => part && part !== '.' && part !== '..');

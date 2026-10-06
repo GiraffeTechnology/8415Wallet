@@ -98,7 +98,7 @@ export function buildAuthPackage({ root = process.cwd(), offline = false, output
     for (const file of walkAuth(stage).filter(file => sourcePathAllowed(file) && file.endsWith('.mjs'))) execFileSync(process.execPath, ['--check', join(stage, file)], { stdio: 'pipe' });
     const files = Object.fromEntries(walkAuth(stage).map(file => [file, sha256(readFileSync(join(stage, file)))]));
     const release = { schema: AUTH_SCHEMA, name: '8415wallet-auth-runtime', version: runtime.manifest.version, status: AUTH_STATUS,
-      source, runtime: { node: '>=22.18.0', bundledNode: false, bundledProductionDependencies: true, entry: 'server/runtime-entry.mjs', tenantArgumentRequired: true, credentialStoreFormat: 1, authStateSemantics: AUTH_STATE_SEMANTICS, openssl: 'External OpenSSL 3 required only for configured hardware CA verification' },
+      source, runtime: { node: '>=22.18.0', bundledNode: false, bundledProductionDependencies: true, entry: 'server/runtime-entry.mjs', tenantArgumentRequired: true, credentialStoreFormat: 1, legacyImportProtocol: 1, authStateSemantics: AUTH_STATE_SEMANTICS, openssl: 'External OpenSSL 3 required only for configured hardware CA verification' },
       build: { node: process.version, npm: execFileSync('npm', ['--version'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim(),
         command: 'node scripts/package/build-auth.mjs', dependencyCommand: ['npm', ...npmArgs].join(' '), sourceLockSha256: sha256(sourceLockBytes),
         installScripts: 'Disabled; package verification rejects any production install/prepare lifecycle script and lockfile hasInstallScript marker',
