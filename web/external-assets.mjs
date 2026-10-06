@@ -19,7 +19,7 @@ function invalidate() {
 }
 async function run(fn) {
   if (busy) return; const uiLock = acquireWalletUi(); if (uiLock === null) return; busy = true; const current = generation;
-  document.querySelectorAll('button:not([data-auth-control]):not([data-ui-locale]),input,select').forEach(n => { n.disabled = true; });
+  document.querySelectorAll('button:not([data-auth-control]):not([data-ui-locale]) ,input,select:not([data-ui-locale])').forEach(n => { n.disabled = true; });
   try {
     await walletLogin.check();
     let profile;
@@ -36,7 +36,7 @@ async function run(fn) {
       try { const state = await s.status(); if (s === session && current === generation) paint(el('asset-state'), format(state)); }
       catch { paint(el('asset-state'), msg('message.026')); }
     }
-    busy = false; releaseWalletUi(uiLock); document.querySelectorAll('button:not([data-auth-control]):not([data-ui-locale]),input,select').forEach(n => { n.disabled = false; });
+    busy = false; releaseWalletUi(uiLock); document.querySelectorAll('button:not([data-auth-control]):not([data-ui-locale]) ,input,select:not([data-ui-locale])').forEach(n => { n.disabled = false; });
   }
 }
 const checkCurrent = g => { walletLogin.assert(); if (g !== generation) throw new ControlAdapterError('ASSET_CONNECTION_CHANGED'); };

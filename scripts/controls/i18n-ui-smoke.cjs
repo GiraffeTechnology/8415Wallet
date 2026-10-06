@@ -52,7 +52,7 @@ async function main() {
       page.on('pageerror', error => errors.push(error.message));
       await page.goto(`${origin}/web/index.html`);
       await page.waitForFunction(() => document.getElementById('release-profile').textContent.includes('8415wallet'));
-      await page.click(`[data-ui-locale="${locale.id}"]`);
+      await page.selectOption('#ui-locale', locale.id);
       assert.equal(await page.getAttribute('html', 'lang'), locale.id);
       assert.equal(await page.textContent('#login-heading'), CATALOGS[locale.id]['ui.005']);
       assert.equal(await page.locator('#wallet-private').isVisible(), false);
@@ -65,7 +65,7 @@ async function main() {
       await page.check('#asset-ack');
       const before = JSON.parse(await page.textContent('#asset-review-text'));
       const calls = await page.evaluate(() => globalThis.__localeTest.calls.length);
-      await page.click('[data-ui-locale="en"]'); await page.click(`[data-ui-locale="${locale.id}"]`);
+      await page.selectOption('#ui-locale', 'en'); await page.selectOption('#ui-locale', locale.id);
       assert.equal(await page.evaluate(() => globalThis.__localeTest.calls.length), calls);
       const after = JSON.parse(await page.textContent('#asset-review-text'));
       for (const key of ['digest', 'amount', 'transaction']) assert.deepEqual(after[key], before[key]);
@@ -73,7 +73,7 @@ async function main() {
       assert.equal(await page.inputValue('#asset-amount'), '1000000000000001');
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       await page.screenshot({ path: path.join(out, `${profile}-${width}-${locale.id}.png`), fullPage: false });
-      await page.click('#wallet-logout'); await page.click('[data-ui-locale="fr"]'); await page.click(`[data-ui-locale="${locale.id}"]`);
+      await page.click('#wallet-logout'); await page.selectOption('#ui-locale', 'fr'); await page.selectOption('#ui-locale', locale.id);
       assert.equal(await page.locator('#wallet-private').isVisible(), false);
       assert.equal(await page.getAttribute('#wallet-private', 'inert'), '');
       assert.equal((await page.textContent('#asset-review-text')).includes(before.digest), false);

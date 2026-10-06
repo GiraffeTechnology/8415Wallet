@@ -65,7 +65,7 @@ async function run(fn, reconnect = false) {
   const uiLock = acquireWalletUi(); if (uiLock === null) return;
   if (reconnect) clearConnection();
   operationRevision = connectionRevision;
-  busy = true; document.querySelectorAll('button:not([data-auth-control]):not([data-ui-locale]),input,select').forEach(n => { n.disabled = true; });
+  busy = true; document.querySelectorAll('button:not([data-auth-control]):not([data-ui-locale]) ,input,select:not([data-ui-locale])').forEach(n => { n.disabled = true; });
   try { await walletLogin.check(); if (!releaseProfile) await releaseReady; if (!releaseProfile) fail('CONTROL_RELEASE_PROFILE_REFUSED'); await fn(); } catch (e) {
     nativeView('error');
     // Provider, RPC and DOM exception text is never rendered, logged or persisted.
@@ -86,7 +86,7 @@ async function run(fn, reconnect = false) {
         if (current === settlementSession && operationRevision === connectionRevision) paint(el('settlement-state'), jsonUi(state));
       } catch { if (current === settlementSession && operationRevision === connectionRevision) paint(el('settlement-state'), msg('message.006')); }
     }
-    busy = false; releaseWalletUi(uiLock); document.querySelectorAll('button:not([data-auth-control]):not([data-ui-locale]),input,select').forEach(n => { n.disabled = false; });
+    busy = false; releaseWalletUi(uiLock); document.querySelectorAll('button:not([data-auth-control]):not([data-ui-locale]) ,input,select:not([data-ui-locale])').forEach(n => { n.disabled = false; });
   }
 }
 async function jsonFile(id, maximum) {

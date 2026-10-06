@@ -39,15 +39,25 @@ standalone use.
 
 Support password, authenticator TOTP (Google Authenticator/FreeOTP), local
 private-key challenge signing and configured hardware CA challenge signing.
-The latest instruction explicitly cancels email OTP. Never add an email-code
-transport or suggest that connecting a provider alone authenticates an account.
+Email OTP is not a login method. The owner update on 2026-10-06 adds reset-only
+email verification from noreply@8415wallet.com together with a previously reserved
+security answer. Preserve fresh independent identity verification and existing
+authenticator/recovery proof; email or security answers never replace them. Read
+`docs/AUTH-RECOVERY.md` and `docs/EMAIL-REGISTRATION.md`. Email ownership OTP
+is also required for registration; it remains unavailable as a login method. Never suggest provider connection authenticates an account.
 
 Read `docs/ACCOUNT-AUTHENTICATION.md` and `docs/WALLET-LOGIN.md` before changing
 authentication. Passwords/TOTP require server verification and revocable sessions;
 client-only flags cannot implement them. Preserve origin/tenant/account/chain
 binding, CSRF, one-use challenge/TOTP/recovery handling, encrypted credential
-state and enrollment confirmation. New account/CA bindings come from independently
-verified operator configuration, never untrusted client fields. No private key,
+state and enrollment confirmation. Operator and hardware-CA bindings come from independently verified configuration.
+Ordinary self-registration requires verified email ownership plus an exact
+origin/tenant/account/chain/purpose-bound EOA control proof; it grants no operator,
+tenant-management, private-record or transaction authority. Registration email is
+mandatory, unique per tenant, and verified before account creation. Existing
+accounts retain login access to complete verified-email migration without rekeying
+or discarding credentials. See `docs/EMAIL-REGISTRATION.md`. Never trust
+client-supplied identity flags or create an account from email OTP alone. No private key,
 seed phrase, hardware PIN, live authenticator seed or production store key belongs
 in source, logs, artifacts or a page form. Synthetic test credentials are local
 fixtures only. No production provisioning, deployment or transaction is implied.
@@ -63,7 +73,7 @@ unchanged; updated artifacts need their own exact source identity after review.
 
 ## Interface localization (owner update, 2026-10-04)
 
-Keep the compact six-choice UI language control, with English as the default and
+Keep the compact native six-choice language dropdown (owner update, 2026-10-06), with English as the default and
 locale IDs en, zh-Hans, zh-Hant, fr, es and ja. The owner explicitly authorizes
 multilingual fixed UI catalogs and selector labels; identifiers, engineering
 documents and PR prose remain English. Token names, descriptions and metadata

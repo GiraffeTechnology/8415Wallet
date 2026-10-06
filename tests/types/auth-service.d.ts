@@ -1,5 +1,5 @@
 declare module '*server/crypto.mjs' {
-  export const hashPassword: any, verifyPassword: any, base32: any, unbase32: any, hotp: any, matchTotp: any, provisioningUri: any, newTotpSecret: any;
+  export const digest: any, hashPassword: any, verifyPassword: any, base32: any, unbase32: any, hotp: any, matchTotp: any, provisioningUri: any, newTotpSecret: any;
 }
 declare module '*server/auth-service.mjs' { export const createAuthService: any; }
 declare module '*server/store.mjs' { export const MemoryCredentialStore: any, openEncryptedStore: any; }
