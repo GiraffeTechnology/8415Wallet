@@ -8,6 +8,7 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { paths, inspect, rollback, rollbackCode } from '../deploy/auth-xiongan/install.mjs';
 import { LEGACY_COMMIT, inspectLegacy, migrateLegacy, resumeLegacy, cli } from '../deploy/auth-xiongan/migrate-legacy.mjs';
+import { hotp } from '../server/crypto.mjs';
 import { openEncryptedStore } from '../server/store.mjs';
 import { syntheticPackage } from './helpers/auth-legacy-fixture.mjs';
 import { independentNode } from './helpers/independent-node.mjs';
@@ -123,4 +124,8 @@ test('candidate protocol must declare its persistent migration startup fence', a
   const f = await fixture(t); const raw = await readFile(join(f.options.packageDirectory, 'server/runtime-entry.mjs'), 'utf8');
   assert.match(raw, /migration-config\.lock/);
   const release = JSON.parse(await readFile(join(f.options.packageDirectory, 'AUTH-RELEASE.json'))); assert.equal(release.runtime.legacyImportProtocol, 1);
+});
+
+test('synthetic legacy authenticator uses the supported full-length RFC fixture', () => {
+  assert.equal(hotp(record.secret, 0), '755224');
 });

@@ -14,7 +14,7 @@ export const node = await independentNode(); after(() => node.cleanup());
 export const uid = process.getuid(), tenant = 'xiongan', origin = 'https://migration.example.invalid:19447';
 const hash = b => createHash('sha256').update(b).digest('hex');
 export const key = Buffer.alloc(32, 0x52);
-export const record = { secret: 'JBSWY3DPEHPK3PXP', lastStep: 92345, recoverySalt: 'synthetic-salt', recoveryHashes: ['a'.repeat(64)], revision: 3, enabledMethods: ['wallet', 'totp', 'password'], registration: { version: 1, email: 'fixture@example.invalid', verifiedAt: 42 } };
+export const record = { secret: 'GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ', lastStep: 92345, recoverySalt: 'synthetic-salt', recoveryHashes: ['a'.repeat(64)], revision: 3, enabledMethods: ['wallet', 'totp', 'password'], registration: { version: 1, email: 'fixture@example.invalid', verifiedAt: 42 } };
 export const confirm = 'MIGRATE-PR58-FORWARD-ONLY';
 export async function fixture(t, { empty = false } = {}) {
   const root = await mkdtemp(join(tmpdir(), 'wal-mig-')); t.after(() => rm(root, { recursive: true, force: true }));

@@ -255,8 +255,14 @@ and validates tenant/account/email-directory bindings in memory; it prints only
 counts and status. A missing ciphertext file is allowed only with explicit
 `--allow-empty-state yes` for a verified never-enrolled, wallet-only legacy store;
 the existing independent key is still mandatory. This does not create accounts
-or invent credentials. No assistant should run these commands against private
-production credentials; real execution belongs to the approved host operator.
+or invent credentials. Execution belongs to the approved deployment operator
+following required action-time approvals; secrets remain on the host and are
+never exposed. An authorized deployment assistant may perform read-only checks
+and preparation. Stopping the service or changing systemd, network access or
+permissions still requires the applicable specific action-time approval. The
+terminal phrase is not a substitute for that approval. Never disclose real
+credential values in chat or logs, generate replacement credentials to bypass
+a refusal, or automate a new credential entry that belongs to the user.
 
 After the operator has explicit authorization for the service/network-hardening
 change, replace `check` with `migrate`, keeping every argument identical. The
