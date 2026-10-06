@@ -159,13 +159,12 @@ there is no preview override. Build a separate explicit local configuration
 for loopback preview instead of changing a deployed release URL. Never put RPC keys, wallet keys, bearer
 tokens or account credentials in this public file.
 
-**TCP 443 is reserved for SSH on CTYun and SIN in this delivery.** The validator
-refuses that web port for either environment. Inspect the existing deployment
-and operations configuration and obtain the confirmed web allocation. Do not
-infer an alternative port, stop/rebind SSH, alter firewalls or install a proxy
-on a reserved listener. If the endpoint has not been supplied, deliver the
-unconfigured artifact and record the missing endpoint instead of inventing a
-link. The platform name alone must not be converted into a default-443 URL.
+Take the web endpoint from the target environment's deployment configuration;
+which ports it reserves is stated there, not here. The installer enforces
+whatever that configuration lists as reserved and has no environment-specific
+rule of its own. If the endpoint has not been supplied, deliver the unconfigured
+artifact and record the missing endpoint instead of inventing a link: a platform
+name alone is not a URL, and no default port may be assumed for it.
 
 
 The configured URL is the **public browser endpoint**, which is not necessarily

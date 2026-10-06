@@ -30,14 +30,23 @@ test('compatibility matrix separates implemented operations from universal valid
   assert.match(text, /upgradeable proxy implementation/);
 });
 
-test('native PRD requirements and the all-server SSH reservation remain intact', () => {
+test('native PRD requirements hold, and port reservations stay out of them', () => {
   const prd = read('docs/ERC-8415-Wallet-PRD.md');
   for (const marker of ['# 1.', '# 2.', '# 3.', '# 4.', '# 5.', '# 6.', '# 7.', '# 8.', '# 9.']) assert.ok(prd.includes(marker), marker);
   for (let n = 1; n <= 24; n++) assert.ok(prd.includes(`| W-${String(n).padStart(2, '0')} |`));
   for (const identifier of ['0x6309e170', '0xf4a7d71b', 'beginSettlement', 'finalizeSettlement', 'cancelSettlement', '128']) assert.ok(prd.includes(identifier), identifier);
+  // Which ports an environment reserves is deployment configuration, not a
+  // product requirement, so the product instructions must not carry it and the
+  // deployment document must.
   const instructions = prose(read('AGENTS.md'));
-  assert.match(instructions, /On every server this project deploys to, TCP port 443 is reserved for SSH/);
-  assert.match(instructions, /Do not guess a replacement port/);
-  assert.match(instructions, /Recording this rule does not authorize server access/);
-  assert.doesNotMatch(instructions, /constraint applies only to CTYun/);
+  assert.doesNotMatch(instructions, /\b443\b/);
+  assert.doesNotMatch(instructions, /reserved for SSH|port reservation/);
+
+  // What the product does own is that the serving address is part of stored
+  // state, which holds whatever port an environment happens to use.
+  assert.match(instructions, /A web origin is scheme, host \*\*and port\*\*/);
+  assert.match(instructions, /strands them all/);
+
+  const deployment = read('docs/deployment/SIN-STATIC-DEPLOYMENT-REQUIREMENTS.md');
+  assert.match(deployment, /TCP 443 is reserved for SSH/);
 });
