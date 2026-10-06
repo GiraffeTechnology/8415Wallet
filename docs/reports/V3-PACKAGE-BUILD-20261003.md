@@ -17,6 +17,6 @@ artifact manifests from the exact source, recording the V2/V3 PRD scope
 separately from SDK version numbers. Use [the Beta delivery instructions](../BETA-DAPP-DELIVERY.md)
 and the manifest shipped with the actual archive.
 
-No current online status is claimed by this historical document. In particular,
-a historical URL without the allocated non-443 web port is not a deployment
-instruction: TCP 443 is reserved for SSH on CTYun and SIN.
+No current online status is claimed by this historical document, and a URL
+recorded here is not a deployment instruction. Take the serving address from the
+deployment configuration.
