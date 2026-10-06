@@ -3,6 +3,9 @@ import { open, lstat } from 'node:fs/promises';
 import { constants } from 'node:fs';
 if (process.platform !== 'linux' || process.getuid?.() !== 0) throw Error('AUTH_SERVICE_IDENTITY_REQUIRED');
 if (process.env.WALLET_AUTH_STORE_KEY) throw Error('AUTH_AMBIENT_STORE_KEY_REFUSED');
+// A legacy unit may still point at this entry during an interrupted code switch.
+try { await lstat('/etc/8415wallet-auth-xiongan/migration-config.lock'); throw Error('AUTH_CONFIG_TRANSITION_IN_PROGRESS'); }
+catch (error) { if (error.code !== 'ENOENT') throw error; }
 if (process.env.CREDENTIALS_DIRECTORY !== '/run/credentials/8415wallet-auth-xiongan.service') throw Error('AUTH_CREDENTIAL_DIRECTORY_REFUSED');
 const directory = await lstat(process.env.CREDENTIALS_DIRECTORY);
 if (!directory.isDirectory() || directory.isSymbolicLink() || directory.uid !== 0 || (directory.mode & 0o077)) throw Error('AUTH_CREDENTIAL_DIRECTORY_REFUSED');

@@ -31,7 +31,7 @@ export async function protect(path, { uid = 0, gid = uid, directory = false, pri
       (directory ? !stat.isDirectory() : !stat.isFile() || stat.nlink !== 1) || await realpath(path) !== resolve(path)) fail('AUTH_INSTALL_UNSAFE_PATH');
   return stat;
 }
-async function protectedAncestors(path, uid = 0) {
+export async function protectedAncestors(path, uid = 0) {
   for (let directory = dirname(path); ; directory = dirname(directory)) {
     const stat = await lstat(directory);
     if (!stat.isDirectory() || stat.isSymbolicLink() || ![0, uid].includes(stat.uid) || stat.gid !== stat.uid || (stat.mode & 0o6000) ||
@@ -39,7 +39,7 @@ async function protectedAncestors(path, uid = 0) {
     if (directory === dirname(directory)) break;
   }
 }
-async function protectedPackage(path, uid) {
+export async function protectedPackage(path, uid) {
   await protect(path, { uid, directory: true }); await protectedAncestors(path, uid);
   for (const entry of await readdir(path, { withFileTypes: true })) {
     const child = join(path, entry.name);
@@ -47,17 +47,17 @@ async function protectedPackage(path, uid) {
     else await protect(child, { uid });
   }
 }
-async function ensureDirectory(path, mode, uid) {
+export async function ensureDirectory(path, mode, uid) {
   await protectedAncestors(path, uid);
   const found = await exists(path);
   if (!found) { await protect(dirname(path), { uid, directory: true }); await mkdir(path, { mode }); }
   await protect(path, { uid, directory: true, privateMode: mode === 0o700 });
 }
-async function exclusive(path, content, mode = 0o600) {
+export async function exclusive(path, content, mode = 0o600) {
   const file = await open(path, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, mode);
   try { await file.writeFile(content); await file.sync(); } finally { await file.close(); }
 }
-async function replace(path, content) {
+export async function replace(path, content) {
   const pending = `${path}.pending`;
   const existing = await lstat(path);
   if (!existing.isFile() || existing.isSymbolicLink() || existing.nlink !== 1) fail('AUTH_REPLACE_PATH_REFUSED');
@@ -83,11 +83,11 @@ export function nginxLocation(socketPath) {
   if (typeof socketPath !== 'string' || !/^\/[A-Za-z0-9_./-]+\.sock$/.test(socketPath) || resolve(socketPath) !== socketPath) fail('AUTH_SOCKET_PATH_REFUSED');
   return `# Generated for the existing matching TLS server. No new listener.\nlocation ^~ /auth/ {\n    proxy_pass http://unix:${socketPath}:;\n    proxy_set_header Host $http_host;\n    proxy_set_header X-Wallet-Tenant $http_x_wallet_tenant;\n    proxy_set_header Origin $http_origin;\n    proxy_set_header X-Wallet-CSRF $http_x_wallet_csrf;\n    proxy_set_header X-Authenticated-User "";\n    proxy_set_header X-Verified-Wallet "";\n    proxy_connect_timeout 3s;\n    proxy_read_timeout 15s;\n    proxy_send_timeout 15s;\n    client_max_body_size 100k;\n    proxy_buffering off;\n    proxy_cache off;\n    access_log off;\n}\n`;
 }
-function nginxTokens(text) {
+export function nginxTokens(text) {
   const re = /#[^\n]*|"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[{};]|[^\s{};#"']+/g;
   return [...text.matchAll(re)].filter(token => !token[0].startsWith('#')).map(token => ({ value: token[0].replace(/^(["'])(.*)\1$/, '$2'), index: token.index }));
 }
-function selectedNginxServer(text, origin) {
+export function selectedNginxServer(text, origin) {
   const url = new URL(origin), port = url.port || '443';
   if (url.protocol !== 'https:') fail('AUTH_PROXY_INPUT_REFUSED');
   const stack = [], blocks = []; let pending = [];
@@ -105,8 +105,8 @@ function selectedNginxServer(text, origin) {
   if (matches.length !== 1) fail('AUTH_EXACT_TLS_VHOST_REQUIRED');
   return matches[0];
 }
-function authRouteExists(text) { return /8415wallet-auth-installed|location\s+(?:[^\n{]*\s)?[^\n{]*\/auth(?:[\s/"'{]|$)/.test(text); }
-function includePaths(text) {
+export function authRouteExists(text) { return /8415wallet-auth-installed|location\s+(?:[^\n{]*\s)?[^\n{]*\/auth(?:[\s/"'{]|$)/.test(text); }
+export function includePaths(text) {
   const tokens = nginxTokens(text), found = [];
   for (let i = 0; i < tokens.length; i++) if (tokens[i].value === 'include') {
     if (!tokens[i + 1] || tokens[i + 2]?.value !== ';') fail('AUTH_NGINX_INCLUDE_REVIEW_REQUIRED');
@@ -142,14 +142,14 @@ export function insertProxy(text, origin, includePath, reviewedIncludes) {
   if (includePaths(scope).length && reviewedIncludes?.scopeSha256 !== digest(scope)) fail('AUTH_NGINX_INCLUDES_REQUIRE_REVIEW');
   return text.slice(0, block.end) + `    # 8415wallet-auth-installed\n    include ${includePath};\n` + text.slice(block.end);
 }
-function runtimeVersion(node) {
+export function runtimeVersion(node) {
   if (!/^\/[A-Za-z0-9_./-]+$/.test(node)) fail('AUTH_NODE_PATH_REFUSED');
   const version = execFileSync(node, ['--version'], { encoding: 'utf8', env: { PATH: '/usr/bin:/bin', LANG: 'C' } }).trim();
   const m = /^v(22|24)\.(\d+)\.(\d+)$/.exec(version);
   if (!m || (m[1] === '22' && Number(m[2]) < 18)) fail('AUTH_NODE_22_18_OR_24_REQUIRED');
   return version;
 }
-async function protectedNode(node, uid, nodeUid = uid) {
+export async function protectedNode(node, uid, nodeUid = uid) {
   const binary = await protect(node, { uid: nodeUid });
   for (let path = dirname(node); ; path = dirname(path)) {
     const stat = await lstat(path);
@@ -250,7 +250,7 @@ export async function probe(config) {
     req.on('timeout', () => req.destroy(Error('AUTH_PROBE_TIMEOUT'))); req.on('error', no); req.end();
   });
 }
-async function waitForProbe(config) {
+export async function waitForProbe(config) {
   const deadline = Date.now() + 10000; let last;
   do { try { return await probe(config); } catch (error) { last = error; await new Promise(resolve => setTimeout(resolve, 200)); } } while (Date.now() < deadline);
   throw last;
@@ -310,6 +310,7 @@ export async function rollback(options = {}) {
 }
 async function rollbackLocked({ target, uid = 0, run = (file, args) => execFileSync(file, args, { stdio: 'pipe' }) }) {
   const { receipt } = await inspect({ target, uid });
+  if (receipt.legacyImport) fail('AUTH_LEGACY_FORWARD_ONLY_USE_UPGRADE');
   if (['proxy-enabled', 'enabling-proxy'].includes(receipt.status)) {
     await protectedAncestors(receipt.nginxSite, uid); await protect(receipt.nginxSite, { uid });
     const current = await readFile(receipt.nginxSite);
@@ -326,7 +327,7 @@ async function rollbackLocked({ target, uid = 0, run = (file, args) => execFileS
   await replace(join(target.root, 'installation.json'), JSON.stringify(receipt, null, 2) + '\n');
   return { status: receipt.status, credentialStatePreserved: true, publicWalletUnchanged: true };
 }
-async function switchRelease(target, runtime) {
+export async function switchRelease(target, runtime) {
   const pending = join(target.root, 'current.pending');
   await symlink(runtime, pending);
   try { await rename(pending, join(target.root, 'current')); }
