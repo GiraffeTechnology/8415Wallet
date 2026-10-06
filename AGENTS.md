@@ -1,5 +1,29 @@
 # 8415wallet AGENTS.md
 
+## Historical authorized Beta installation scope (2026-10-05)
+
+This dated record covers the supplied October 4 archive, not the current
+application build or a new deployment authorization. Current authentication,
+registration and recovery requirements below remain in force.
+
+ArtFi control was assigned the client-requested ArtFi iteration, installation and
+joint testing using the Beta package on branch `delivery/install-handoff-20261004`.
+The exact source is `1f4a9ae6dd5b8b062ab4f903920cf4b39d158e36`; the archive SHA256
+is `df5058bec9d5c12cffb9ca10cd7ea991e46696207a50f3d2ccf47ac375681838`.
+Preserve the immutable supplied archive and verify its nested manifests before
+installation. That client instruction, rather than artifact publication alone,
+covered production-like Beta installation and joint testing in the approved
+CTYun/SIN Linux environment. Windows is a source/report workstation only.
+
+Historical Charity completion, full V3 acceptance and independent general-release
+audit are not prerequisites for this Beta installation and testing. Remaining
+genuine-wallet, public-testnet, device and W-20 observations are collected and
+reported separately; no old result is inherited by a changed source or origin.
+Public entry navigation may skip login, but protected assets/history still require
+verified login. Mainnet/real-value testing, credential disclosure, unknown-outcome
+replay and changes to shared or other-task services remain outside that historical scope.
+GitHub writes remain English only.
+
 ## Product Boundary
 
 8415wallet is a general-purpose application-layer wallet compatible with
@@ -39,15 +63,25 @@ standalone use.
 
 Support password, authenticator TOTP (Google Authenticator/FreeOTP), local
 private-key challenge signing and configured hardware CA challenge signing.
-The latest instruction explicitly cancels email OTP. Never add an email-code
-transport or suggest that connecting a provider alone authenticates an account.
+Email OTP is not a login method. The owner update on 2026-10-06 adds reset-only
+email verification from noreply@8415wallet.com together with a previously reserved
+security answer. Preserve fresh independent identity verification and existing
+authenticator/recovery proof; email or security answers never replace them. Read
+`docs/AUTH-RECOVERY.md` and `docs/EMAIL-REGISTRATION.md`. Email ownership OTP
+is also required for registration; it remains unavailable as a login method. Never suggest provider connection authenticates an account.
 
 Read `docs/ACCOUNT-AUTHENTICATION.md` and `docs/WALLET-LOGIN.md` before changing
 authentication. Passwords/TOTP require server verification and revocable sessions;
 client-only flags cannot implement them. Preserve origin/tenant/account/chain
 binding, CSRF, one-use challenge/TOTP/recovery handling, encrypted credential
-state and enrollment confirmation. New account/CA bindings come from independently
-verified operator configuration, never untrusted client fields. No private key,
+state and enrollment confirmation. Operator and hardware-CA bindings come from independently verified configuration.
+Ordinary self-registration requires verified email ownership plus an exact
+origin/tenant/account/chain/purpose-bound EOA control proof; it grants no operator,
+tenant-management, private-record or transaction authority. Registration email is
+mandatory, unique per tenant, and verified before account creation. Existing
+accounts retain login access to complete verified-email migration without rekeying
+or discarding credentials. See `docs/EMAIL-REGISTRATION.md`. Never trust
+client-supplied identity flags or create an account from email OTP alone. No private key,
 seed phrase, hardware PIN, live authenticator seed or production store key belongs
 in source, logs, artifacts or a page form. Synthetic test credentials are local
 fixtures only. No production provisioning, deployment or transaction is implied.
@@ -63,7 +97,7 @@ unchanged; updated artifacts need their own exact source identity after review.
 
 ## Interface localization (owner update, 2026-10-04)
 
-Keep the compact six-choice UI language control, with English as the default and
+Keep the compact native six-choice language dropdown (owner update, 2026-10-06), with English as the default and
 locale IDs en, zh-Hans, zh-Hant, fr, es and ja. The owner explicitly authorizes
 multilingual fixed UI catalogs and selector labels; identifiers, engineering
 documents and PR prose remain English. Token names, descriptions and metadata
@@ -453,11 +487,11 @@ satisfied by a merge:
 - **W-20**, which asks for one deployed same-token multi-wallet journey and
   cannot be satisfied locally by construction.
 
-GitHub Actions has not run on any of this. Every run in this repository since
-2026-09-19 fails in seconds with no step started and no runner assigned,
-including pushes to `main`, so it is not a property of any branch. Until that
-is resolved, "CI is green" is not a claim this repository can make, and the
-local pipeline tables stand in its place — clearly labelled as local.
+The September 25 batch had no executed GitHub Actions evidence at that time.
+That historical runner blockage is superseded by the exact-source October 4
+merged-main run `37209416014`, with successful Node 22 and Node 24 jobs.
+Future changes require their own exact-head result; retain the old local tables
+as historical local evidence, not a current repository-wide CI prohibition.
 
 Do not describe the new source as never tested, and do not describe it as
 released. Do not invent results, and do not infer that development is complete
@@ -544,10 +578,13 @@ not configure HTTP, HTTPS, web servers, reverse proxies or TLS listeners to
 bind TCP port 443, and do not stop, rebind, replace or otherwise disrupt SSH to
 free it.
 
-Before selecting a web or bridge port, inspect the existing deployment and
-operations configuration and reuse an explicitly confirmed allocation. Do not
-guess a replacement port. If the allocation is unclear, report the missing
-configuration rather than changing a service binding.
+Before selecting a web or bridge port, inspect current listeners and operations
+configuration. Do not guess a replacement port. Verify the current listener
+state before reusing a suitable existing allocation or selecting an actually free
+non-443 port within the client's approved deployment scope. Occupied ports,
+SSH, shared bridges and other-task services remain protected. Do not invent a
+separate per-port client approval requirement; actual public-ingress authority
+still applies to its target rule. Complete configured URLs determine the origin.
 
 A web origin is scheme, host and port, so the port a wallet is served on is
 part of its origin. Moving a served wallet to a different port strands every
@@ -562,8 +599,9 @@ part of what a user verifies in the address bar. That is a cost of this
 reservation, not a defect to work around. HSTS does not mitigate it, because it
 upgrades the scheme and not the port.
 
-Certificate issuance must use the HTTP-01 challenge over port 80. TLS-ALPN-01
-validates on TCP 443 and is unavailable under this reservation.
+Use a supported certificate-validation method within existing operations authority,
+such as available HTTP-01 or authorized DNS-01. HTTP-01 is not the sole permitted
+method. Do not consume reserved TCP 443 for TLS-ALPN-01.
 
 Recording this rule does not authorize server access or changes to SSH,
 firewalls, credentials, network settings or security settings.

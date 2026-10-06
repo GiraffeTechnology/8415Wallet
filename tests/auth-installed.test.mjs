@@ -1,5 +1,5 @@
 /** Full offline package rehearsal. Every identity/key/password is a temporary synthetic fixture. */
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import * as fs from 'node:fs/promises';
 import { join, dirname, resolve } from 'node:path';
@@ -18,7 +18,10 @@ const decode = createRequire(import.meta.url)('./vendor/jsqr.cjs');
 const syntheticKey = Buffer.alloc(32, 0x5a);
 const signer = new Wallet(`0x${'0'.repeat(63)}1`); // Publicly known local-only test signer, never funded or transmitted to a chain.
 const tenant = 'rehearsal', origin = 'https://rehearsal.example.invalid:19447';
-const uid = process.getuid(), nodeUid = (await fs.stat(process.execPath)).uid;
+import { independentNode } from './helpers/independent-node.mjs';
+const fixtureNode = await independentNode();
+after(() => fixtureNode.cleanup());
+const uid = process.getuid(), nodeUid = fixtureNode.uid;
 function canvasFixture() {
   let width = 0, height = 0, pixels = new Uint8ClampedArray(0);
   const context = { fillStyle: '', fillRect(x, y, w, h) { const value = this.fillStyle === '#ffffff' ? 255 : 0; for (let r = y; r < y + h; r++) for (let c = x; c < x + w; c++) { const offset = (r * width + c) * 4; pixels.fill(value, offset, offset + 3); pixels[offset + 3] = 255; } } };
@@ -34,7 +37,7 @@ function activationFilesystem(privateRoots) {
   } };
 }
 async function startService(runtime, config, configPath) {
-  const child = spawn(process.execPath, ['server/main.mjs'], { cwd: runtime, env: { PATH: process.env.PATH, WALLET_AUTH_CONFIG: configPath, WALLET_AUTH_STORE_KEY: syntheticKey.toString('hex') }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = spawn(fixtureNode.node, ['server/main.mjs'], { cwd: runtime, env: { PATH: process.env.PATH, WALLET_AUTH_CONFIG: configPath, WALLET_AUTH_STORE_KEY: syntheticKey.toString('hex') }, stdio: ['ignore', 'pipe', 'pipe'] });
   let output = ''; child.stdout.on('data', data => { output += data; }); child.stderr.on('data', data => { output += data; });
   for (let attempt = 0; attempt < 100; attempt++) {
     if (child.exitCode !== null) throw Error(`PACKAGED_SERVICE_EXITED_${child.exitCode}: ${output.trim()}`);
@@ -65,7 +68,7 @@ test('verified offline package prepares, initializes synthetic credential, start
   const root = await fs.mkdtemp(join(tmpdir(), 'wallet-auth-installed-')); t.after(() => fs.rm(root, { recursive: true, force: true }));
   const target = paths(join(root, 'host'), tenant);
   for (const dir of [dirname(target.root), dirname(target.config), dirname(target.state), dirname(target.unit)]) await fs.mkdir(dir, { recursive: true, mode: 0o755 });
-  const result = await prepare({ packageDirectory: runtime, target, uid, nodeUid, node: process.execPath, origin, tenant, accounts: [{ username: 'synthetic-user', wallets: [{ account: signer.address, chainId: '8453' }] }], reservedPorts: [], reload: () => {} });
+  const result = await prepare({ packageDirectory: runtime, target, uid, nodeUid, node: fixtureNode.node, origin, tenant, accounts: [{ username: 'synthetic-user', wallets: [{ account: signer.address, chainId: '8453' }] }], reservedPorts: [], reload: () => {} });
   assert.equal(result.sourceTree, release.source.tree); assert.equal(result.secretCreated, false);
   const statePath = join(target.state, 'credentials.enc'), configPath = join(target.config, 'auth.json');
   const prompts = ['PASSWORD', 'synthetic-user', 'synthetic-integration-password', 'synthetic-integration-password', 'CREATE']; let transcript = '';

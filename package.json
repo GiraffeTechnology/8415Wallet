@@ -10,7 +10,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "node --test \"tests/**/*.test.ts\" tests/auth-provisioning.test.mjs tests/auth-qr.test.mjs tests/auth-activation.test.mjs tests/auth-install.test.mjs tests/auth-package.test.mjs tests/dapp-install.test.mjs",
+    "test": "node --test \"tests/**/*.test.ts\" tests/auth-provisioning.test.mjs tests/auth-qr.test.mjs tests/auth-activation.test.mjs tests/auth-install.test.mjs tests/auth-package.test.mjs tests/dapp-install.test.mjs tests/auth-mail-config.test.mjs",
     "verify": "npm run typecheck && npm test && npm run test:evm",
     "wallet": "node src/cli/main.ts",
     "wallet:browser:build": "tsc -p tsconfig.browser.json && node scripts/package/build-login-vendor.mjs",
@@ -32,7 +32,7 @@
     "test:package:dapp": "node --test tests/dapp-release.test.mjs",
     "wallet:auth:serve": "node server/main.mjs",
     "wallet:auth:operator": "node server/operator-init.mjs",
-    "test:auth": "node --test tests/auth-service.test.ts tests/auth-crypto.test.ts tests/ca-verifier.test.ts tests/account-login.test.ts tests/account-login-ui.test.ts tests/auth-provisioning.test.mjs tests/auth-qr.test.mjs tests/auth-activation.test.mjs tests/auth-install.test.mjs",
+    "test:auth": "node --test tests/auth-service.test.ts tests/auth-recovery.test.ts tests/auth-registration.test.ts tests/auth-crypto.test.ts tests/ca-verifier.test.ts tests/account-login.test.ts tests/account-login-ui.test.ts tests/auth-provisioning.test.mjs tests/auth-qr.test.mjs tests/auth-activation.test.mjs tests/auth-install.test.mjs tests/auth-mail-config.test.mjs",
     "wallet:auth:activate": "node server/operator-activate.mjs",
     "wallet:auth:install": "node deploy/auth-xiongan/install.mjs",
     "pack:auth": "node scripts/package/build-auth.mjs",

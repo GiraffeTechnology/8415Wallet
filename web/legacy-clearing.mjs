@@ -65,7 +65,7 @@ if (mount) {
     if (busy) return;
     const lock = acquireWalletUi(); if (lock === null) return;
     busy = true; const current = generation;
-    document.querySelectorAll('button:not([data-auth-control]):not([data-ui-locale]),input,select').forEach(n => { n.disabled = true; });
+    document.querySelectorAll('button:not([data-auth-control]):not([data-ui-locale]) ,input,select:not([data-ui-locale])').forEach(n => { n.disabled = true; });
     const guard = () => { walletLogin.assert(); if (current !== generation) throw new ControlAdapterError('CLEARING_CONNECTION_CHANGED'); };
     try { await walletLogin.check(); await getReleaseProfile(); guard(); await fn(guard); guard(); } catch (error) {
       result(current !== generation ? 'CLEARING_CONNECTION_CHANGED' : error instanceof WalletLoginError ? error.code : error instanceof ControlAdapterError ? error.code : 'CLEARING_UI_OPERATION_REFUSED');
@@ -78,7 +78,7 @@ if (mount) {
               msg('status.savedTransaction', { hash: state.transactionHash }));
         } catch { paint(el('clearing-recovery-guidance'), msg('message.046')); }
       }
-      busy = false; releaseWalletUi(lock); document.querySelectorAll('button:not([data-auth-control]):not([data-ui-locale]),input,select').forEach(n => { n.disabled = false; });
+      busy = false; releaseWalletUi(lock); document.querySelectorAll('button:not([data-auth-control]):not([data-ui-locale]) ,input,select:not([data-ui-locale])').forEach(n => { n.disabled = false; });
     }
   }
   for (const input of mount.querySelectorAll('input:not([type="checkbox"]):not([type="file"])')) input.addEventListener('input', clearReview);

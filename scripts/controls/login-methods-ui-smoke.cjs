@@ -77,6 +77,7 @@ async function main() {
         assert.equal(await page.evaluate(() => { const c = document.getElementById('auth-enroll-qr'); return c.hidden && c.width === 0 && c.height === 0; }), true);
       };
       const startSetup = async () => {
+        await page.click('#auth-manage-open');
         await page.click('#auth-enroll-start');
         await page.waitForFunction(() => !document.getElementById('auth-enroll-qr').hidden);
       };
@@ -103,12 +104,14 @@ async function main() {
       await page.route('**/auth/totp/enroll/start', async route => {
         const response = await route.fetch(); startReceived(); await gate; await route.fulfill({ response });
       });
-      await page.click('#auth-enroll-start'); await held;
+      await page.click('#auth-manage-open');
+        await page.click('#auth-enroll-start'); await held;
       await page.click('#wallet-logout'); await qrEmpty();
       const lateResponse = page.waitForResponse(response => response.url().endsWith('/auth/totp/enroll/start'));
       releaseStart(); await lateResponse; await page.waitForLoadState('networkidle'); await qrEmpty();
       await page.unroute('**/auth/totp/enroll/start'); await passwordAgain();
-      await page.click('#auth-enroll-start'); await page.waitForFunction(() => document.getElementById('auth-enroll-secret').textContent.includes('otpauth:'));
+      await page.click('#auth-manage-open');
+        await page.click('#auth-enroll-start'); await page.waitForFunction(() => document.getElementById('auth-enroll-secret').textContent.includes('otpauth:'));
       const text = await page.textContent('#auth-enroll-secret'), secret = text.match(/\n([A-Z2-7]{32})\n/)[1];
       // Synthetic only: inspect in-memory pixels, decode independently, save no QR/URI.
       await page.waitForFunction(() => !document.getElementById('auth-enroll-qr').hidden);
@@ -122,7 +125,7 @@ async function main() {
       const beforeLocale = await page.evaluate(() => {
         const canvas = document.getElementById('auth-enroll-qr'); return { width: canvas.width, height: canvas.height };
       });
-      await page.click('[data-ui-locale="zh-Hans"]'); await page.click('[data-ui-locale="en"]');
+      await page.selectOption('#ui-locale', 'zh-Hans'); await page.selectOption('#ui-locale', 'en');
       assert.deepEqual(await page.evaluate(() => { const canvas = document.getElementById('auth-enroll-qr'); return { width: canvas.width, height: canvas.height }; }), beforeLocale);
       await page.fill('#auth-enroll-code', hotp(secret, Math.floor(time / 30000))); await page.click('#auth-enroll-confirm');
       await page.waitForFunction(() => !document.getElementById('auth-recovery-output').hidden);
@@ -154,4 +157,4 @@ async function main() {
     console.log(JSON.stringify(evidence, null, 2));
   } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }
 }
-main().catch(error => { console.error(error); process.exitCode = 1; });
+main().then(() => require('./account-settings-ui-smoke.cjs').run()).then(() => require('./registration-ui-smoke.cjs').run()).catch(error => { console.error(error); process.exitCode = 1; });

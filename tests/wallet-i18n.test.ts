@@ -68,10 +68,12 @@ test('all explicit static UI keys exist; selector has compact labels and native 
     for (const match of source.matchAll(/data-i18n(?:-aria)?="([^"]+)"/g)) assert.ok(Object.hasOwn(CATALOGS.en!, match[1]!), match[1]);
   }
   const html = readFileSync(new URL('../web/index.html', import.meta.url), 'utf8');
-  for (const { id, label, name } of LOCALES) assert.match(html, new RegExp(`data-ui-locale="${id}" lang="${id}" aria-label="${name}"[^>]*>${label}</button>`));
+  for (const { id, label, name } of LOCALES) assert.match(html, new RegExp(`value="${id}" lang="${id}" aria-label="${name}"[^>]*>${label}</option>`));
+  assert.match(html, /<select id="ui-locale" data-ui-locale data-ui-locale-select/);
+  assert.doesNotMatch(html, /<button[^>]+data-ui-locale/);
   assert.match(html, /id="wallet-private" hidden inert/);
   const code = readFileSync(new URL('../web/i18n.mjs', import.meta.url), 'utf8');
-  assert.doesNotMatch(code, /\.innerHTML\s*=|\.value\s*=|\.checked\s*=|\.hidden\s*=|\.inert\s*=|fetch\(|ethereum|eth_sendTransaction|personal_sign/);
+  assert.doesNotMatch(code, /\.innerHTML\s*=|\.checked\s*=|\.hidden\s*=|\.inert\s*=|fetch\(|ethereum|eth_sendTransaction|personal_sign/);
 });
 
 test('localized decimal display preserves every digit without changing raw transaction integers', () => {
@@ -83,4 +85,14 @@ test('localized decimal display preserves every digit without changing raw trans
   assert.equal(result.amount, '123456789012345678901234567890000000000000000001');
   assert.match(result.humanAmount, /,000000000000000001/);
   for (const invalid of ['1e18', '-1', '1,2', 'NaN', '01']) assert.throws(() => formatDisplayDecimal(invalid), /UI_DECIMAL_REFUSED/);
+});
+
+test('native dropdown restores preference and changes only locale using keyboard-compatible change events', () => {
+  const handlers = new Map<string, () => void>(), writes: unknown[] = [];
+  const selector = { value: '', addEventListener(event: string, fn: () => void) { handlers.set(event, fn); } };
+  const document = { documentElement: { lang: '' }, querySelectorAll: (query: string) => query === '[data-ui-locale-select]' ? [selector] : [], getElementById: () => null };
+  const storage = { getItem: () => 'zh-Hant', setItem: (...value: unknown[]) => writes.push(value) };
+  initializeLocale(document, storage); assert.equal(selector.value, 'zh-Hant'); assert.equal(document.documentElement.lang, 'zh-Hant');
+  selector.value = 'ja'; handlers.get('change')!(); assert.equal(document.documentElement.lang, 'ja'); assert.deepEqual(writes, [[LOCALE_STORAGE_KEY, 'ja']]);
+  assert.deepEqual([...handlers.keys()], ['change']); setLocale('en', { persist: false });
 });

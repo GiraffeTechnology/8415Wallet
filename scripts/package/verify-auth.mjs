@@ -9,12 +9,29 @@ import { gunzipSync } from 'node:zlib';
 
 export const AUTH_SCHEMA = '8415wallet-auth-runtime/1';
 export const AUTH_STATUS = 'NONPRODUCTION_PACKAGE_NOT_ACTIVATED';
+// State meaning is versioned independently of the unchanged AES envelope format.
+// Legacy code may discard registration/recovery fields even though it decrypts v1.
+export const AUTH_STATE_SEMANTICS = '8415wallet-auth-state/2';
+export const LEGACY_AUTH_STATE_SEMANTICS = '8415wallet-auth-state/1';
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 export const jsonBytes = object => `${JSON.stringify(object, null, 2)}\n`;
 const objectHash = (type, bytes) => createHash('sha1').update(`${type} ${bytes.length}\0`).update(bytes).digest('hex');
 const fail = (condition, code) => { if (!condition) throw new Error(`AUTH_PACKAGE_${code}`); };
 const hashPattern = /^[0-9a-f]{64}$/;
 const gitPattern = /^[0-9a-f]{40}$/;
+export function authStateSemantics(release) {
+  const value = release?.runtime?.authStateSemantics;
+  // An absent declaration is the pre-registration/recovery generation only.
+  fail(value === undefined || value === LEGACY_AUTH_STATE_SEMANTICS || value === AUTH_STATE_SEMANTICS, 'STATE_SEMANTICS_REFUSED');
+  return value ?? LEGACY_AUTH_STATE_SEMANTICS;
+}
+export function validateAuthStateTransition(current, candidate, { rollback = false } = {}) {
+  const from = authStateSemantics(current), to = authStateSemantics(candidate);
+  if (from === to) return;
+  fail(!(from === AUTH_STATE_SEMANTICS && to === LEGACY_AUTH_STATE_SEMANTICS), 'STATE_SEMANTICS_DOWNGRADE_REFUSED');
+  // This is the one reviewed forward edge. Unknown future generations fail closed.
+  fail(!rollback && from === LEGACY_AUTH_STATE_SEMANTICS && to === AUTH_STATE_SEMANTICS, 'STATE_SEMANTICS_TRANSITION_REFUSED');
+}
 export const sourcePathAllowed = path => /^(?:server\/[a-z][a-z0-9-]*\.mjs|web\/login-core\.mjs|deploy\/auth-xiongan\/(?:install\.mjs|8415wallet-auth-xiongan\.service|auth-location\.nginx\.conf)|docs\/AUTH-INSTALL\.md|scripts\/package\/verify-auth\.mjs|LICENSE)$/.test(path);
 export function safePath(path) {
   return typeof path === 'string' && path.length > 0 && path.length <= 240 && /^[A-Za-z0-9_@.+/=-]+$/.test(path)
@@ -95,6 +112,7 @@ export function verifyAuthDirectory(directory, { expectedTree } = {}) {
   const release = JSON.parse(readFileSync(join(directory, 'AUTH-RELEASE.json'), 'utf8'));
   fail(release.schema === AUTH_SCHEMA && release.status === AUTH_STATUS, 'SCHEMA_OR_STATUS_REFUSED');
   fail(release.runtime?.node === '>=22.18.0' && release.runtime?.bundledNode === false && release.runtime?.bundledProductionDependencies === true, 'RUNTIME_DECLARATION_REFUSED');
+  authStateSemantics(release);
   const source = release.source;
   fail(source && gitPattern.test(source.commit) && gitPattern.test(source.commitTree) && gitPattern.test(source.indexTree) && gitPattern.test(source.tree), 'SOURCE_IDENTITY_REFUSED');
   const commitBytes = Buffer.from(source.commitObject, 'base64');

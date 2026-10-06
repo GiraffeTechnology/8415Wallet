@@ -6,6 +6,7 @@ import { openEncryptedStore } from './store.mjs';
 import { createCaVerifier } from './ca-verifier.mjs';
 import { protectSocketDirectory } from './socket-path.mjs';
 import { validateAuthConfig } from './config-validation.mjs';
+import { createOtpSenderFromEnvironment } from './mail-otp.mjs';
 const configPath = process.env.WALLET_AUTH_CONFIG;
 if (!configPath) throw new Error('WALLET_AUTH_CONFIG_REQUIRED');
 const config = JSON.parse(await readFile(configPath, 'utf8'));
@@ -18,7 +19,8 @@ if (typeof config.statePath !== 'string' || !/^[a-fA-F0-9]{64}$/.test(process.en
 const store = await openEncryptedStore(config.statePath, Buffer.from(process.env.WALLET_AUTH_STORE_KEY, 'hex'));
 try {
   const verifyCa = config.ca ? await createCaVerifier(config.ca) : null;
-  const handler = createAuthService({ origin: config.origin, tenant: config.tenant, accounts: config.accounts, store, verifyCa });
+  const sendOtp = createOtpSenderFromEnvironment(process.env, config.mail); // No connection/send until a verified registration/recovery workflow requests it.
+  const handler = createAuthService({ origin: config.origin, tenant: config.tenant, accounts: config.accounts, store, verifyCa, sendOtp });
   const server = createServer(handler);
   server.requestTimeout = 10000; server.headersTimeout = 10000; server.timeout = 15000;
   server.maxHeadersCount = 40;

@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { chmodSync, cpSync, linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
+import { chmodSync, cpSync, existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { captureAuthSource, deterministicAuthArchive } from '../scripts/package/build-auth.mjs';
-import { AUTH_SCHEMA, AUTH_STATUS, jsonBytes, packagePathAllowed, readAuthArchive, runtimePackage, sha256, sourcePathAllowed, sourceTree, unpackAuthArchive, verifyAuthArchive, verifyAuthDirectory, walkAuth } from '../scripts/package/verify-auth.mjs';
+import { AUTH_SCHEMA, AUTH_STATUS, AUTH_STATE_SEMANTICS, LEGACY_AUTH_STATE_SEMANTICS, authStateSemantics, validateAuthStateTransition, jsonBytes, packagePathAllowed, readAuthArchive, runtimePackage, sha256, sourcePathAllowed, sourceTree, unpackAuthArchive, verifyAuthArchive, verifyAuthDirectory, walkAuth } from '../scripts/package/verify-auth.mjs';
+import { paths, nginxLocation, upgrade, rollbackCode } from '../deploy/auth-xiongan/install.mjs';
 
 function temporary(t) { const path = mkdtempSync(join(tmpdir(), 'wallet-auth-package-test-')); t.after(() => rmSync(path, { recursive: true, force: true })); return path; }
 function put(root, path, value) { mkdirSync(dirname(join(root, path)), { recursive: true }); writeFileSync(join(root, path), value); chmodSync(join(root, path), 0o644); }
@@ -18,9 +19,10 @@ const sourceLock = { name: '8415wallet', lockfileVersion: 3, packages: {
 } };
 const sourcePaths = ['server/main.mjs', 'server/service-entry.mjs', 'server/runtime-entry.mjs', 'server/auth-service.mjs', 'server/crypto.mjs', 'server/config-validation.mjs', 'server/ca-verifier.mjs', 'server/store.mjs', 'server/operator-init.mjs', 'server/operator-activate.mjs', 'web/login-core.mjs', 'deploy/auth-xiongan/install.mjs', 'deploy/auth-xiongan/8415wallet-auth-xiongan.service', 'deploy/auth-xiongan/auth-location.nginx.conf', 'docs/AUTH-INSTALL.md', 'scripts/package/verify-auth.mjs', 'LICENSE'];
 function git(root, args) { return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim(); }
-function fixture(t) {
+function fixture(t, { semantics, label = '' } = {}) {
   const root = temporary(t); const sourceRoot = join(root, 'source'); const runtimeRoot = join(root, 'runtime'); mkdirSync(sourceRoot); mkdirSync(runtimeRoot);
   for (const path of sourcePaths) put(sourceRoot, path, path.endsWith('.mjs') ? 'export {};\n' : `Synthetic package fixture: ${path}\n`);
+  if (label) put(sourceRoot, 'docs/AUTH-INSTALL.md', `Synthetic package fixture: ${label}\n`);
   put(sourceRoot, 'package.json', jsonBytes(sourcePackage)); put(sourceRoot, 'package-lock.json', jsonBytes(sourceLock));
   put(sourceRoot, 'scripts/package/build-auth.mjs', '// Synthetic package fixture, never a real build.\n');
   git(sourceRoot, ['init', '-q']); git(sourceRoot, ['add', '--all']);
@@ -34,7 +36,8 @@ function fixture(t) {
   put(runtimeRoot, 'node_modules/ethers/package.json', jsonBytes({ name: 'ethers', version: '6.17.0' }));
   put(runtimeRoot, 'node_modules/ethers/index.js', 'export const synthetic = true;\n');
   const release = { schema: AUTH_SCHEMA, status: AUTH_STATUS, source,
-    runtime: { node: '>=22.18.0', bundledNode: false, bundledProductionDependencies: true },
+    runtime: { node: '>=22.18.0', bundledNode: false, bundledProductionDependencies: true, credentialStoreFormat: 1,
+      ...(semantics === undefined ? {} : { authStateSemantics: semantics }) },
     files: Object.fromEntries(walkAuth(runtimeRoot).map(path => [path, sha256(readFileSync(join(runtimeRoot, path)))])) };
   const update = () => {
     release.files = Object.fromEntries(walkAuth(runtimeRoot).filter(path => !['AUTH-RELEASE.json', 'SHA256SUMS'].includes(path)).map(path => [path, sha256(readFileSync(join(runtimeRoot, path)))]));
@@ -50,6 +53,105 @@ test('production manifest pins ethers and retains only production lock entries',
   assert.equal(runtime.manifest.devDependencies, undefined);
   assert.deepEqual(Object.keys(runtime.lock.packages), ['', 'node_modules/ethers']);
   assert.equal(runtime.lock.packages['node_modules/ethers'].integrity, sourceLock.packages['node_modules/ethers'].integrity);
+});
+test('auth state semantics allow only the reviewed forward edge and same-generation rollback', () => {
+  const legacy = { runtime: { credentialStoreFormat: 1 } };
+  const explicitLegacy = { runtime: { credentialStoreFormat: 1, authStateSemantics: LEGACY_AUTH_STATE_SEMANTICS } };
+  const current = { runtime: { credentialStoreFormat: 1, authStateSemantics: AUTH_STATE_SEMANTICS } };
+  assert.equal(authStateSemantics(legacy), LEGACY_AUTH_STATE_SEMANTICS);
+  assert.doesNotThrow(() => validateAuthStateTransition(legacy, explicitLegacy, { rollback: true }));
+  assert.doesNotThrow(() => validateAuthStateTransition(legacy, current));
+  assert.doesNotThrow(() => validateAuthStateTransition(current, structuredClone(current), { rollback: true }));
+  for (const old of [legacy, explicitLegacy]) {
+    assert.throws(() => validateAuthStateTransition(current, old), /STATE_SEMANTICS_DOWNGRADE_REFUSED/);
+    assert.throws(() => validateAuthStateTransition(current, old, { rollback: true }), /STATE_SEMANTICS_DOWNGRADE_REFUSED/);
+  }
+  assert.throws(() => validateAuthStateTransition(legacy, current, { rollback: true }), /STATE_SEMANTICS_TRANSITION_REFUSED/);
+  for (const value of [null, 2, '', '8415wallet-auth-state/3', '1', {}]) {
+    assert.throws(() => authStateSemantics({ runtime: { authStateSemantics: value } }), /STATE_SEMANTICS_REFUSED/);
+    assert.throws(() => validateAuthStateTransition(current, { runtime: { authStateSemantics: value } }), /STATE_SEMANTICS_REFUSED/);
+  }
+});
+test('directory verification preserves legacy readability and validates the independent state declaration', t => {
+  const f = fixture(t);
+  assert.equal(authStateSemantics(verifyAuthDirectory(f.runtimeRoot)), LEGACY_AUTH_STATE_SEMANTICS);
+  f.release.runtime.authStateSemantics = AUTH_STATE_SEMANTICS; f.update();
+  assert.equal(verifyAuthDirectory(f.runtimeRoot).runtime.credentialStoreFormat, 1);
+  assert.equal(authStateSemantics(verifyAuthDirectory(f.runtimeRoot)), AUTH_STATE_SEMANTICS);
+  f.release.runtime.authStateSemantics = '8415wallet-auth-state/3'; f.update();
+  assert.throws(() => verifyAuthDirectory(f.runtimeRoot), /STATE_SEMANTICS_REFUSED/);
+});
+
+// Build only an isolated receipt/configuration fixture. No prepare, listener,
+// credential decryption or subprocess is needed to exercise code transitions.
+function installedFixture(f, { prior, status = 'prepared-not-activated' } = {}) {
+  const tenant = 'state-test', target = paths(join(f.root, 'host'), tenant);
+  for (const directory of [target.root, target.config, target.state, dirname(target.unit)]) mkdirSync(directory, { recursive: true, mode: 0o755 });
+  chmodSync(target.config, 0o700); chmodSync(target.state, 0o700);
+  const install = item => {
+    const runtime = join(target.root, 'releases', item.release.source.tree);
+    mkdirSync(dirname(runtime), { recursive: true }); cpSync(item.runtimeRoot, runtime, { recursive: true });
+    return { runtime, sourceTree: item.release.source.tree, releaseManifestSha256: sha256(readFileSync(join(runtime, 'AUTH-RELEASE.json'))) };
+  };
+  const current = install(f), previousReleases = prior ? [install(prior)] : [];
+  const config = { origin: 'https://wallet.example.invalid:9447', tenant,
+    socketPath: join(target.socketDirectory, 'auth.sock'), reservedPorts: [], statePath: join(target.state, 'credentials.enc'),
+    accounts: [{ username: 'fixture-user', wallets: [{ account: `0x${'1'.repeat(40)}`, chainId: '8453' }] }] };
+  const node = join(f.root, 'synthetic-node-never-executed'); put(f.root, 'synthetic-node-never-executed', 'Synthetic identity bytes; never executed.\n');
+  const unit = '# Synthetic unit; never installed or started.\n'; put(dirname(target.unit), target.unit.split('/').at(-1), unit);
+  const privatePut = (path, value) => { writeFileSync(path, value, { mode: 0o600 }); chmodSync(path, 0o600); };
+  privatePut(join(target.config, 'auth.json'), jsonBytes(config));
+  privatePut(join(target.config, 'auth-location.nginx.conf'), nginxLocation(config.socketPath));
+  const receipt = { schema: '8415wallet-auth-install/1', ...current, node, nodeUid: process.getuid(), nodeSha256: sha256(readFileSync(node)),
+    origin: config.origin, tenant, socketPath: config.socketPath, reservedPorts: [], unitSha256: sha256(unit), status, previousReleases };
+  privatePut(join(target.root, 'installation.json'), jsonBytes(receipt)); symlinkSync(current.runtime, join(target.root, 'current'));
+  return { target, receipt, config, privatePut, options: { target, uid: process.getuid(), run: () => assert.fail('inactive transition must not run a service command') } };
+}
+test('legacy inactive installation can upgrade to new semantics without creating credential state', async t => {
+  const legacy = fixture(t, { label: 'legacy-forward' }), next = fixture(t, { semantics: AUTH_STATE_SEMANTICS, label: 'new-forward' });
+  const f = installedFixture(legacy);
+  assert.equal((await upgrade({ ...f.options, packageDirectory: next.runtimeRoot })).status, 'code-upgraded');
+  assert.equal(readlinkSync(join(f.target.root, 'current')), join(f.target.root, 'releases', next.release.source.tree));
+  assert.equal(existsSync(join(f.target.config, 'store-key')), false);
+  assert.equal(existsSync(f.config.statePath), false);
+  await assert.rejects(rollbackCode(f.options), /STATE_SEMANTICS_DOWNGRADE_REFUSED/);
+  assert.equal(existsSync(join(f.target.root, 'operation.lock')), false);
+});
+for (const state of ['never-activated', 'registered', 'reserved-reset']) {
+  test(`code transitions preserve ${state} state and refuse downgrade before any switch`, async t => {
+    const legacy = fixture(t, { label: `old-${state}` });
+    const current = fixture(t, { semantics: AUTH_STATE_SEMANTICS, label: `current-${state}` });
+    const next = fixture(t, { semantics: AUTH_STATE_SEMANTICS, label: `next-${state}` });
+    const f = installedFixture(current, { prior: legacy }), keyPath = join(f.target.config, 'store-key');
+    // Deliberately opaque synthetic bytes: transitions must not inspect, decode,
+    // replace or infer permission to downgrade from credential contents.
+    const bytes = Buffer.from(jsonBytes({ fixtureOnly: true, registration: { email: 'fixture@example.invalid' },
+      passwordHash: 'SYNTHETIC-HASH', enabledMethods: { password: false },
+      ...(state === 'reserved-reset' ? { recoveryProfile: { answerHash: 'SYNTHETIC-ANSWER-HASH' }, recoveryHashes: ['SYNTHETIC-UNUSED-CODE'], revision: 9 } : {}) }));
+    if (state !== 'never-activated') { f.privatePut(keyPath, 'SYNTHETIC-NON-CREDENTIAL'); f.privatePut(f.config.statePath, bytes); }
+    const originalReceipt = readFileSync(join(f.target.root, 'installation.json')), originalConfig = readFileSync(join(f.target.config, 'auth.json'));
+    await assert.rejects(upgrade({ ...f.options, packageDirectory: legacy.runtimeRoot }), /STATE_SEMANTICS_DOWNGRADE_REFUSED/);
+    await assert.rejects(rollbackCode(f.options), /STATE_SEMANTICS_DOWNGRADE_REFUSED/);
+    assert.deepEqual(readFileSync(join(f.target.root, 'installation.json')), originalReceipt);
+    assert.equal(readlinkSync(join(f.target.root, 'current')), f.receipt.runtime);
+    assert.equal((await upgrade({ ...f.options, packageDirectory: next.runtimeRoot })).status, 'code-upgraded');
+    assert.equal((await rollbackCode(f.options)).sourceTree, current.release.source.tree);
+    assert.deepEqual(readFileSync(join(f.target.config, 'auth.json')), originalConfig);
+    assert.equal(existsSync(join(f.target.root, 'operation.lock')), false);
+    if (state === 'never-activated') { assert.equal(existsSync(keyPath), false); assert.equal(existsSync(f.config.statePath), false); }
+    else { assert.equal(readFileSync(keyPath, 'utf8'), 'SYNTHETIC-NON-CREDENTIAL'); assert.deepEqual(readFileSync(f.config.statePath), bytes); }
+  });
+}
+test('uncertain cross-generation start never falls back to code that can discard new state', async t => {
+  const legacy = fixture(t, { label: 'legacy-running' }), next = fixture(t, { semantics: AUTH_STATE_SEMANTICS, label: 'new-uncertain-start' });
+  const f = installedFixture(legacy, { status: 'proxy-enabled' }), calls = [];
+  const state = Buffer.from('SYNTHETIC-STATE-MUST-STAY-UNCHANGED'); f.privatePut(f.config.statePath, state);
+  const run = async (file, args) => { calls.push([file, args]); if (args[0] === 'start') throw Error('Synthetic uncertain start; no process was launched.'); };
+  await assert.rejects(upgrade({ ...f.options, packageDirectory: next.runtimeRoot, run }), /AUTH_UPGRADE_STATE_SEMANTICS_RECOVERY_REQUIRED/);
+  assert.deepEqual(calls.map(([, args]) => args[0]), ['stop', 'start', 'stop']);
+  assert.equal(readlinkSync(join(f.target.root, 'current')), join(f.target.root, 'releases', next.release.source.tree));
+  assert.equal(existsSync(join(f.target.root, 'operation.lock')), true);
+  assert.deepEqual(readFileSync(f.config.statePath), state);
 });
 test('production graph refuses lifecycle install markers, foreign URLs, linked/optional packages and extra dependencies', () => {
   for (const replacement of [{ hasInstallScript: true }, { resolved: 'file:../private' }, { resolved: 'https://registry.npmjs.org.evil.invalid/pkg' }, { link: true }, { optional: true }, { integrity: '' }]) {

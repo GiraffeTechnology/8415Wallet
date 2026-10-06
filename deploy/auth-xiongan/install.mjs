@@ -10,7 +10,9 @@ import { execFileSync } from 'node:child_process';
 import { pathToFileURL } from 'node:url';
 import { protectSocket } from '../../server/socket-path.mjs';
 import { validateAuthConfig } from '../../server/config-validation.mjs';
+import { validateMailConfig, smtpReviewOverride } from '../../server/mail-config.mjs';
 import { verifyAuthDirectory } from '../../scripts/package/verify-auth.mjs';
+import { authStateSemantics, validateAuthStateTransition } from '../../scripts/package/verify-auth.mjs';
 export const ROOT = '/opt/8415wallet-auth-xiongan';
 export const CONFIG = '/etc/8415wallet-auth-xiongan';
 export const STATE = '/var/lib/8415wallet-auth-xiongan';
@@ -156,12 +158,15 @@ async function protectedNode(node, uid, nodeUid = uid) {
   }
   return { dev: binary.dev, ino: binary.ino, sha256: digest(await readFile(node)) };
 }
-export async function prepare({ packageDirectory, node, origin, tenant, accounts, reservedPorts, target, uid = 0, nodeUid = 0, reload = () => execFileSync('systemctl', ['daemon-reload']) }) {
+export async function prepare({ packageDirectory, node, origin, tenant, accounts, reservedPorts, mail: requestedMail, target, uid = 0, nodeUid = 0, reload = () => execFileSync('systemctl', ['daemon-reload']) }) {
   target ??= paths('', tenant);
   if (target.tenant !== tenant) fail('AUTH_TARGET_TENANT_MISMATCH');
   ports(reservedPorts);
+  const mail = validateMailConfig(requestedMail);
   await protectedPackage(packageDirectory, uid);
   const release = await verifyAuthDirectory(packageDirectory);
+  const mailSupported = Object.hasOwn(release.files, 'server/mail-config.mjs');
+  if (!mailSupported && mail.transport !== 'disabled') fail('AUTH_MAIL_RUNTIME_UPGRADE_REQUIRED');
   const binary = await protectedNode(node, uid, nodeUid);
   const version = runtimeVersion(node);
   const after = await protectedNode(node, uid, nodeUid);
@@ -174,7 +179,7 @@ export async function prepare({ packageDirectory, node, origin, tenant, accounts
   }
   if (accounts.some(a => Object.keys(a).some(k => !['username', 'wallets'].includes(k)))) fail('AUTH_PUBLIC_BINDINGS_ONLY');
   const socketPath = join(target.socketDirectory, 'auth.sock');
-  const config = { origin, tenant, socketPath, reservedPorts, statePath: join(target.state, 'credentials.enc'), accounts };
+  const config = { origin, tenant, socketPath, reservedPorts, statePath: join(target.state, 'credentials.enc'), accounts, ...(mailSupported ? { mail } : {}) };
   const counts = validateAuthConfig(config);
   const tree = release.source.tree;
   if (!/^[a-f0-9]{40}$/.test(tree)) fail('AUTH_SOURCE_TREE_REFUSED');
@@ -193,9 +198,12 @@ export async function prepare({ packageDirectory, node, origin, tenant, accounts
   try {
     await exclusive(join(target.config, 'auth.json'), JSON.stringify(config, null, 2) + '\n'); created.push(join(target.config, 'auth.json'));
     await exclusive(join(target.config, 'auth-location.nginx.conf'), nginxLocation(socketPath)); created.push(join(target.config, 'auth-location.nginx.conf'));
+    const mailReview = smtpReviewOverride(tenant, mail);
+    await exclusive(join(target.config, 'smtp-override.review.conf'), mailReview); created.push(join(target.config, 'smtp-override.review.conf'));
     await symlink(destination, join(target.root, 'current')); created.push(join(target.root, 'current'));
     await exclusive(target.unit, unit, 0o644); created.push(target.unit);
     const receipt = { schema: '8415wallet-auth-install/1', sourceTree: tree, runtime: destination, node, nodeVersion: version, nodeSha256: binary.sha256, nodeUid, releaseManifestSha256: digest(await readFile(join(destination, 'AUTH-RELEASE.json'))), origin, tenant, socketPath, reservedPorts, unitSha256: digest(unit), status: 'prepared-not-activated' };
+    Object.assign(receipt, { mail, mailReviewSha256: digest(mailReview) });
     await exclusive(receiptPath, JSON.stringify(receipt, null, 2) + '\n'); created.push(receiptPath);
     await reload();
     return { status: receipt.status, sourceTree: tree, socketPath, ...counts, secretCreated: false, serviceStarted: false };
@@ -220,6 +228,12 @@ export async function inspect({ target = paths(), uid = 0 } = {}) {
   await protect(target.unit, { uid }); if (digest(await readFile(target.unit)) !== receipt.unitSha256) fail('AUTH_UNIT_CHANGED');
   const configPath = join(target.config, 'auth.json'); await protect(configPath, { uid, privateMode: true });
   const config = JSON.parse(await readFile(configPath, 'utf8')); const counts = validateAuthConfig(config);
+  assert.deepEqual(validateMailConfig(config.mail), validateMailConfig(receipt.mail), 'AUTH_MAIL_CONFIG_RECEIPT_MISMATCH');
+  if (receipt.mailReviewSha256 !== undefined) {
+    const reviewPath = join(target.config, 'smtp-override.review.conf'); await protect(reviewPath, { uid, privateMode: true });
+    const review = await readFile(reviewPath, 'utf8');
+    if (digest(review) !== receipt.mailReviewSha256 || review !== smtpReviewOverride(receipt.tenant, receipt.mail)) fail('AUTH_MAIL_REVIEW_CHANGED');
+  }
   if (config.origin !== receipt.origin || config.tenant !== receipt.tenant || config.socketPath !== receipt.socketPath || config.port !== undefined || config.socketPath !== join(target.socketDirectory, 'auth.sock') || config.statePath !== join(target.state, 'credentials.enc')) fail('AUTH_CONFIG_RECEIPT_MISMATCH');
   // Presence and protection only: never read credential bytes in installer/preflight output.
   const key = await exists(join(target.config, 'store-key'));
@@ -334,19 +348,26 @@ async function upgradeLocked({ packageDirectory, target = paths(), uid = 0, run 
   await protectedPackage(packageDirectory, uid);
   const next = await verifyAuthDirectory(packageDirectory);
   if (next.runtime.credentialStoreFormat !== 1 || oldRelease.runtime.credentialStoreFormat !== 1) fail('AUTH_UPGRADE_STATE_FORMAT_REFUSED');
+  validateAuthStateTransition(oldRelease, next);
   if (next.source.tree === receipt.sourceTree) return { status: 'already-current', sourceTree: receipt.sourceTree, credentialStatePreserved: true };
   const destination = join(target.root, 'releases', next.source.tree);
-  let switched = false, stopped = false, recoveryRequired = false;
+  let switched = false, stopped = false, candidateStartAttempted = false, recoveryRequired = false;
   try {
     if (await exists(destination)) assert.deepEqual(await verifyAuthDirectory(destination, { expectedTree: next.source.tree }), next, 'AUTH_UPGRADE_PACKAGE_MISMATCH');
     else { await cp(packageDirectory, destination, { recursive: true, force: false, errorOnExist: true }); assert.deepEqual(await verifyAuthDirectory(destination, { expectedTree: next.source.tree }), next, 'AUTH_UPGRADE_PACKAGE_CHANGED'); }
     if (receipt.status === 'proxy-enabled') { await run('systemctl', ['stop', target.unitName]); stopped = true; }
     await switchRelease(target, destination); switched = true;
-    if (stopped) { await run('systemctl', ['start', target.unitName]); await waitForProbe(config); }
+    if (stopped) { candidateStartAttempted = true; await run('systemctl', ['start', target.unitName]); await waitForProbe(config); }
     const previousReleases = [...(receipt.previousReleases ?? []), { sourceTree: receipt.sourceTree, runtime: receipt.runtime, releaseManifestSha256: receipt.releaseManifestSha256 }];
     await replace(join(target.root, 'installation.json'), JSON.stringify({ ...receipt, sourceTree: next.source.tree, runtime: destination, releaseManifestSha256: digest(await readFile(join(destination, 'AUTH-RELEASE.json'))), previousReleases }, null, 2) + '\n');
     return { status: 'code-upgraded', sourceTree: next.source.tree, credentialStatePreserved: true };
   } catch (error) {
+    // A start failure is uncertain: newer code may already have written state.
+    // Never recover by starting a generation that can drop or bypass its fields.
+    if (switched && candidateStartAttempted && authStateSemantics(next) !== authStateSemantics(oldRelease)) {
+      try { await run('systemctl', ['stop', target.unitName]); } catch { /* Retain the lock for operator recovery either way. */ }
+      fail('AUTH_UPGRADE_STATE_SEMANTICS_RECOVERY_REQUIRED');
+    }
     try {
       if (switched) { if (stopped) await run('systemctl', ['stop', target.unitName]); await switchRelease(target, receipt.runtime); }
       if (stopped) { await run('systemctl', ['start', target.unitName]); await waitForProbe(config); }
@@ -362,6 +383,9 @@ async function rollbackCodeLocked({ target = paths(), uid = 0, run = (file, args
   const old = await verifyAuthDirectory(previous.runtime, { expectedTree: previous.sourceTree });
   if (digest(await readFile(join(previous.runtime, 'AUTH-RELEASE.json'))) !== previous.releaseManifestSha256) fail('AUTH_ROLLBACK_MANIFEST_CHANGED');
   if (old.runtime.credentialStoreFormat !== 1) fail('AUTH_UPGRADE_STATE_FORMAT_REFUSED');
+  const current = await verifyAuthDirectory(receipt.runtime, { expectedTree: receipt.sourceTree });
+  if (current.runtime.credentialStoreFormat !== 1) fail('AUTH_UPGRADE_STATE_FORMAT_REFUSED');
+  validateAuthStateTransition(current, old, { rollback: true });
   let switched = false, stopped = false, recoveryRequired = false;
   try {
     if (receipt.status === 'proxy-enabled') { await run('systemctl', ['stop', target.unitName]); stopped = true; }
@@ -377,22 +401,68 @@ async function rollbackCodeLocked({ target = paths(), uid = 0, run = (file, args
     throw error;
   }
 }
+/** Updates only private nonsecret configuration and an inert review file while the unit is stopped. */
+export async function configureMail({ target = paths(), uid = 0, mail: requestedMail, serviceState = unit => execFileSync('systemctl', ['show', '--property=ActiveState', '--value', unit], { encoding: 'utf8' }).trim() }) {
+  const mail = validateMailConfig(requestedMail);
+  return withOperationLock(target, uid, async () => {
+    const { config, receipt } = await inspect({ target, uid });
+    const mailLock = join(target.config, 'mail-config.lock');
+    await exclusive(mailLock, 'Mail configuration transition in progress. Inspect interrupted updates before removing.\n');
+    let retainMailLock = false;
+    try {
+    if (await serviceState(target.unitName) !== 'inactive') fail('AUTH_MAIL_STOP_UNIT_REQUIRED');
+    if (!await exists(join(receipt.runtime, 'server/mail-config.mjs'))) fail('AUTH_MAIL_RUNTIME_UPGRADE_REQUIRED');
+    const configPath = join(target.config, 'auth.json'), receiptPath = join(target.root, 'installation.json'), reviewPath = join(target.config, 'smtp-override.review.conf');
+    const oldConfig = await readFile(configPath), oldReceipt = await readFile(receiptPath);
+    const reviewExists = await exists(reviewPath);
+    if (reviewExists) await protect(reviewPath, { uid, privateMode: true });
+    const priorReview = reviewExists ? await readFile(reviewPath) : null;
+    const review = smtpReviewOverride(receipt.tenant, mail);
+    try {
+      if (priorReview) await replace(reviewPath, review); else await exclusive(reviewPath, review);
+      await replace(configPath, JSON.stringify({ ...config, mail }, null, 2) + '\n');
+      await replace(receiptPath, JSON.stringify({ ...receipt, mail, mailReviewSha256: digest(review) }, null, 2) + '\n');
+      if (await serviceState(target.unitName) !== 'inactive') fail('AUTH_MAIL_STOP_UNIT_REQUIRED');
+    } catch (error) {
+      try {
+        await replace(configPath, oldConfig); await replace(receiptPath, oldReceipt);
+        if (priorReview) await replace(reviewPath, priorReview); else if (await exists(reviewPath)) await unlink(reviewPath);
+      } catch { fail('AUTH_MAIL_CONFIG_RECOVERY_REQUIRED'); }
+      throw error;
+    }
+    return { status: 'mail-configured-awaiting-operator-review', transport: mail.transport, reviewFile: reviewPath, reviewSha256: digest(review), serviceStarted: false, networkPermissionsChanged: false, credentialsRead: false };
+    } catch (error) { retainMailLock = /RECOVERY_REQUIRED/.test(error.message); throw error; }
+    finally { if (!retainMailLock) await unlink(mailLock); }
+  });
+}
+function mailOptions(options) {
+  const transport = options['--mail-transport'] ?? 'disabled';
+  if (transport === 'disabled') {
+    if (options['--smtp-port'] || options['--smtp-addresses']) fail('AUTH_MAIL_CONFIG_REFUSED');
+    return validateMailConfig({ transport });
+  }
+  if (transport !== 'smtp' || !/^[1-9][0-9]{0,4}$/.test(options['--smtp-port'] ?? '') || !options['--smtp-addresses']) fail('AUTH_MAIL_CONFIG_REFUSED');
+  return validateMailConfig({ transport, port: Number(options['--smtp-port']), addresses: options['--smtp-addresses'].split(',') });
+}
 export async function cli(args) {
   const [command, ...rest] = args;
-  if (command === '--help') { console.log('prepare --package DIR --node ABSOLUTE_NODE --origin HTTPS_ORIGIN --tenant TENANT --bindings PRIVATE_PUBLIC_BINDINGS_JSON --reserved-ports COMMA_LIST|none\ncheck [--tenant TENANT]\nenable-proxy --nginx-site EXACT_EXISTING_TLS_SITE [--tenant TENANT]\nrollback [--tenant TENANT]\nupgrade --package DIR [--tenant TENANT]\nrollback-code [--tenant TENANT]\nprepare installs an inactive runtime only. Human runs server/operator-activate.mjs in a trusted terminal. No command accepts secrets.'); return; }
+  if (command === '--help') { console.log('prepare --package DIR --node ABSOLUTE_NODE --origin HTTPS_ORIGIN --tenant TENANT --bindings PRIVATE_PUBLIC_BINDINGS_JSON --reserved-ports COMMA_LIST|none [--mail-transport disabled|smtp --smtp-port PORT --smtp-addresses IP_LIST]\nconfigure-mail --mail-transport disabled|smtp [--smtp-port PORT --smtp-addresses IP_LIST] [--tenant TENANT]\ncheck [--tenant TENANT]\nenable-proxy --nginx-site EXACT_EXISTING_TLS_SITE [--tenant TENANT]\nrollback [--tenant TENANT]\nupgrade --package DIR [--tenant TENANT]\nrollback-code [--tenant TENANT]\nprepare installs an inactive runtime only. Human runs server/operator-activate.mjs in a trusted terminal. No command accepts secrets.'); return; }
   if (process.platform !== 'linux' || process.getuid?.() !== 0) fail('AUTH_INSTALL_LINUX_ROOT_REQUIRED');
-  if (process.env.WALLET_AUTH_STORE_KEY || process.env.WALLET_AUTH_CONFIG || process.env.CREDENTIALS_DIRECTORY || process.env.NODE_OPTIONS || process.env.NODE_PATH) fail('AUTH_AMBIENT_CREDENTIAL_REFUSED');
+  if (process.env.WALLET_AUTH_STORE_KEY || process.env.WALLET_AUTH_CONFIG || process.env.CREDENTIALS_DIRECTORY || process.env.NODE_OPTIONS || process.env.NODE_PATH ||
+      Object.keys(process.env).some(key => key.startsWith('WALLET_AUTH_SMTP_'))) fail('AUTH_AMBIENT_CREDENTIAL_REFUSED');
   const options = {};
   for (let i = 0; i < rest.length; i += 2) { if (!/^--[a-z-]+$/.test(rest[i] ?? '') || !rest[i + 1] || Object.hasOwn(options, rest[i])) fail('AUTH_INSTALL_ARGUMENT_REFUSED'); options[rest[i]] = rest[i + 1]; }
   let result;
   if (command === 'prepare') {
-    const allowed = ['--package', '--node', '--origin', '--tenant', '--bindings', '--reserved-ports'];
-    if (Object.keys(options).length !== allowed.length || allowed.some(k => !options[k])) fail('AUTH_INSTALL_ARGUMENT_REFUSED');
+    const required = ['--package', '--node', '--origin', '--tenant', '--bindings', '--reserved-ports'];
+    const allowed = [...required, '--mail-transport', '--smtp-port', '--smtp-addresses'];
+    if (Object.keys(options).some(k => !allowed.includes(k)) || required.some(k => !options[k])) fail('AUTH_INSTALL_ARGUMENT_REFUSED');
     const bindings = JSON.parse(await readFile(resolve(options['--bindings']), 'utf8'));
     if (!Array.isArray(bindings)) fail('AUTH_BINDINGS_ARRAY_REQUIRED');
     const reservedPorts = options['--reserved-ports'] === 'none' ? [] : options['--reserved-ports'].split(',').map(Number);
-    result = await prepare({ packageDirectory: resolve(options['--package']), node: options['--node'], origin: options['--origin'], tenant: options['--tenant'], accounts: bindings, reservedPorts });
-  } else if (command === 'upgrade' && options['--package'] && Object.keys(options).every(k => ['--package', '--tenant'].includes(k))) result = await upgrade({ packageDirectory: resolve(options['--package']), target: paths('', options['--tenant'] ?? 'xiongan') });
+    result = await prepare({ packageDirectory: resolve(options['--package']), node: options['--node'], origin: options['--origin'], tenant: options['--tenant'], accounts: bindings, reservedPorts, mail: mailOptions(options) });
+  } else if (command === 'configure-mail' && options['--mail-transport'] && Object.keys(options).every(k => ['--tenant', '--mail-transport', '--smtp-port', '--smtp-addresses'].includes(k))) result = await configureMail({ target: paths('', options['--tenant'] ?? 'xiongan'), mail: mailOptions(options) });
+  else if (command === 'upgrade' && options['--package'] && Object.keys(options).every(k => ['--package', '--tenant'].includes(k))) result = await upgrade({ packageDirectory: resolve(options['--package']), target: paths('', options['--tenant'] ?? 'xiongan') });
   else if (command === 'rollback-code' && Object.keys(options).every(k => k === '--tenant')) result = await rollbackCode({ target: paths('', options['--tenant'] ?? 'xiongan') });
   else if (command === 'check' && Object.keys(options).every(k => k === '--tenant')) result = (await inspect({ target: paths('', options['--tenant'] ?? 'xiongan') })).summary;
   else if (command === 'enable-proxy' && Object.keys(options).every(k => ['--nginx-site', '--tenant'].includes(k)) && options['--nginx-site']) result = await enableProxy({ nginxSite: resolve(options['--nginx-site']), target: paths('', options['--tenant'] ?? 'xiongan') });

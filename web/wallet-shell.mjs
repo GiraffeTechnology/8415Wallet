@@ -38,6 +38,7 @@ function route(next, { history = true, focus = true } = {}) {
 for (const button of document.querySelectorAll('[data-route]')) button.addEventListener('click', () => {
   if (walletUiBusy()) return;
   const next = button.dataset.route;
+  if (page === 'settings' && page !== next) document.dispatchEvent(new CustomEvent('wallet:authentication-leaving'));
   if (authenticated && next !== page) globalThis.history.pushState({ walletPage: next }, '');
   if (button.dataset.settlement) {
     el('settlement-kind').value = button.dataset.settlement;
@@ -148,5 +149,8 @@ for (const button of document.querySelectorAll('[data-login-method]')) button.ad
   el('wallet-login-method').value = button.dataset.loginMethod; el('wallet-login-method').dispatchEvent(new Event('change', { bubbles: true }));
 });
 function loginMethod() { for (const button of document.querySelectorAll('[data-login-method]')) button.setAttribute('aria-pressed', String(button.dataset.loginMethod === el('wallet-login-method').value)); }
-el('wallet-login-method').addEventListener('change', loginMethod); loginMethod();
+el('wallet-login-method').addEventListener('change', loginMethod);
+document.addEventListener('wallet:authentication-method', loginMethod);
+document.addEventListener('wallet:authentication-settings', () => route('settings'));
+loginMethod();
 resetNative(); route('overview', { focus: false });

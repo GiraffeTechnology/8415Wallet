@@ -1,27 +1,31 @@
 // Synthetic installation roots and public identities only. No production unit or credential is touched.
-import test from 'node:test';
+import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile, rm, stat, chmod, symlink } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm, stat, chmod, symlink, link } from 'node:fs/promises';
 import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
-import { paths, prepare, inspect, rollback, enableProxy, insertProxy, nginxLocation, selectPort, protect, probe, cli, upgrade, rollbackCode, inspectNginxIncludes } from '../deploy/auth-xiongan/install.mjs';
+import { paths, prepare, inspect, rollback, enableProxy, insertProxy, nginxLocation, selectPort, protect, probe, cli, upgrade, rollbackCode, inspectNginxIncludes, configureMail } from '../deploy/auth-xiongan/install.mjs';
 import { validateAuthConfig } from '../server/config-validation.mjs';
 import { createAuthService } from '../server/auth-service.mjs';
 import { MemoryCredentialStore } from '../server/store.mjs';
 import { captureAuthSource } from '../scripts/package/build-auth.mjs';
 import { AUTH_SCHEMA, AUTH_STATUS, runtimePackage, sha256, walkAuth } from '../scripts/package/verify-auth.mjs';
-const uid = process.getuid(), nodeUid = (await stat(process.execPath)).uid;
+import { independentNode } from './helpers/independent-node.mjs';
+const fixtureNode = await independentNode();
+after(() => fixtureNode.cleanup());
+const uid = process.getuid(), nodeUid = fixtureNode.uid;
 const tenant = 'fixture-tenant', origin = 'https://wallet.example.invalid:9447';
 const accounts = [{ username: 'fixture-user', wallets: [{ account: `0x${'1'.repeat(40)}`, chainId: '8453' }] }];
-const sourceFiles = ['server/main.mjs', 'server/service-entry.mjs', 'server/runtime-entry.mjs', 'server/socket-path.mjs', 'server/auth-service.mjs', 'server/crypto.mjs', 'server/config-validation.mjs', 'server/ca-verifier.mjs', 'server/store.mjs', 'server/operator-init.mjs', 'server/operator-activate.mjs', 'web/login-core.mjs', 'deploy/auth-xiongan/install.mjs', 'deploy/auth-xiongan/8415wallet-auth-xiongan.service', 'deploy/auth-xiongan/auth-location.nginx.conf', 'docs/AUTH-INSTALL.md', 'scripts/package/verify-auth.mjs', 'LICENSE'];
+const sourceFiles = ['server/main.mjs', 'server/service-entry.mjs', 'server/runtime-entry.mjs', 'server/socket-path.mjs', 'server/mail-config.mjs', 'server/mail-otp.mjs', 'server/account-directory.mjs', 'server/recovery-service.mjs', 'server/registration-service.mjs', 'server/auth-service.mjs', 'server/crypto.mjs', 'server/config-validation.mjs', 'server/ca-verifier.mjs', 'server/store.mjs', 'server/operator-init.mjs', 'server/operator-activate.mjs', 'web/login-core.mjs', 'deploy/auth-xiongan/install.mjs', 'deploy/auth-xiongan/8415wallet-auth-xiongan.service', 'deploy/auth-xiongan/auth-location.nginx.conf', 'docs/AUTH-INSTALL.md', 'scripts/package/verify-auth.mjs', 'LICENSE'];
 function put(root, path, data) { mkdirSync(dirname(join(root, path)), { recursive: true }); writeFileSync(join(root, path), data, { mode: 0o644 }); }
-function syntheticPackage(root, label = '') {
+function syntheticPackage(root, label = '', { mailSupported = true } = {}) {
   const source = join(root, 'source'), runtime = join(root, 'runtime'); mkdirSync(source); mkdirSync(runtime);
-  for (const path of sourceFiles) put(source, path, readFileSync(new URL(`../${path}`, import.meta.url)));
+  const files = sourceFiles.filter(path => mailSupported || path !== 'server/mail-config.mjs');
+  for (const path of files) put(source, path, readFileSync(new URL(`../${path}`, import.meta.url)));
   if (label) put(source, 'docs/AUTH-INSTALL.md', readFileSync(join(source, 'docs/AUTH-INSTALL.md'), 'utf8') + `\nSynthetic upgrade marker: ${label}\n`);
   const pkg = { name: '8415wallet', version: '0.1.0', license: 'CC0-1.0', dependencies: { ethers: '^6.17.0' } };
   const lock = { name: pkg.name, lockfileVersion: 3, packages: { '': { dependencies: pkg.dependencies }, 'node_modules/ethers': { version: '6.17.0', resolved: 'https://registry.npmjs.org/ethers/-/ethers-6.17.0.tgz', integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==' } } };
@@ -29,7 +33,7 @@ function syntheticPackage(root, label = '') {
   const git = args => execFileSync('git', args, { cwd: source, stdio: 'pipe' });
   git(['init', '-q']); git(['add', '.']); git(['-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', 'commit', '-qm', 'Synthetic installation package']);
   const identity = captureAuthSource(source);
-  for (const path of sourceFiles) put(runtime, path, readFileSync(join(source, path)));
+  for (const path of files) put(runtime, path, readFileSync(join(source, path)));
   const generated = runtimePackage(pkg, lock);
   put(runtime, 'package.json', JSON.stringify(generated.manifest)); put(runtime, 'package-lock.json', JSON.stringify(generated.lock));
   put(runtime, 'provenance/package.source.json', JSON.stringify(pkg)); put(runtime, 'provenance/package-lock.source.json', JSON.stringify(lock));
@@ -39,12 +43,12 @@ function syntheticPackage(root, label = '') {
   put(runtime, 'SHA256SUMS', walkAuth(runtime).map(path => `${sha256(readFileSync(join(runtime, path)))}  ${path}`).join('\n') + '\n');
   return runtime;
 }
-async function fixture(t) {
+async function fixture(t, packageOptions) {
   const root = await mkdtemp(join(tmpdir(), 'wallet-auth-install-test-')); t.after(() => rm(root, { recursive: true, force: true }));
   const target = paths(join(root, 'host'), tenant);
   for (const directory of [dirname(target.root), dirname(target.config), dirname(target.state), dirname(target.unit)]) await mkdir(directory, { recursive: true, mode: 0o755 });
-  const packageDirectory = syntheticPackage(root), calls = [];
-  const options = { packageDirectory, node: process.execPath, nodeUid, origin, tenant, accounts: structuredClone(accounts), reservedPorts: [], target, uid, reload: () => calls.push(['daemon-reload']) };
+  const packageDirectory = syntheticPackage(root, '', packageOptions), calls = [];
+  const options = { packageDirectory, node: fixtureNode.node, nodeUid, origin, tenant, accounts: structuredClone(accounts), reservedPorts: [], target, uid, reload: () => calls.push(['daemon-reload']) };
   return { root, target, packageDirectory, options, calls };
 }
 const vhost = `# Keep other servers and locations intact.\nserver { listen 9448 ssl; server_name other.example.invalid; }\nserver {\n listen 9447 ssl;\n server_name wallet.example.invalid;\n location /web/ { root /srv/wallet; }\n}\n`;
@@ -231,4 +235,61 @@ test('installed dependency inventory cannot be re-signed locally under the same 
   await writeFile(releasePath, JSON.stringify(release));
   await writeFile(join(installed, 'SHA256SUMS'), walkAuth(installed).filter(path => path !== 'SHA256SUMS').map(path => `${sha256(readFileSync(join(installed, path)))}  ${path}`).join('\n') + '\n');
   await assert.rejects(inspect({ target: f.target, uid }), /RELEASE_MANIFEST_CHANGED/);
+});
+
+test('linked candidate Node paths remain refused before execution', async t => {
+  const f = await fixture(t), candidate = join(f.root, 'node'), marker = join(f.root, 'executed');
+  await writeFile(candidate, `#!/bin/sh\nprintf executed > '${marker}'\nprintf 'v24.19.0\\n'\n`, { mode: 0o755 });
+  const alias = join(f.root, 'node-symlink'); await symlink(candidate, alias);
+  await assert.rejects(prepare({ ...f.options, node: alias, nodeUid: uid }), /UNSAFE_PATH/);
+  await link(candidate, join(f.root, 'node-hardlink'));
+  await assert.rejects(prepare({ ...f.options, node: candidate, nodeUid: uid }), /UNSAFE_PATH/);
+  await assert.rejects(stat(marker), { code: 'ENOENT' }); assert.deepEqual(f.calls, []);
+});
+
+test('mail preparation and stopped-unit updates emit only inert reviewed settings and preserve credentials', async t => {
+  const f = await fixture(t); await prepare(f.options);
+  const baseUnit = await readFile(f.target.unit), statePath = join(f.target.state, 'credentials.enc');
+  await writeFile(statePath, 'SYNTHETIC-REGISTERED-STATE', { mode: 0o600 });
+  const mail = { transport: 'smtp', port: 465, addresses: ['192.0.2.40'] };
+  const before = await readFile(join(f.target.config, 'auth.json'));
+  for (const active of ['active', 'activating', 'deactivating', 'failed', 'unknown']) {
+    await assert.rejects(configureMail({ target: f.target, uid, mail, serviceState: () => active }), /AUTH_MAIL_STOP_UNIT_REQUIRED/);
+    assert.deepEqual(await readFile(join(f.target.config, 'auth.json')), before);
+  }
+  const result = await configureMail({ target: f.target, uid, mail, serviceState: async () => {
+    assert.ok((await stat(join(f.target.config, 'mail-config.lock'))).isFile()); return 'inactive';
+  } });
+  assert.equal(result.serviceStarted, false); assert.equal(result.networkPermissionsChanged, false); assert.equal(result.credentialsRead, false);
+  assert.deepEqual((await inspect({ target: f.target, uid })).config.mail, mail);
+  const review = await readFile(result.reviewFile, 'utf8'); assert.match(review, /INERT REVIEW ONLY/); assert.match(review, /IPAddressAllow=192\.0\.2\.40\/32/);
+  assert.deepEqual(await readFile(f.target.unit), baseUnit); assert.equal(await readFile(statePath, 'utf8'), 'SYNTHETIC-REGISTERED-STATE');
+  assert.deepEqual(f.calls, [['daemon-reload']]);
+  await assert.rejects(stat(join(f.target.config, 'mail-config.lock')), { code: 'ENOENT' });
+  for (const name of ['smtp-username', 'smtp-password']) await assert.rejects(stat(join(f.target.config, name)), { code: 'ENOENT' });
+  const changed = { ...mail, addresses: ['192.0.2.41'] };
+  await configureMail({ target: f.target, uid, mail: changed, serviceState: () => 'inactive' });
+  assert.match(await readFile(result.reviewFile, 'utf8'), /192\.0\.2\.41\/32/); assert.doesNotMatch(await readFile(result.reviewFile, 'utf8'), /192\.0\.2\.40/);
+  await configureMail({ target: f.target, uid, mail: { transport: 'disabled' }, serviceState: () => 'inactive' });
+  assert.deepEqual((await inspect({ target: f.target, uid })).config.mail, { transport: 'disabled' });
+  assert.doesNotMatch(await readFile(result.reviewFile, 'utf8'), /smtp-username|AF_INET/);
+});
+
+test('mail config and inert review tampering refuse inspection without any system change', async t => {
+  const f = await fixture(t); await prepare({ ...f.options, mail: { transport: 'smtp', port: 465, addresses: ['192.0.2.40'] } });
+  const review = join(f.target.config, 'smtp-override.review.conf');
+  await writeFile(review, 'IPAddressAllow=any\n', { mode: 0o600 });
+  await assert.rejects(inspect({ target: f.target, uid }), /AUTH_MAIL_REVIEW_CHANGED/);
+  assert.deepEqual(f.calls, [['daemon-reload']]);
+});
+
+test('legacy package preparation omits unknown mail config and refuses SMTP before installation', async t => {
+  const f = await fixture(t, { mailSupported: false });
+  await assert.rejects(prepare({ ...f.options, mail: { transport: 'smtp', port: 465, addresses: ['192.0.2.40'] } }), /AUTH_MAIL_RUNTIME_UPGRADE_REQUIRED/);
+  assert.deepEqual(f.calls, []); await assert.rejects(stat(join(f.target.config, 'auth.json')), { code: 'ENOENT' });
+  await prepare(f.options);
+  const config = JSON.parse(await readFile(join(f.target.config, 'auth.json')));
+  assert.equal(Object.hasOwn(config, 'mail'), false);
+  await assert.rejects(configureMail({ target: f.target, uid, mail: { transport: 'disabled' }, serviceState: () => 'inactive' }), /AUTH_MAIL_RUNTIME_UPGRADE_REQUIRED/);
+  assert.equal(Object.hasOwn((await inspect({ target: f.target, uid })).config, 'mail'), false);
 });

@@ -139,3 +139,82 @@ makes the matrix nonzero. Both Chromium and Unix-domain socket support are
 required for full acceptance; a TCP-only fixture does not substitute for the
 installed Unix-socket journey. No production credentials or service are used by
 these tests.
+
+## Registration and recovery mail: explicit reviewed SMTP enablement
+
+New packages include the registration/recovery server modules and six-language UI.
+Mail defaults to `disabled`: existing account login remains available, while
+email-dependent registration and recovery fail closed. The installer does not
+provision a mailbox, read SMTP credentials, apply network permissions or send mail.
+The configured product sender is `noreply@8415wallet.com` through
+`mail.8415wallet.com`; arbitrary host/sender/TLS overrides are refused.
+
+To prepare SMTP support, add `--mail-transport smtp --smtp-port APPROVED_PORT
+--smtp-addresses APPROVED_IPS` to `prepare`. `APPROVED_IPS` is a comma-separated
+operator-reviewed list of exact mail endpoint IPv4/IPv6 addresses, not a subnet,
+DNS name or URL. No production IP/port is assigned in this kit. TLS remains
+implicit TLS >=1.2 with normal certificate/hostname validation and fixed SNI;
+the installed sender resolves only those pins, with no arbitrary DNS fallback.
+Port 443 is refused for this sender. The application uses only the selected port;
+systemd IP filtering is address-level, so the operator must consider that scope
+when approving the drop-in.
+
+Preparation writes `smtp-override.review.conf` under the private tenant config
+directory, outside any systemd drop-in directory. The active base unit remains
+AF_UNIX-only with IPAddressDeny=any. The review file preserves that deny rule,
+allows only the selected /32 or /128 endpoints, and adds AF_INET/AF_INET6 plus
+fixed LoadCredential references to the tenant's `smtp-username` and
+`smtp-password` files. It contains no credential value.
+
+The authorized operator must separately approve the precise network and
+credential-access expansion before applying the reviewed file as the tenant
+unit's mail drop-in. The user handles real credential entry through the approved
+secure process. Credential files must be root:root, regular single-link files,
+mode 0600 below the private root-owned tenant config directory. Username is
+1–256 UTF-8 bytes; password is 1–1024 bytes, with no NUL/CR/LF. Do not supply
+credentials as command arguments, shell history, repository files or chat text.
+Do not add ambient WALLET_AUTH_SMTP_* environment variables to the installed
+unit: runtime-entry refuses them and reads only protected systemd credentials.
+Missing, partial or invalid selected credentials refuse startup without logging
+values. The deployment operator validates the generated drop-in, reloads the
+unit definition and starts it only after the required approval. This guide and
+review file are not permission for the assistant to perform those actions.
+
+Endpoint changes do not require code edits. Stop the tenant unit, then use the
+current verified installer's nonsecret configuration command:
+
+```
+node deploy/auth-xiongan/install.mjs configure-mail --tenant TENANT \
+  --mail-transport smtp --smtp-port APPROVED_PORT --smtp-addresses APPROVED_IPS
+```
+
+It verifies the stopped unit, immutable package and receipt; updates public
+mail config plus its receipt; and emits a fresh inert review file. It does not
+apply a drop-in, reload systemd, start the unit, read credentials or change the
+browser origin. A separate mail-transition lock prevents runtime-entry starting
+through a partial update; an uncertain repair retains both locks for inspection.
+The operator reviews only the changed destinations/port and applies the updated
+mail drop-in under the approved security process. Pins that no longer reach the
+approved endpoint fail closed until this update. Do not weaken TLS or open broad
+DNS/network access as a fallback. Disabling uses the same command with
+`--mail-transport disabled`; the generated disabled review restores AF_UNIX-only
+access and removes SMTP credential references when the operator applies it.
+
+## Authentication state semantics and safe code rollback
+
+Credential ciphertext still uses envelope/store format 1. New packages separately
+record `authStateSemantics: 8415wallet-auth-state/2` for registration, enabled login
+methods and reserved recovery factors. Absence of that marker denotes legacy
+semantics 1. The installer permits the reviewed forward 1→2 transition and
+same-generation code rollback, but refuses 2→1 even if ciphertext can decrypt.
+Old code could discard newer fields or bypass recovery requirements; compatible
+encryption alone does not make such a rollback safe.
+
+Before a forward upgrade, follow the user's approved offline backup and recovery
+process. A backup is for coordinated disaster recovery, never automatic reversal
+of consumed OTP/recovery counters. Once a generation-2 candidate start is attempted,
+an uncertain failure does not restart legacy code: it stops the candidate when
+possible and retains the new release and operation lock with an explicit recovery
+error. The operator must inspect and fix/advance generation-2 code, preserving
+current credentials and counters. Never delete state, rekey, restore stale
+ciphertext or remove retained locks merely to pass an installer check.

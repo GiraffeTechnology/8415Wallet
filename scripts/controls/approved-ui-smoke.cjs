@@ -70,11 +70,11 @@ async function main() {
       await page.fill('#asset-recipient', `0x${'2'.repeat(40)}`); await page.fill('#asset-amount', '1000000000000001'); await page.click('#asset-prepare');
       await page.waitForFunction(() => !document.querySelector('[data-page="review"]').hidden);
       assert.equal(await page.locator('#transfer-review-summary').textContent().then(v => v.includes(`0x${'2'.repeat(40)}`)), true);
-      await page.check('#asset-ack'); await page.click('[data-ui-locale="zh-Hans"]');
+      await page.check('#asset-ack'); await page.selectOption('#ui-locale', 'zh-Hans');
       assert.equal(await page.isChecked('#asset-ack'), true); await noOverflow();
       await page.screenshot({ path: path.join(out, `${delivery.profile}-${delivery.tenant.id}-${width}-review.png`) });
       await page.keyboard.press('Escape'); assert.equal(await page.isChecked('#asset-ack'), false);
-      await page.click('[data-ui-locale="en"]');
+      await page.selectOption('#ui-locale', 'en');
       await page.setInputFiles('#tenant-avatar-file', path.join(root, 'web/assets/giraffe-original.jpg'));
       await page.waitForFunction(() => document.getElementById('tenant-avatar-status').textContent.includes('draft'));
       await page.click('#tenant-avatar-save'); await page.waitForFunction(() => document.getElementById('tenant-avatar-status').textContent.includes('saved'));

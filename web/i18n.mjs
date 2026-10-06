@@ -1,6 +1,7 @@
 /** Local presentation only. No provider, authentication, network or transaction calls. */
 import en from './locales/en.mjs';
 import design from './locales/design.mjs';
+import account from './locales/auth-management.mjs';
 import hans from './locales/zh-Hans.mjs';
 import hant from './locales/zh-Hant.mjs';
 import fr from './locales/fr.mjs';
@@ -14,7 +15,7 @@ import native3 from './locales/native-fr.mjs';
 import native4 from './locales/native-es.mjs';
 import native5 from './locales/native-ja.mjs';
 
-export const CATALOGS = Object.freeze({ en: Object.freeze({ ...en, ...native0, ...nativeFragments['en'], ...design['en'] }), 'zh-Hans': Object.freeze({ ...hans, ...native1, ...nativeFragments['zh-Hans'], ...design['zh-Hans'] }), 'zh-Hant': Object.freeze({ ...hant, ...native2, ...nativeFragments['zh-Hant'], ...design['zh-Hant'] }), fr: Object.freeze({ ...fr, ...native3, ...nativeFragments['fr'], ...design['fr'] }), es: Object.freeze({ ...es, ...native4, ...nativeFragments['es'], ...design['es'] }), ja: Object.freeze({ ...ja, ...native5, ...nativeFragments['ja'], ...design['ja'] }) });
+export const CATALOGS = Object.freeze({ en: Object.freeze({ ...en, ...native0, ...nativeFragments['en'], ...design['en'], ...account['en'] }), 'zh-Hans': Object.freeze({ ...hans, ...native1, ...nativeFragments['zh-Hans'], ...design['zh-Hans'], ...account['zh-Hans'] }), 'zh-Hant': Object.freeze({ ...hant, ...native2, ...nativeFragments['zh-Hant'], ...design['zh-Hant'], ...account['zh-Hant'] }), fr: Object.freeze({ ...fr, ...native3, ...nativeFragments['fr'], ...design['fr'], ...account['fr'] }), es: Object.freeze({ ...es, ...native4, ...nativeFragments['es'], ...design['es'], ...account['es'] }), ja: Object.freeze({ ...ja, ...native5, ...nativeFragments['ja'], ...design['ja'], ...account['ja'] }) });
 export const LOCALES = Object.freeze([
   Object.freeze({ id: 'en', label: 'EN', name: 'English' }),
   Object.freeze({ id: 'zh-Hans', label: '简', name: '简体中文' }),
@@ -82,15 +83,15 @@ export function setLocale(value, { document = globalThis.document, storage, pers
     if (element.isConnected === false) { bindings.delete(element); continue; }
     element.textContent = renderUi(statusUi(content));
   }
-  for (const button of document?.querySelectorAll?.('[data-ui-locale]') ?? []) button.setAttribute('aria-pressed', String(button.getAttribute('data-ui-locale') === locale));
+  for (const selector of document?.querySelectorAll?.('[data-ui-locale-select]') ?? []) selector.value = locale;
   return locale;
 }
 export function initializeLocale(document = globalThis.document, storage) {
   let stored = null;
   try { stored = (storage ?? globalThis.localStorage)?.getItem(LOCALE_STORAGE_KEY); } catch { /* English default. */ }
   setLocale(stored, { document, persist: false });
-  for (const button of document?.querySelectorAll?.('[data-ui-locale]') ?? []) button.addEventListener('click', () => {
-    setLocale(button.getAttribute('data-ui-locale'), { document, storage });
+  for (const selector of document?.querySelectorAll?.('[data-ui-locale-select]') ?? []) selector.addEventListener('change', () => {
+    setLocale(selector.value, { document, storage });
     const active = LOCALES.find(item => item.id === locale);
     const announcement = document.getElementById('locale-announcement');
     if (announcement) paint(announcement, msg('locale.changed', { language: active.name }));
