@@ -1,6 +1,7 @@
 /** Server-only, fixed-sender OTP mail. No implicit plaintext or retry fallback. */
 import tls from 'node:tls';
 import { randomUUID } from 'node:crypto';
+import { validateMailConfig, pinnedMailLookup } from './mail-config.mjs';
 
 export const OTP_FROM = 'noreply@8415wallet.com';
 export const OTP_HOST = 'mail.8415wallet.com';
@@ -75,18 +76,19 @@ function replies(socket) {
  * connect is an in-process test seam, never read from HTTP or environment input.
  * No SMTP operation is attempted merely by creating this sender.
  */
-export function createSmtpOtpSender({ port, username, password, connect = tls.connect, timeoutMs = 10000 }) {
+export function createSmtpOtpSender({ port, username, password, addresses, connect = tls.connect, timeoutMs = 10000 }) {
   if (!Number.isInteger(port) || port < 1 || port > 65535 || port === 443 ||
     typeof username !== 'string' || !username || Buffer.byteLength(username) > 256 || /[\x00-\x1f\x7f]/.test(username) ||
     typeof password !== 'string' || !password || Buffer.byteLength(password) > 1024 || /[\x00\r\n]/.test(password) ||
     typeof connect !== 'function' || !Number.isInteger(timeoutMs) || timeoutMs < 100 || timeoutMs > 30000) throw refused();
+  const lookup = addresses === undefined ? undefined : pinnedMailLookup(addresses);
   let inFlight = 0;
   return async input => {
     const message = messageFor(input);
     if (inFlight >= 2) throw refused(); inFlight++;
     let socket, timer;
     try {
-      socket = connect({ host: OTP_HOST, port, servername: OTP_HOST, minVersion: 'TLSv1.2', rejectUnauthorized: true });
+      socket = connect({ host: OTP_HOST, port, servername: OTP_HOST, minVersion: 'TLSv1.2', rejectUnauthorized: true, ...(lookup ? { lookup } : {}) });
       const reader = replies(socket);
       const secure = new Promise((resolve, reject) => {
         const fail = () => reject(refused());
@@ -121,10 +123,16 @@ export function createSmtpOtpSender({ port, username, password, connect = tls.co
 }
 
 /** Mail task/operator supplies secrets through the existing approved runtime. */
-export function createOtpSenderFromEnvironment(env = process.env) {
+export function createOtpSenderFromEnvironment(env = process.env, installedMail) {
   const keys = ['WALLET_AUTH_SMTP_PORT', 'WALLET_AUTH_SMTP_USERNAME', 'WALLET_AUTH_SMTP_PASSWORD'];
+  const mail = installedMail === undefined ? undefined : validateMailConfig(installedMail);
+  if (mail?.transport === 'disabled') {
+    if (keys.some(key => env[key] !== undefined)) throw refused();
+    return null;
+  }
+  if (mail?.transport === 'smtp' && env.WALLET_AUTH_SMTP_PORT !== String(mail.port)) throw refused();
   if (keys.every(key => env[key] === undefined)) return null;
   if (keys.some(key => typeof env[key] !== 'string' || !env[key]) || !/^\d{1,5}$/.test(env.WALLET_AUTH_SMTP_PORT)) throw refused();
   return createSmtpOtpSender({ port: Number(env.WALLET_AUTH_SMTP_PORT), username: env.WALLET_AUTH_SMTP_USERNAME,
-    password: env.WALLET_AUTH_SMTP_PASSWORD });
+    password: env.WALLET_AUTH_SMTP_PASSWORD, ...(mail?.transport === 'smtp' ? { addresses: mail.addresses } : {}) });
 }

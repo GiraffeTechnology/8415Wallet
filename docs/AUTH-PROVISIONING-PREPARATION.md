@@ -1,4 +1,10 @@
-# Xiongan authentication preparation
+# Xiongan authentication preparation (historical PR58 record)
+
+For the current reusable DApp kit, secure first provisioning, tenant-scoped Unix
+transport and installation/update/rollback commands, use [AUTH-INSTALL.md](AUTH-INSTALL.md)
+and [DAPP-INSTALL.md](DAPP-INSTALL.md). The status, fixed paths/port and unexecuted
+claims below describe that earlier preparation snapshot; they are not the
+current package or test receipt. Exact-source CI evidence is recorded separately.
 
 Status: SOURCE_PREPARED_NOT_TESTED_NOT_ACTIVATED. This is not a deployment or
 acceptance certificate. Existing merged UI remains deployed unchanged.

@@ -348,3 +348,10 @@ test('legacy migration with reserved factors requires their reset proof before e
   f.element('auth-reset-answer').value = 'synthetic private recovery phrase'; await f.click('auth-reset-start'); f.element('auth-email-code').value = '12345678'; await f.click('auth-email-confirm');
   assert.equal(f.element('auth-registration-account-start').disabled, false);
 });
+
+test('UI session fixture uses one clock instant and never fabricates an overlong session on a clock tick', async () => {
+  const originalNow = Date.now; let tick = originalNow() - 1000, f: ReturnType<typeof fixture>;
+  try { Date.now = () => ++tick; f = fixture('totp'); } finally { Date.now = originalNow; }
+  assert.equal(f.session.expiresAt - f.session.issuedAt, 900000);
+  await f.click('wallet-login'); assert.equal(f.element('wallet-private').hidden, false);
+});

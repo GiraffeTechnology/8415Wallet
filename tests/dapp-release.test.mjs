@@ -55,7 +55,8 @@ test('configuration requires a complete confirmed entry URL and explicit port', 
   const url = 'https://wallet.example.invalid:18443/tenant/v2/web/index.html';
   assert.equal(validateDeploymentConfig({ environment: 'ctyun', url }).url, url);
   for (const environment of ['ctyun', 'sin']) {
-    assert.throws(() => validateDeploymentConfig({ environment, url: 'https://wallet.example.invalid:443/web/index.html' }), /SSH_PORT_RESERVED/);
+    assert.equal(validateDeploymentConfig({ environment, url: 'https://wallet.example.invalid:443/web/index.html' }).url, 'https://wallet.example.invalid:443/web/index.html');
+    assert.throws(() => validateDeploymentConfig({ environment, reservedPorts: [443], url: 'https://wallet.example.invalid:443/web/index.html' }), /RESERVED_PORT/);
     assert.throws(() => validateDeploymentConfig({ environment, url: 'https://wallet.example.invalid/web/index.html' }), /EXPLICIT_PORT_REQUIRED/);
   }
   for (const url of ['https://wallet.example.invalid:0/web/index.html', 'https://wallet.example.invalid:65536/web/index.html',
@@ -197,4 +198,19 @@ test('shared profile gate caches one frozen result or refusal for all UI surface
     await assert.rejects(refusal.getReleaseProfile(), /CONFIG_UNAVAILABLE/);
     assert.equal(requests, 2);
   } finally { globalThis.fetch = priorFetch; }
+});
+
+
+test('deployment reservations are explicit, validated and independent of environment names', () => {
+  const url = 'https://wallet.example.invalid:443/web/index.html';
+  for (const environment of ['other', 'ctyun', 'sin']) {
+    assert.equal(validateDeploymentConfig({ environment, url }).url, url);
+    assert.throws(() => validateDeploymentConfig({ environment, url, reservedPorts: [443] }), /RESERVED_PORT/);
+    const result = validateDeploymentConfig({ environment, url, reservedPorts: [22, 18443] });
+    assert.deepEqual(result.reservedPorts, [22, 18443]); assert.ok(Object.isFrozen(result.reservedPorts));
+  }
+  for (const reservedPorts of [[0], [65536], ['443'], [443, 443], '443', null]) {
+    assert.throws(() => validateDeploymentConfig({ environment: 'other', url, reservedPorts }), /RESERVED_PORTS/);
+  }
+  assert.deepEqual(validateDeploymentConfig({ environment: 'unconfigured', url: null }), { environment: 'unconfigured', url: null });
 });
