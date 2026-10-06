@@ -35,7 +35,7 @@ test('installed migration retains actual consumed TOTP/recovery state, password 
   const { rm } = await import('node:fs/promises'); t.after(() => rm(runtime, { recursive: true, force: true }));
   f.options.packageDirectory = runtime;
   await cp(join(runtime, 'node_modules'), join(f.options.legacySource, 'node_modules'), { recursive: true });
-  f.config.port = await selectPort([443]); f.config.accounts[0].passwordHash = await hashPassword('synthetic-migration-password');
+  f.config.port = await selectPort([]); f.config.accounts[0].passwordHash = await hashPassword('synthetic-migration-password');
   await writeFile(f.options.legacyConfig, JSON.stringify(f.config));
   await writeFile(f.options.legacyProxy, (await readFile(f.options.legacyProxy, 'utf8')).replace('127.0.0.1:18587', `127.0.0.1:${f.config.port}`));
   const recovery = '1111-2222-3333-4444-5555-6666-7777-8888', step = Math.floor(Date.now() / 30000);

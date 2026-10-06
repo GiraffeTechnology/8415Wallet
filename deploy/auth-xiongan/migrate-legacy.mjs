@@ -184,7 +184,7 @@ export async function inspectLegacy(o) {
   const configBytes = await privateBytes(o.legacyConfig, uid, 1_000_000);
   const config = JSON.parse(configBytes); validateAuthConfig(config);
   if (config.tenant !== o.tenant || config.origin !== o.origin || !o.origin.startsWith('https://') || config.statePath !== o.legacyState ||
-      !Number.isInteger(config.port) || config.port === 443 || Object.keys(config).some(k => !['origin', 'tenant', 'port', 'statePath', 'accounts'].includes(k))) fail('AUTH_LEGACY_CONFIG_UNSUPPORTED');
+      !Number.isInteger(config.port) || Object.keys(config).some(k => !['origin', 'tenant', 'port', 'statePath', 'accounts'].includes(k))) fail('AUTH_LEGACY_CONFIG_UNSUPPORTED');
   const proxy = await publicBytes(o.legacyProxy, uid), site = await publicBytes(o.nginxSite, uid);
   const expectedProxy = (await readFile(join(o.legacySource, 'deploy/auth-xiongan/auth-location.nginx.conf'), 'utf8')).replace('127.0.0.1:18417', `127.0.0.1:${config.port}`);
   if (normalized(proxy.toString()) !== normalized(expectedProxy)) fail('AUTH_LEGACY_PROXY_UNSUPPORTED');

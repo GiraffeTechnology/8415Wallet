@@ -10,3 +10,7 @@ The fixture carries no deployment configuration, wallet binding, credential,
 key or encrypted state. Tests generate temporary synthetic data and inject host
 service commands. The installed journey uses the publicly known synthetic
 credential defined in the test helper; it is never a production credential.
+
+Frozen historical source is recognition evidence, not current product policy.
+Its historical port conditions do not impose a port reservation on the importer
+or on another deployment; current listener reservations are operator-owned data.

@@ -129,3 +129,11 @@ test('candidate protocol must declare its persistent migration startup fence', a
 test('synthetic legacy authenticator uses the supported full-length RFC fixture', () => {
   assert.equal(hotp(record.secret, 0), '755224');
 });
+
+test('importer does not impose a product-wide TCP port reservation', async t => {
+  const f = await fixture(t); f.config.port = 443;
+  await writeFile(f.options.legacyConfig, JSON.stringify(f.config));
+  await writeFile(f.options.legacyProxy, (await readFile(f.options.legacyProxy, 'utf8')).replace('127.0.0.1:18587', '127.0.0.1:443'));
+  assert.equal((await inspectLegacy(f.options)).summary.status, 'supported-legacy-awaiting-operator-confirmation');
+  assert.equal(f.calls.some(c => c.includes('stop')), false);
+});
