@@ -7,12 +7,13 @@ const path=require('node:path');
 const root=path.resolve(__dirname,'../..');
 const port=Number(process.env.WALLET_BROWSER_PORT??'8415');
 if(!Number.isInteger(port)||port<1024||port>65535)throw new Error('BROWSER_PORT_REFUSED');
-const web=new Set(['index.html','login-core.mjs','wallet-auth.mjs','app.mjs','public-store.mjs','wallet.css','external-assets.mjs','external-store.mjs','ui-lock.mjs','release-profile.mjs','release-config.json','settlement-store.mjs','legacy-clearing.mjs','legacy-clearing-store.mjs']);
-const mime={'.html':'text/html; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8'};
+const web=new Set(['index.html','login-core.mjs','wallet-auth.mjs','account-auth.mjs','app.mjs','public-store.mjs','wallet.css','external-assets.mjs','external-store.mjs','ui-lock.mjs','release-profile.mjs','release-config.json','settlement-store.mjs','legacy-clearing.mjs','legacy-clearing-store.mjs','i18n.mjs','locale-ui.mjs','native-i18n.mjs','wallet-shell.mjs','tenant-avatar.mjs']);
+web.add('enrollment-qr.mjs'); web.add('qr-generator.mjs');
+const mime={'.html':'text/html; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.svg':'image/svg+xml','.woff2':'font/woff2','.ttf':'font/ttf','.txt':'text/plain; charset=utf-8'};
 const server=http.createServer((req,res)=>{
   res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Cache-Control','no-store');
   res.setHeader('Referrer-Policy','no-referrer');res.setHeader('Cross-Origin-Resource-Policy','same-origin');
-  res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self'; font-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'none'");
+  res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' blob:; font-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'none'; form-action 'none'");
   const host=req.headers.host;
   if(![`127.0.0.1:${port}`,`localhost:${port}`].includes(host)||!['GET','HEAD'].includes(req.method)) {res.writeHead(403);res.end();return;}
   if(req.url==='/'){res.writeHead(302,{Location:'/web/index.html'});res.end();return;}
@@ -23,7 +24,7 @@ const server=http.createServer((req,res)=>{
     relative=decodeURIComponent(url.pathname).slice(1);
     if(relative==='')relative='web/index.html';
     if(relative.includes('\\')||relative.split('/').some(s=>s==='..'||s==='.'||s===''))throw new Error();
-    if(!(relative.startsWith('web/')&&web.has(relative.slice(4)))&&
+    if(!(relative.startsWith('web/')&&(web.has(relative.slice(4))||/^web\/locales\/[A-Za-z0-9-]+\.mjs$/.test(relative)||/^web\/assets\/[A-Za-z0-9-]+\.(?:jpg|jpeg|png|webp|svg|woff2|ttf|txt)$/.test(relative)))&&
        !(relative.startsWith('dist/browser/')&&/^[a-zA-Z0-9_/-]+\.js$/.test(relative)))throw new Error();
     const full=path.resolve(root,relative),segments=relative.split('/');let at=root;
     for(const segment of segments){at=path.join(at,segment);if(fs.lstatSync(at).isSymbolicLink())throw new Error();}

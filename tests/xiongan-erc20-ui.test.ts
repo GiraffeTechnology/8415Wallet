@@ -1,3 +1,4 @@
+import * as uiI18n from '../web/i18n.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -40,7 +41,7 @@ function fixture() {
       this.record = parseAssetState(JSON.stringify(next)); return true;
     }
   }
-  const sdk = {
+  const sdk = { ...uiI18n,
     // Authentication is isolated in wallet-login.test.ts and the full browser suite.
     walletLogin: { assert() {}, check: async () => {}, provider: () => provider, subscribe() {} }, WalletLoginError: class extends Error {}, getReleaseProfile: async () => ({ features: { externalAssets: true } }), ExternalAssetSession, ASSET_CHAINS, formatWeiAsEth, ControlAdapterError, controlRpc,
     BrowserExternalAssetStore: Store, acquireWalletUi: () => Symbol(), releaseWalletUi: () => {}, walletUiBusy: () => false };
@@ -93,4 +94,14 @@ for (const field of ['contract', 'recipient']) test(`ERC-20 form bad ${field} ch
   await f.click('asset-prepare'); assert.equal(f.element('asset-result').textContent, 'ASSET_ADDRESS_REFUSED');
   assert.equal(f.element('asset-review-text').textContent, 'No transfer reviewed'); f.element('asset-ack').checked = true;
   await f.click('asset-send'); assert.equal(f.sends(), 0);
+});
+for (const { id } of uiI18n.LOCALES) test(`locale ${id} changes review prose but preserves digest, raw amount, metadata and consent`, async () => {
+  uiI18n.setLocale('en', { persist: false }); const f = fixture(); await f.prepare(); f.element('asset-ack').checked = true;
+  const before = JSON.parse(f.element('asset-review-text').textContent);
+  uiI18n.setLocale(id, { persist: false }); const after = JSON.parse(f.element('asset-review-text').textContent);
+  for (const key of ['digest', 'amount', 'transaction', 'tokenMetadata', 'chainId', 'contract', 'recipient']) assert.deepEqual(after[key], before[key], key);
+  assert.equal(after.tokenCautions, uiI18n.t('message.033')); assert.equal(f.element('asset-ack').checked, true);
+  assert.equal(f.element('asset-amount').value, '1234567'); assert.equal(f.sends(), 0);
+  await f.click('asset-send'); assert.equal(f.sends(), 1);
+  uiI18n.setLocale('en', { persist: false }); assert.equal(f.element('asset-review-text').textContent, 'No transfer reviewed');
 });

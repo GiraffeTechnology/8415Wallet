@@ -1,14 +1,18 @@
 # 8415wallet AGENTS.md
 
-## Current client-directed installation and joint testing (2026-10-05)
+## Historical authorized Beta installation scope (2026-10-05)
 
-ArtFi control owns the client-requested ArtFi iteration, installation and joint
-testing using the Beta package on branch `delivery/install-handoff-20261004`.
+This dated record covers the supplied October 4 archive, not the current
+application build or a new deployment authorization. Current authentication,
+registration and recovery requirements below remain in force.
+
+ArtFi control was assigned the client-requested ArtFi iteration, installation and
+joint testing using the Beta package on branch `delivery/install-handoff-20261004`.
 The exact source is `1f4a9ae6dd5b8b062ab4f903920cf4b39d158e36`; the archive SHA256
 is `df5058bec9d5c12cffb9ca10cd7ea991e46696207a50f3d2ccf47ac375681838`.
 Preserve the immutable supplied archive and verify its nested manifests before
-installation. This client instruction, rather than artifact publication alone,
-authorizes production-like Beta installation and joint testing in the approved
+installation. That client instruction, rather than artifact publication alone,
+covered production-like Beta installation and joint testing in the approved
 CTYun/SIN Linux environment. Windows is a source/report workstation only.
 
 Historical Charity completion, full V3 acceptance and independent general-release
@@ -17,7 +21,7 @@ genuine-wallet, public-testnet, device and W-20 observations are collected and
 reported separately; no old result is inherited by a changed source or origin.
 Public entry navigation may skip login, but protected assets/history still require
 verified login. Mainnet/real-value testing, credential disclosure, unknown-outcome
-replay and changes to shared or other-task services remain outside this authority.
+replay and changes to shared or other-task services remain outside that historical scope.
 GitHub writes remain English only.
 
 ## Product Boundary
@@ -52,6 +56,59 @@ iteration on the original wallet: retain its readers, views, transaction path
 and legacy single-trade clearing. Linked mode adds the agreed responsibility
 chain in PRD §9; it must not make ArtFi, Oracle or another wallet mandatory for
 standalone use.
+
+---
+
+## Account login methods (owner update, 2026-10-04)
+
+Support password, authenticator TOTP (Google Authenticator/FreeOTP), local
+private-key challenge signing and configured hardware CA challenge signing.
+Email OTP is not a login method. The owner update on 2026-10-06 adds reset-only
+email verification from noreply@8415wallet.com together with a previously reserved
+security answer. Preserve fresh independent identity verification and existing
+authenticator/recovery proof; email or security answers never replace them. Read
+`docs/AUTH-RECOVERY.md` and `docs/EMAIL-REGISTRATION.md`. Email ownership OTP
+is also required for registration; it remains unavailable as a login method. Never suggest provider connection authenticates an account.
+
+Read `docs/ACCOUNT-AUTHENTICATION.md` and `docs/WALLET-LOGIN.md` before changing
+authentication. Passwords/TOTP require server verification and revocable sessions;
+client-only flags cannot implement them. Preserve origin/tenant/account/chain
+binding, CSRF, one-use challenge/TOTP/recovery handling, encrypted credential
+state and enrollment confirmation. Operator and hardware-CA bindings come from independently verified configuration.
+Ordinary self-registration requires verified email ownership plus an exact
+origin/tenant/account/chain/purpose-bound EOA control proof; it grants no operator,
+tenant-management, private-record or transaction authority. Registration email is
+mandatory, unique per tenant, and verified before account creation. Existing
+accounts retain login access to complete verified-email migration without rekeying
+or discarding credentials. See `docs/EMAIL-REGISTRATION.md`. Never trust
+client-supplied identity flags or create an account from email OTP alone. No private key,
+seed phrase, hardware PIN, live authenticator seed or production store key belongs
+in source, logs, artifacts or a page form. Synthetic test credentials are local
+fixtures only. No production provisioning, deployment or transaction is implied.
+
+The local wallet route retains EOA/ERC-1271 support; the new server wallet route
+currently verifies EOA signatures. Hardware CA integration uses a defined bridge
+plus certificate-chain/purpose/time/revocation verification, not a checkbox or
+universal-driver claim. Record device/middleware acceptance separately. Login and
+transaction approval remain separate. Keep the immutable earlier release ZIP
+unchanged; updated artifacts need their own exact source identity after review.
+
+---
+
+## Interface localization (owner update, 2026-10-04)
+
+Keep the compact native six-choice language dropdown (owner update, 2026-10-06), with English as the default and
+locale IDs en, zh-Hans, zh-Hant, fr, es and ja. The owner explicitly authorizes
+multilingual fixed UI catalogs and selector labels; identifiers, engineering
+documents and PR prose remain English. Token names, descriptions and metadata
+must retain their original decoded source strings and be safely rendered as text.
+Do not translate signed terms, raw transaction values, addresses or protocol
+identifiers. Switching language must not reload, reauthenticate, reset consent,
+repeat provider requests, or send transactions. Native labels and first-party
+protocol explanations belong to the presentation layer; keep finality, contest,
+freshness and legal identity distinct. See docs/UI-LOCALIZATION.md. The approved
+Figma layout is a separate implementation scope; localization alone is not a
+claim that it was ported. Preserve the original logo; do not redraw it.
 
 ---
 

@@ -26,7 +26,7 @@ if (!source.files[prdPath]) throw new Error('DAPP_PRD_MISSING');
 for (const tree of ['src', 'web']) {
   for (const file of walk(root, tree)) if (!Object.hasOwn(source.files, file)) throw new Error(`DAPP_UNTRACKED_SOURCE_STAGE_REQUIRED: ${file}`);
 }
-for (const file of ['docs/BETA-DAPP-DELIVERY.md', 'docs/BETA-PRD-COVERAGE.md', 'docs/STANDARDS-COMPATIBILITY.md', 'docs/WALLET-LOGIN.md', 'docs/stages/LEGACY-CLEARING-BETA-DAPP.md']) {
+for (const file of ['docs/BETA-DAPP-DELIVERY.md', 'docs/BETA-PRD-COVERAGE.md', 'docs/STANDARDS-COMPATIBILITY.md', 'docs/WALLET-LOGIN.md', 'docs/ACCOUNT-AUTHENTICATION.md', 'docs/APPROVED-UI-IMPLEMENTATION.md', 'docs/TENANT-AVATAR.md', 'docs/stages/LEGACY-CLEARING-BETA-DAPP.md']) {
   if (!Object.hasOwn(source.files, file)) throw new Error(`DAPP_UNTRACKED_SOURCE_STAGE_REQUIRED: ${file}`);
 }
 // Clear output first: removed source modules must never survive a prior emit.
@@ -39,7 +39,7 @@ mkdirSync(stage, { recursive: true });
 stagePublicWeb(root, source, stage);
 cpSync(join(root, 'dist/browser'), join(stage, 'dist/browser'), { recursive: true });
 writeFileSync(join(stage, 'web/release-config.json'), `${JSON.stringify(config, null, 2)}\n`);
-for (const file of [prdPath, 'docs/BETA-DAPP-DELIVERY.md', 'docs/BETA-PRD-COVERAGE.md', 'docs/STANDARDS-COMPATIBILITY.md', 'docs/WALLET-LOGIN.md', 'docs/stages/LEGACY-CLEARING-BETA-DAPP.md']) {
+for (const file of [prdPath, 'docs/BETA-DAPP-DELIVERY.md', 'docs/BETA-PRD-COVERAGE.md', 'docs/STANDARDS-COMPATIBILITY.md', 'docs/WALLET-LOGIN.md', 'docs/ACCOUNT-AUTHENTICATION.md', 'docs/APPROVED-UI-IMPLEMENTATION.md', 'docs/TENANT-AVATAR.md', 'docs/stages/LEGACY-CLEARING-BETA-DAPP.md']) {
   mkdirSync(join(stage, dirname(file)), { recursive: true }); cpSync(join(root, file), join(stage, file));
 }
 if (captureSource(root).tree !== source.tree) throw new Error('DAPP_SOURCE_CHANGED_DURING_BUILD');

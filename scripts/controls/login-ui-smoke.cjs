@@ -1,3 +1,4 @@
+const { installScreenNavigation } = require('./screen-navigation.cjs');
 // Rendered browser regression with public synthetic test keys only. No genuine
 // wallet, user signatures, network RPC, chain transaction or physical handset.
 const assert = require('node:assert/strict');
@@ -62,7 +63,7 @@ async function main() {
         };
         state.emit = event => { for (const listener of [...listeners.get(event) ?? []]) listener(); };
       });
-      const page = await context.newPage(); await page.clock.install(); page.on('pageerror', error => errors.push(error.message));
+      const page = installScreenNavigation(await context.newPage()); await page.clock.install(); page.on('pageerror', error => errors.push(error.message));
       const idle = () => page.waitForFunction(() => !document.getElementById('asset-connect').disabled && !document.getElementById('wallet-login').disabled);
       const locked = async () => {
         assert.equal(await page.locator('#wallet-private').isVisible(), false);
