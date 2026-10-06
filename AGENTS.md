@@ -579,7 +579,8 @@ bind TCP port 443, and do not stop, rebind, replace or otherwise disrupt SSH to
 free it.
 
 Before selecting a web or bridge port, inspect current listeners and operations
-configuration. Reuse a suitable existing allocation or select an actually free
+configuration. Do not guess a replacement port. Verify the current listener
+state before reusing a suitable existing allocation or selecting an actually free
 non-443 port within the client's approved deployment scope. Occupied ports,
 SSH, shared bridges and other-task services remain protected. Do not invent a
 separate per-port client approval requirement; actual public-ingress authority
