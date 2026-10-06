@@ -1,7 +1,7 @@
 /** Same-origin account login client. Passwords/codes are never persisted. */
 import { WalletLoginError } from './login-core.mjs';
 export class AccountAuthClient {
-  #tenant; #fetch; #csrf = null; #session = null; #origin;
+  #tenant; #fetch; #csrf = null; #session = null; #origin; #registrationEpoch = 0;
   constructor({ tenant, origin = globalThis.location.origin, fetcher = globalThis.fetch.bind(globalThis) }) { this.#tenant = tenant; this.#fetch = fetcher; this.#origin = origin; }
   async request(path, body, { keepalive = false } = {}) {
     const response = await this.#fetch(new URL(`/auth/${path}`, this.#origin), { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', cache: 'no-store', keepalive,
@@ -16,6 +16,49 @@ export class AccountAuthClient {
     const value = await this.request('capabilities');
     if (value.schema !== '8415wallet-auth/1' || value.tenant !== this.#tenant || value.origin !== this.#origin) throw new WalletLoginError('LOGIN_SERVICE_BINDING_REFUSED');
     return value;
+  }
+  async registrationStart(email) {
+    const epoch = ++this.#registrationEpoch;
+    const current = () => { if (epoch !== this.#registrationEpoch) throw new WalletLoginError('LOGIN_CANCELLED'); };
+    const capabilities = await this.capabilities(); current();
+    if (capabilities.registration?.available === false) throw new WalletLoginError('AUTH_EMAIL_UNAVAILABLE');
+    const bootstrap = await this.request('bootstrap'); this.#csrf = bootstrap.csrf;
+    if (epoch !== this.#registrationEpoch) { await this.cancelRegistration(); throw new WalletLoginError('LOGIN_CANCELLED'); }
+    const result = await this.request('registration/start', { email }); current(); return result;
+  }
+  async registrationVerify(challengeId, code) { return this.request('registration/verify', { challengeId, code }); }
+  async cancelRegistration() {
+    this.#registrationEpoch++;
+    if (this.#csrf) { try { return await this.request('registration/cancel', {}); } catch { return { cancelled: false, unconfirmed: true }; } }
+    return { cancelled: true };
+  }
+  async registrationEmail(action, body = {}) {
+    if (!['start', 'confirm', 'cancel'].includes(action)) throw new WalletLoginError('AUTH_ROUTE_REFUSED');
+    return this.request(`registration/email/${action}`, body);
+  }
+  registrationAdapter(registrationId, credentials = {}) {
+    return {
+      authenticate: async (identity, provider) => {
+        const epoch = this.#registrationEpoch;
+        const current = () => { if (epoch !== this.#registrationEpoch) throw new WalletLoginError('LOGIN_CANCELLED'); };
+        try {
+          const challenge = await this.request('registration/challenge', { registrationId, ...identity }); current();
+          if (challenge.tenant !== this.#tenant || challenge.origin !== this.#origin || challenge.account !== identity.account ||
+            challenge.chainId !== identity.chainId || challenge.method !== 'wallet' || typeof challenge.message !== 'string' ||
+            !challenge.message.includes('urn:8415wallet:purpose:registration')) throw new WalletLoginError('LOGIN_CHALLENGE_BINDING_REFUSED');
+          const encoded = `0x${Array.from(new TextEncoder().encode(challenge.message), b => b.toString(16).padStart(2, '0')).join('')}`;
+          const signature = await provider.request({ method: 'personal_sign', params: [encoded, identity.account] }); current();
+          const result = await this.request('registration/confirm', { registrationId, id: challenge.id, ...identity, signature,
+            ...(credentials.password ? { password: credentials.password } : {}) }); current();
+          const session = result.session;
+          if (result.registered !== true || !session || session.tenant !== this.#tenant || session.origin !== this.#origin ||
+            session.account !== identity.account || session.chainId !== identity.chainId || session.kind !== 'wallet') throw new WalletLoginError('LOGIN_SERVICE_BINDING_REFUSED');
+          this.#csrf = session.csrf; this.#session = session; return session;
+        } finally { credentials.password = ''; }
+      },
+      check: async () => this.request('session'),
+      logout: async () => this.logout(),
+    };
   }
   adapter(method, credentials = {}, caBridge = globalThis.walletCaBridge) {
     return {
@@ -53,6 +96,7 @@ export class AccountAuthClient {
     };
   }
   async logout() {
+    this.#registrationEpoch++;
     if (!this.#csrf) return;
     try { await this.request('logout', {}, { keepalive: true }); } finally { this.#csrf = null; this.#session = null; }
   }
@@ -65,6 +109,10 @@ export class AccountAuthClient {
       typeof value.authenticator?.enrolled !== 'boolean' || typeof value.management?.freshIndependentLogin !== 'boolean' ||
       typeof value.management?.existingCodeRequired !== 'boolean' ||
       !(value.management.reauthenticateBy === null || Number.isSafeInteger(value.management.reauthenticateBy)) ||
+      !value.registration || typeof value.registration.required !== 'boolean' || typeof value.registration.complete !== 'boolean' ||
+      value.registration.required === value.registration.complete || typeof value.registration.emailOtpAvailable !== 'boolean' ||
+      (value.registration.complete && (typeof value.registration.email !== 'string' || typeof value.registration.emailMasked !== 'string')) ||
+      (!value.registration.complete && (value.registration.email !== null || value.registration.emailMasked !== null)) ||
       !value.recovery || typeof value.recovery.configured !== 'boolean' || typeof value.recovery.emailOtpAvailable !== 'boolean' ||
       (value.recovery.configured && (typeof value.recovery.emailMasked !== 'string' || !['recovery-phrase', 'first-school', 'childhood-place'].includes(value.recovery.questionId))) ||
       value.authenticator.enrolled !== value.methods.totp.bound || value.management.existingCodeRequired !== value.authenticator.enrolled)

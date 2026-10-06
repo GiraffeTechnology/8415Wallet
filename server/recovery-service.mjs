@@ -2,6 +2,7 @@
 import { createHmac, randomBytes, randomInt } from 'node:crypto';
 import { randomToken, digest, equal, hashPassword, verifyPassword } from './crypto.mjs';
 import { normalizeEmail } from './mail-otp.mjs';
+import { registrationFor } from './account-directory.mjs';
 
 const FRESH = 5 * 60_000, OTP_LIFE = 5 * 60_000, PROOF_LIFE = 2 * 60_000;
 const QUESTIONS = Object.freeze(['recovery-phrase', 'first-school', 'childhood-place']);
@@ -16,6 +17,7 @@ function answerText(value) {
 }
 function maskedEmail(email) { const [name, host] = email.split('@'); return `${name.slice(0, 1)}***@${host}`; }
 function profileFor(credential) {
+  registrationFor(credential);
   const profile = credential?.recoveryProfile;
   if (profile === undefined) return null;
   // Corrupt or partial factors must never silently become an unenrolled account.
@@ -135,6 +137,8 @@ export function createRecoveryService({ origin, tenant, store, sendOtp = null, n
     if (oldProof) proofs.set(oldProofKey, oldProof);
     try {
       const credential = await credentialFor(session); current(session, slot);
+      const registration = registrationFor(credential);
+      requireThat(!registration || registration.email === email, 'AUTH_REGISTRATION_EMAIL_MISMATCH', 409);
       const authorize = prior => { current(session, slot); checkRevision(session, prior); consumeProof(session, body.resetProof, prior); };
       if (credential?.secret) await consumeExistingCode(session, body.existingCode, body.recovery === true, authorize);
       else await store.transaction(`${tenant}:${session.username}`, prior => { authorize(prior); return prior ?? { revision: 0 }; });
@@ -149,6 +153,8 @@ export function createRecoveryService({ origin, tenant, store, sendOtp = null, n
     try {
       await store.transaction(`${tenant}:${session.username}`, prior => {
         current(session, slot); checkRevision(session, prior);
+        const registration = registrationFor(prior);
+        requireThat(!registration || registration.email === slot.profile.email, 'AUTH_REGISTRATION_EMAIL_MISMATCH', 409);
         slot.committing = true;
         return { ...prior, recoveryProfile: { ...slot.profile, emailVerifiedAt: stamp() }, revision: session.revision + 1 };
       });

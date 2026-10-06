@@ -185,3 +185,14 @@ audit or production delivery evidence.
 Primary references: [RFC 8314](https://www.rfc-editor.org/rfc/rfc8314),
 [RFC 4954](https://www.rfc-editor.org/rfc/rfc4954), and the
 [Node TLS API](https://nodejs.org/api/tls.html).
+
+## Registration identity alignment
+
+Email ownership verification is also used in the separate ordinary-registration
+flow described in [EMAIL-REGISTRATION.md](EMAIL-REGISTRATION.md). Its OTP purpose,
+preauthentication binding and challenge state are distinct from recovery. It
+cannot satisfy a reset challenge or log a user in alone. Once registration is
+complete, the reserved recovery email must equal the verified account email.
+Changing it uses the protected account-email migration API, which verifies the
+new address and atomically updates both the directory and existing recovery
+profile; recovery enrollment cannot redirect messages to a different address.

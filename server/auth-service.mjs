@@ -4,6 +4,8 @@ import { loginOrigin, loginMessage } from '../web/login-core.mjs';
 import { verifyMessage, getAddress } from 'ethers';
 import { validateAccountBindings } from './config-validation.mjs';
 import { createRecoveryService, RecoveryError } from './recovery-service.mjs';
+import { createAccountDirectory } from './account-directory.mjs';
+import { createRegistrationService, RegistrationError } from './registration-service.mjs';
 const LIFE = 15 * 60_000, CHALLENGE = 2 * 60_000, ENROLL = 5 * 60_000;
 const accountMethods = ['password', 'wallet', 'ca', 'totp'];
 const chains = new Set(['1', '8453', '11155111', '84532', '560048', '31337']);
@@ -40,10 +42,11 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
     users.set(input.username, Object.freeze({ username: input.username, passwordHash: input.passwordHash,
       wallets: input.wallets.map(identity), caFingerprints: input.caFingerprints ?? [] }));
   }
+  const directory = createAccountDirectory({ tenant, accounts, store, users });
   const secure = url.protocol === 'https:', sessionName = secure ? '__Host-8415session' : '8415session-local', preauthName = secure ? '__Host-8415preauth' : '8415preauth-local';
   const sessions = new Map(), preauth = new Map(), challenges = new Map(), enrollments = new Map(), limits = new Map();
   let expensive = 0;
-  let recoveryService = null;
+  let recoveryService = null, registrationService = null;
   const stamp = () => { const time = now(); requireThat(Number.isSafeInteger(time) && time >= 0, 'AUTH_CLOCK_REFUSED', 503); return time; };
   function sweep() {
     const time = stamp();
@@ -65,7 +68,7 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
       kind: session.kind, issuedAt: session.issuedAt, expiresAt: session.expiresAt, csrf: session.csrf };
   }
   const boundUser = (name, selected) => {
-    const user = validUsername(name) ? users.get(name) : null;
+    const user = users.get(validUsername(name) ? name : directory.alias(name));
     return user?.wallets.some(wallet => wallet.account === selected.account && wallet.chainId === selected.chainId) ? user : null;
   };
   function localSession(req) {
@@ -77,7 +80,7 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
     sweep(); requireThat(sessions.get(session.key) === session);
   }
   function revokeSession(session) {
-    sessions.delete(session.key); enrollments.delete(session.id); session.enrollmentGeneration++; recoveryService?.cancel(session);
+    sessions.delete(session.key); enrollments.delete(session.id); session.enrollmentGeneration++; recoveryService?.cancel(session); registrationService?.cancel(session, true);
   }
   function revokeAccount(username) {
     for (const current of sessions.values()) if (current.username === username) revokeSession(current);
@@ -93,6 +96,7 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
     const credential = await store.read(`${tenant}:${session.username}`);
     // A read may wait behind other work. Never revive a session revoked while it waited.
     activeSession(session); requireThat((credential?.revision ?? 0) === session.revision);
+    directory.checkCredential(session.username, credential);
     return credential;
   }
   async function sessionFor(req) {
@@ -112,13 +116,15 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
     requireThat(state && equal(req.headers['x-wallet-csrf'], state.csrf), 'AUTH_CSRF_REFUSED', 403);
     return state;
   }
-  async function issue(req, res, user, selected, kind, expectedRevision) {
+  async function issue(req, res, user, selected, kind, expectedRevision, signup = null) {
     const credential = await store.read(`${tenant}:${user.username}`), time = stamp(), token = randomToken(); capacity(sessions);
+    directory.checkCredential(user.username, credential);
     preauthFor(req); // Logout/cancellation also revokes an in-flight login.
     requireThat(expectedRevision === undefined || expectedRevision === (credential?.revision ?? 0));
     requireThat(methodStates(user, credential)[kind === 'recovery' ? 'totp' : kind]?.enabled);
     const prior = sessions.get(digest(cookies(req).get(sessionName) ?? '')); if (prior) revokeSession(prior);
-    const session = { ...selected, username: user.username, id: randomToken(), csrf: randomToken(), kind,
+    signup?.authorizeSession();
+    const session = { ...selected, ...(signup ? { registrationBootstrapId: signup.bootstrapId } : {}), username: user.username, id: randomToken(), csrf: randomToken(), kind,
       key: digest(token), enrollmentGeneration: 0, issuedAt: time, expiresAt: time + LIFE, revision: credential?.revision ?? 0 };
     sessions.set(session.key, session); res.setHeader('Set-Cookie', cookie(sessionName, token, LIFE / 1000));
     return publicSession(session);
@@ -157,18 +163,25 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
     assertRecent: recentIndependent, credentialFor, revokeAccount,
     consumeExistingCode: (session, code, recovery, authorize) => consumeCode(session.username, code, recovery,
       { expectedRevision: session.revision, validate: () => recentIndependent(session), authorize }) });
+  registrationService = createRegistrationService({ origin, tenant, store, directory, sendOtp, now, identity,
+    assertPreauth: state => { sweep(); requireThat([...preauth.values()].includes(state), 'AUTH_CSRF_REFUSED', 403); },
+    assertRecent: recentIndependent, credentialFor, withConsumedCode,
+    consumeResetProof: (session, proof, prior) => recoveryService.consumeProof(session, proof, prior), revokeAccount });
   async function route(req, res) {
     requireThat(req.headers.host === url.host, 'AUTH_ORIGIN_REFUSED', 403);
     requireThat(req.headers['x-wallet-tenant'] === tenant, 'AUTH_TENANT_REFUSED', 403);
     requireThat(!req.headers['sec-fetch-site'] || ['same-origin', 'none'].includes(req.headers['sec-fetch-site']), 'AUTH_ORIGIN_REFUSED', 403);
     requireThat(req.url?.startsWith('/auth/') && !req.url.includes('?'), 'AUTH_ROUTE_REFUSED', 404);
     const path = req.url.slice(6), ip = req.socket.remoteAddress ?? 'unknown';
+    await directory.ready;
     if (req.method === 'GET' && path === 'capabilities') return { schema: '8415wallet-auth/1', tenant, origin,
-      methods: ['password', 'totp', 'wallet', ...(verifyCa ? ['ca'] : [])], totp: { algorithm: 'SHA1', digits: 6, period: 30 }, hardwareCa: verifyCa ? 'bridge-v1' : null };
+      methods: ['password', 'totp', 'wallet', ...(verifyCa ? ['ca'] : [])], registration: { available: Boolean(sendOtp), emailRequired: true }, totp: { algorithm: 'SHA1', digits: 6, period: 30 }, hardwareCa: verifyCa ? 'bridge-v1' : null };
     if (req.method === 'GET' && path === 'bootstrap') {
       limit(`bootstrap:${ip}`, 60); capacity(preauth);
       const token = randomToken(), csrf = randomToken(), time = stamp();
-      const prior = cookies(req).get(preauthName); if (prior) preauth.delete(digest(prior));
+      const prior = cookies(req).get(preauthName); if (prior) {
+        const previous = preauth.get(digest(prior)); if (previous) registrationService.cancel(previous); preauth.delete(digest(prior));
+      }
       preauth.set(digest(token), { id: randomToken(), csrf, issuedAt: time, expiresAt: time + LIFE });
       res.setHeader('Set-Cookie', cookie(preauthName, token, LIFE / 1000)); return { csrf };
     }
@@ -178,6 +191,7 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
       const enrolled = Boolean(credential?.secret), pending = enrollments.get(session.id);
       return { schema: '8415wallet-account/1', tenant, origin, username: session.username, account: session.account, chainId: session.chainId,
         methods: methodStates(user, credential), recovery: recoveryService.status(credential),
+        registration: registrationService.status(session.username, credential),
         authenticator: { enrolled, pending: Boolean(pending), expiresAt: pending?.expiresAt ?? null, replacement: pending?.purpose === 'replace' },
         management: { freshIndependentLogin: independent(session) && stamp() - session.issuedAt < ENROLL,
           reauthenticateBy: independent(session) ? session.issuedAt + ENROLL : null, existingCodeRequired: enrolled } };
@@ -190,8 +204,31 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
       // A valid bootstrap can also revoke a late-issued login in the same browser.
       try { localSession(req); } catch { preauthFor(req); }
       const session = sessions.get(digest(cookies(req).get(sessionName) ?? '')); if (session) revokeSession(session);
-      const state = cookies(req).get(preauthName); if (state) preauth.delete(digest(state));
+      const state = cookies(req).get(preauthName); if (state) {
+        const previous = preauth.get(digest(state)); if (previous) registrationService.cancel(previous); preauth.delete(digest(state));
+      }
       res.setHeader('Set-Cookie', [cookie(sessionName, '', 0), cookie(preauthName, '', 0)]); return { loggedOut: true };
+    }
+    if (path.startsWith('registration/email/')) {
+      const result = await registrationService.migration(path, body, localSession(req), ip);
+      if (result.loggedOut) res.setHeader('Set-Cookie', cookie(sessionName, '', 0));
+      return result;
+    }
+    if (path.startsWith('registration/')) {
+      const bootstrap = preauthFor(req);
+      if (path === 'registration/cancel') for (const session of sessions.values()) {
+        if (session.registrationBootstrapId === bootstrap.id) revokeSession(session);
+      }
+      const result = await registrationService.signup(path, body, bootstrap, ip);
+      if (result.user) {
+        try { return { registered: true, session: await issue(req, res, result.user, result.selected, 'wallet', 1, result) }; }
+        catch (error) {
+          registrationService.cancel(bootstrap);
+          for (const session of sessions.values()) if (session.registrationBootstrapId === bootstrap.id) revokeSession(session);
+          throw error;
+        }
+      }
+      return result;
     }
     if (path.startsWith('recovery/')) {
       const result = await recoveryService.handler(path, body, localSession(req));
@@ -269,8 +306,9 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
     const bootstrap = preauthFor(req), selected = identity(body);
     limit(`ip:${ip}`, 100); // Proxy headers are intentionally not trusted.
     if (path === 'password' || path === 'totp') {
-      requireThat(validUsername(body.username)); limit(`account:${body.username}`, 10);
-      const user = boundUser(body.username, selected); let revision;
+      requireThat(typeof body.username === 'string' && body.username.length <= 254);
+      const user = boundUser(body.username, selected);
+      limit(`account:${user?.username ?? digest(body.username.toLowerCase())}`, 10); let revision;
       if (path === 'password') {
         requireThat(expensive < 2, 'AUTH_BUSY', 503); expensive++;
         let verified;
@@ -319,7 +357,7 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
     res.setHeader('Pragma', 'no-cache'); res.setHeader('X-Content-Type-Options', 'nosniff');
     // No Access-Control-Allow-Origin: only the configured same-origin UI can read.
     try { const result = await route(req, res); res.statusCode = 200; res.end(JSON.stringify(result)); }
-    catch (error) { const expected = error instanceof AuthError || error instanceof RecoveryError; res.statusCode = expected ? error.status : 503;
+    catch (error) { const expected = error instanceof AuthError || error instanceof RecoveryError || error instanceof RegistrationError; res.statusCode = expected ? error.status : 503;
       res.end(JSON.stringify({ error: expected ? error.message : 'AUTH_UNAVAILABLE' })); }
   };
 }

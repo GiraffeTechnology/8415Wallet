@@ -12,6 +12,8 @@ const el = id => document.getElementById(id);
 let timer = null, signing = false, attemptRevision = 0, accountClient = null, enrollmentTimer = null;
 let moduleOpen = false, accountState = null, managementTimer = null, enrollmentId = null, enrollmentRevision = 0;
 let recoveryStep = null, resetProof = null, recoveryTimer = null, recoveryRevision = 0;
+let registrationOpen = false, registrationStep = null, registrationProof = null, registrationTimer = null, registrationRevision = 0, signupClient = null, signupAuthenticating = false;
+let migrationStep = null, migrationTimer = null, migrationRevision = 0;
 const methods = ['password', 'wallet', 'ca', 'totp'];
 const currentSession = () => { try { return walletLogin.assert(); } catch { return null; } };
 const freshManagement = () => accountState?.management.freshIndependentLogin === true && Date.now() < accountState.management.reauthenticateBy;
@@ -20,7 +22,7 @@ function enrollmentControls() {
   el('auth-enroll-confirm').disabled = signing || !enrollmentId;
   el('auth-confirm-fields').hidden = !enrollmentId;
   el('auth-methods-save').disabled = signing || !freshManagement();
-  recoveryControls();
+  recoveryControls(); registrationControls();
 }
 function hideEnrollmentSecret() {
   paint(el('auth-enroll-secret'), ''); clearEnrollmentQr(el('auth-enroll-qr'));
@@ -49,7 +51,7 @@ function renderManagement() {
   paint(el('auth-enroll-start'), msg(accountState?.authenticator.enrolled ? 'account.reset' : 'ui.024'));
   el('auth-initial-guide').hidden = verified && accountState.authenticator.enrolled;
   el('auth-reset-guide').hidden = verified && !accountState.authenticator.enrolled;
-  enrollmentControls(); renderRecovery();
+  enrollmentControls(); renderRecovery(); renderRegistration();
 }
 async function loadAccount() {
   const client = accountClient, binding = walletLogin.capture(), revision = attemptRevision;
@@ -58,8 +60,10 @@ async function loadAccount() {
   try {
     const value = await client.account(); walletLogin.assert(binding);
     if (client !== accountClient || revision !== attemptRevision) return;
-    accountState = value; renderManagement(); clearTimeout(managementTimer);
-    if (freshManagement()) managementTimer = setTimeout(() => { clearEnrollment(); clearRecovery(); renderManagement(); }, Math.max(0, value.management.reauthenticateBy - Date.now()));
+    accountState = value;
+    el('auth-registration-account-email').value = value.registration?.email ?? '';
+    renderManagement(); clearTimeout(managementTimer);
+    if (freshManagement()) managementTimer = setTimeout(() => { clearEnrollment(); clearRecovery(); clearMigration(); renderManagement(); }, Math.max(0, value.management.reauthenticateBy - Date.now()));
   } catch {
     if (client !== accountClient || revision !== attemptRevision || !currentSession()) return;
     accountState = null; renderManagement(); paint(el('auth-management-status'), msg('account.statusFailed'));
@@ -67,6 +71,14 @@ async function loadAccount() {
 }
 walletLogin.subscribe((session, reason) => {
   clearTimeout(timer); clearTimeout(managementTimer); enrollmentRevision++; accountState = null;
+  if (!(signupAuthenticating && reason === 'LOGIN_STARTING')) {
+    if (!session) {
+      registrationRevision++; const pending = signupClient; signupClient = null;
+      if (pending) void pending.cancelRegistration();
+    }
+    clearSignup(true);
+  }
+  migrationRevision++; clearMigration();
   clearEnrollment(); clearRecovery(); // Session/identity transitions remove pixels and localized secret bindings.
   for (const id of ['auth-password', 'auth-code', 'auth-existing-code', 'auth-enroll-code']) el(id).value = '';
   el('auth-recovery-output').hidden = true; paint(el('auth-recovery-codes'), '');
@@ -107,7 +119,12 @@ el('wallet-login').addEventListener('click', async () => {
     try { walletLogin.assert(); } catch { el('wallet-logout').hidden = true; }
   }
 });
-function cancelLogin() { attemptRevision++; enrollmentRevision++; recoveryRevision++; clearEnrollment(); clearRecovery(); walletLogin.logout(); }
+function cancelLogin() {
+  const pendingRegistration = signupClient; signupClient = null;
+  if (pendingRegistration) void pendingRegistration.cancelRegistration();
+  attemptRevision++; enrollmentRevision++; recoveryRevision++; registrationRevision++; migrationRevision++;
+  clearEnrollment(); clearRecovery(); clearSignup(true); clearMigration(); walletLogin.logout();
+}
 el('wallet-logout').addEventListener('click', cancelLogin);
 globalThis.addEventListener('pagehide', cancelLogin);
 globalThis.addEventListener('pageshow', event => { if (event.persisted) cancelLogin(); });
@@ -133,6 +150,7 @@ function verifyAgain() {
   document.dispatchEvent?.(new CustomEvent('wallet:authentication-method'));
 }
 async function openManagement() {
+  if (registrationOpen) closeRegistration();
   moduleOpen = true; renderManagement();
   if (!currentSession()?.serverId) verifyAgain();
   else if (!accountState) await loadAccount();
@@ -157,12 +175,12 @@ async function cancelSetup({ status = true } = {}) {
 function closeManagement() {
   moduleOpen = false;
   // A submitted confirmation may already have committed; closing never promises rollback.
-  if (signing) cancelLogin(); else { void cancelSetup({ status: false }); void cancelRecovery(); }
+  if (signing) cancelLogin(); else { void cancelSetup({ status: false }); void cancelRecovery(); void cancelMigration(); }
   renderManagement(); el('auth-manage-open').focus?.();
 }
 el('auth-management-close').addEventListener('click', closeManagement);
-globalThis.addEventListener('popstate', () => { if (moduleOpen) closeManagement(); });
-globalThis.addEventListener('keydown', event => { if (event.key === 'Escape' && moduleOpen) closeManagement(); });
+globalThis.addEventListener('popstate', () => { if (registrationOpen) closeRegistration(); else if (moduleOpen) closeManagement(); });
+globalThis.addEventListener('keydown', event => { if (event.key === 'Escape') { if (registrationOpen) closeRegistration(); else if (moduleOpen) closeManagement(); } });
 document.addEventListener('wallet:authentication-leaving', () => { if (moduleOpen) closeManagement(); });
 async function enroll(action) {
   if (signing || !accountClient || !freshManagement() || (action === 'start' && enrollmentId) || (action === 'confirm' && !enrollmentId)) return;
@@ -220,6 +238,8 @@ function renderRecovery() {
   paint(el('auth-recovery-state'), !verified ? '' : !state.emailOtpAvailable ? msg('recovery.unavailable') :
     state.configured ? msg('recovery.configured', { email: state.emailMasked }) : msg('recovery.notConfigured'));
   paint(el('auth-reserved-question'), verified && state.configured ? msg(`recovery.question.${state.questionId}`) : '');
+  if (verified && accountState?.registration?.complete) el('auth-reserved-email').value = accountState.registration.email;
+  el('auth-reserved-email').readOnly = !!accountState?.registration?.complete;
   recoveryControls();
 }
 async function cancelRecovery() {
@@ -275,6 +295,151 @@ el('auth-recovery-enroll').addEventListener('click', () => runRecovery('enroll')
 el('auth-reset-start').addEventListener('click', () => runRecovery('reset'));
 el('auth-email-confirm').addEventListener('click', () => runRecovery('confirm'));
 el('auth-email-cancel').addEventListener('click', cancelRecovery);
+function registrationControls() {
+  el('auth-registration-start').disabled = signing || !!registrationStep || !!registrationProof;
+  el('auth-registration-verify').disabled = signing || !registrationStep;
+  el('auth-registration-finish').disabled = signing || !registrationProof;
+  el('auth-registration-email').readOnly = !!registrationStep || !!registrationProof;
+  el('auth-registration-code-fields').hidden = !registrationStep;
+  el('auth-registration-wallet-fields').hidden = !registrationProof;
+  const migrationAllowed = !signing && freshManagement() && accountState?.registration?.emailOtpAvailable === true;
+  el('auth-registration-account-start').disabled = !migrationAllowed || !!migrationStep || ((accountState?.registration?.complete || accountState?.recovery?.configured) && !resetProof);
+  el('auth-registration-account-confirm').disabled = !migrationAllowed || !migrationStep;
+  el('auth-registration-account-cancel').hidden = !migrationStep;
+  el('auth-registration-account-code-fields').hidden = !migrationStep;
+  el('auth-registration-account-email').readOnly = !!migrationStep;
+}
+function clearSignup(hide = false) {
+  clearTimeout(registrationTimer); registrationTimer = null; registrationStep = null; registrationProof = null;
+  for (const id of ['auth-registration-email', 'auth-registration-code', 'auth-registration-password', 'auth-registration-password-confirm']) el(id).value = '';
+  paint(el('auth-registration-status'), ''); if (hide) registrationOpen = false;
+  el('auth-registration').hidden = !registrationOpen; registrationControls();
+}
+function clearMigration() {
+  clearTimeout(migrationTimer); migrationTimer = null; migrationStep = null;
+  for (const id of ['auth-registration-account-email', 'auth-registration-account-code']) el(id).value = '';
+  paint(el('auth-registration-account-status'), ''); registrationControls();
+}
+function renderRegistration() {
+  el('auth-registration').hidden = !registrationOpen;
+  el('auth-registration-open').hidden = !!currentSession();
+  el('auth-registration-open').setAttribute?.('aria-expanded', String(registrationOpen));
+  const state = accountState?.registration, visible = !!currentSession()?.serverId && !!state;
+  el('auth-registration-account').hidden = !visible;
+  el('auth-registration-change-help').hidden = !visible || (!state.complete && !accountState?.recovery?.configured);
+  paint(el('auth-registration-change-help'), msg(state?.complete ? 'registration.changeHelp' : 'registration.migrationProof'));
+  paint(el('auth-registration-account-state'), !visible ? '' : state.complete ? msg('registration.current', { email: state.emailMasked }) : msg('registration.required'));
+  if (visible && !state.emailOtpAvailable) paint(el('auth-registration-account-status'), msg('recovery.unavailable'));
+  registrationControls();
+}
+function closeRegistration() {
+  const client = signupClient; signupClient = null;
+  cancelLogin(); registrationOpen = false; renderRegistration();
+  if (client) {
+    const attempt = attemptRevision;
+    void client.cancelRegistration().then(result => {
+      if (attempt === attemptRevision && !currentSession() && (result?.confirmationInProgress || result?.unconfirmed)) paint(el('wallet-login-status'), msg('registration.checkSubmitted'));
+    });
+  }
+  el('auth-registration-open').focus?.();
+}
+el('auth-registration-open').addEventListener('click', () => {
+  cancelLogin(); moduleOpen = false; registrationOpen = true; signupClient = null; renderManagement();
+  el('auth-registration-title').focus?.();
+});
+el('auth-registration-close').addEventListener('click', closeRegistration);
+function challengeMetadata(result) {
+  if (typeof result.challengeId !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(result.challengeId) || result.digits !== 8 || typeof result.emailMasked !== 'string' ||
+    !Number.isSafeInteger(result.expiresAt) || result.expiresAt <= Date.now()) throw new WalletLoginError('LOGIN_SERVER_RESPONSE_REFUSED');
+  return { challengeId: result.challengeId, expiresAt: result.expiresAt };
+}
+async function runSignup(action) {
+  if (signing || !registrationOpen || (action === 'verify' && !registrationStep) || (action === 'finish' && !registrationProof)) return;
+  if (action === 'start' && (registrationStep || registrationProof)) return;
+  const password = el('auth-registration-password').value, confirmation = el('auth-registration-password-confirm').value;
+  if (action === 'finish' && ((password || confirmation) && (password !== confirmation || password.length < 12 || new TextEncoder().encode(password).length > 1024))) {
+    paint(el('auth-registration-status'), msg('registration.passwordMismatch')); return;
+  }
+  const lock = acquireWalletUi(); if (lock === null) return;
+  signing = true; enrollmentControls(); const revision = ++registrationRevision, attempt = attemptRevision;
+  const email = el('auth-registration-email').value, step = registrationStep, proof = registrationProof;
+  const code = el('auth-registration-code').value;
+  el('auth-registration-code').value = ''; el('auth-registration-password').value = ''; el('auth-registration-password-confirm').value = '';
+  try {
+    if (action === 'start') {
+      const profile = await getReleaseProfile();
+      if (revision !== registrationRevision || attempt !== attemptRevision) throw new WalletLoginError('LOGIN_CANCELLED');
+      const client = new AccountAuthClient({ tenant: profile.tenant.id }); signupClient = client;
+      const result = await client.registrationStart(email);
+      if (client !== signupClient || revision !== registrationRevision || attempt !== attemptRevision) throw new WalletLoginError('LOGIN_CANCELLED');
+      registrationStep = challengeMetadata(result);
+      paint(el('auth-registration-status'), msg('registration.codeSent', { email: result.emailMasked, expires: new Date(result.expiresAt).toISOString() }));
+      registrationTimer = setTimeout(() => {
+        if (signupClient !== client) return;
+        signupClient = null; registrationRevision++; void client.cancelRegistration();
+        if (signupAuthenticating) cancelLogin();
+        clearSignup(); registrationOpen = true; renderRegistration(); paint(el('auth-registration-status'), msg('registration.expired'));
+      }, Math.max(0, result.expiresAt - Date.now()));
+    } else if (action === 'verify') {
+      const result = await signupClient.registrationVerify(step.challengeId, code);
+      if (revision !== registrationRevision || attempt !== attemptRevision) throw new WalletLoginError('LOGIN_CANCELLED');
+      if (result.verified !== true || typeof result.registrationId !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(result.registrationId) || !Number.isSafeInteger(result.expiresAt) || result.expiresAt <= Date.now()) throw new WalletLoginError('LOGIN_SERVER_RESPONSE_REFUSED');
+      registrationStep = null; registrationProof = { id: result.registrationId, expiresAt: result.expiresAt };
+      paint(el('auth-registration-status'), msg('registration.verified'));
+    } else {
+      const client = signupClient, credentials = { password };
+      signupAuthenticating = true; accountClient = client;
+      await walletLogin.signIn(globalThis.ethereum, client.registrationAdapter(proof.id, credentials));
+      if (revision !== registrationRevision || attempt !== attemptRevision) throw new WalletLoginError('LOGIN_CANCELLED');
+      await loadAccount(); walletLogin.assert();
+      signupClient = null; registrationOpen = false; moduleOpen = true; el('auth-username').value = email; el('wallet-login-method').value = 'wallet';
+      renderLoginMethod(); renderManagement(); paint(el('wallet-login-status'), msg('registration.complete'));
+      document.dispatchEvent?.(new CustomEvent('wallet:authentication-method'));
+      document.dispatchEvent?.(new CustomEvent('wallet:authentication-settings'));
+    }
+  } catch (error) {
+    if (attempt === attemptRevision && (revision === registrationRevision || (action === 'finish' && error instanceof WalletLoginError && !/CANCELLED|ACCOUNT|CHAIN|DISCONNECTED|SESSION_CHANGED/.test(error.code)))) {
+      if (action === 'finish') { clearSignup(); registrationOpen = true; el('auth-registration-email').value = email; renderRegistration(); }
+      paint(el('auth-registration-status'), error instanceof WalletLoginError ? error.code === 'AUTH_RATE_LIMITED' ? msg('recovery.rateLimited') : error.code : 'AUTH_REGISTRATION_UNAVAILABLE');
+    }
+  } finally { signupAuthenticating = false; signing = false; releaseWalletUi(lock); enrollmentControls(); }
+}
+el('auth-registration-start').addEventListener('click', () => runSignup('start'));
+el('auth-registration-verify').addEventListener('click', () => runSignup('verify'));
+el('auth-registration-finish').addEventListener('click', () => runSignup('finish'));
+async function cancelMigration() {
+  if (signing) { cancelLogin(); return; }
+  migrationRevision++; clearMigration();
+  if (accountClient && currentSession()?.serverId) { try { await accountClient.registrationEmail('cancel'); } catch { /* Already locally cleared. */ } }
+}
+async function runMigration(action) {
+  if (signing || !accountClient || !freshManagement() || !accountState?.registration?.emailOtpAvailable || (action === 'confirm' && !migrationStep) || (action === 'start' && migrationStep)) return;
+  const lock = acquireWalletUi(); if (lock === null) return;
+  signing = true; enrollmentControls(); const revision = ++migrationRevision, attempt = attemptRevision, binding = walletLogin.capture();
+  const client = accountClient, body = action === 'start' ? { email: el('auth-registration-account-email').value, existingCode: el('auth-existing-code').value,
+    recovery: el('auth-existing-recovery').checked === true, ...(resetProof ? { resetProof } : {}) } : { challengeId: migrationStep.challengeId, code: el('auth-registration-account-code').value };
+  el('auth-existing-code').value = ''; el('auth-registration-account-code').value = '';
+  try {
+    await walletLogin.check(); walletLogin.assert(binding);
+    if (revision !== migrationRevision || attempt !== attemptRevision) throw new WalletLoginError('LOGIN_CANCELLED');
+    const result = await client.registrationEmail(action, body); walletLogin.assert(binding);
+    if (revision !== migrationRevision || attempt !== attemptRevision) throw new WalletLoginError('LOGIN_CANCELLED');
+    if (action === 'start') {
+      migrationStep = challengeMetadata(result); resetProof = null; clearTimeout(recoveryTimer); recoveryTimer = null;
+      paint(el('auth-recovery-verification-status'), '');
+      paint(el('auth-registration-account-status'), msg('registration.codeSent', { email: result.emailMasked, expires: new Date(result.expiresAt).toISOString() }));
+      migrationTimer = setTimeout(() => { migrationRevision++; clearMigration(); paint(el('auth-registration-account-status'), msg('registration.expired')); }, Math.max(0, result.expiresAt - Date.now()));
+    } else {
+      if (result.registered !== true || result.loggedOut !== true) throw new WalletLoginError('LOGIN_SERVER_RESPONSE_REFUSED');
+      cancelLogin(); paint(el('wallet-login-status'), msg('registration.migrateDone'));
+    }
+  } catch (error) {
+    if (revision === migrationRevision && attempt === attemptRevision) paint(el('auth-registration-account-status'), error instanceof WalletLoginError ? error.code === 'AUTH_RATE_LIMITED' ? msg('recovery.rateLimited') : error.code : 'AUTH_REGISTRATION_UNAVAILABLE');
+  } finally { body.existingCode = ''; body.code = ''; body.resetProof = ''; signing = false; releaseWalletUi(lock); enrollmentControls(); }
+}
+el('auth-registration-account-start').addEventListener('click', () => runMigration('start'));
+el('auth-registration-account-confirm').addEventListener('click', () => runMigration('confirm'));
+el('auth-registration-account-cancel').addEventListener('click', cancelMigration);
 el('auth-methods-save').addEventListener('click', async () => {
   if (signing || !accountClient || !freshManagement()) return;
   const lock = acquireWalletUi(); if (lock === null) return;

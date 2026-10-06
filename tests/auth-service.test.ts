@@ -183,6 +183,7 @@ test('account management status is authenticated, account-bound and secret-free'
     username: 'tester', account: f.signer.address, chainId: '1',
     methods: { password: { available: true, enabled: true, bound: true }, wallet: { available: true, enabled: true, bound: true }, ca: { available: true, enabled: true, bound: true }, totp: { available: true, enabled: false, bound: false } },
     recovery: { configured: false, emailMasked: null, questionId: null, emailOtpAvailable: false, questions: ['recovery-phrase', 'first-school', 'childhood-place'] },
+    registration: { required: true, complete: false, email: null, emailMasked: null, emailOtpAvailable: false },
     authenticator: { enrolled: false, pending: false, expiresAt: null, replacement: false },
     management: { freshIndependentLogin: true, reauthenticateBy: login.data.issuedAt + 300000, existingCodeRequired: false } });
   assert.equal(result.headers.get('cache-control'), 'no-store');

@@ -12,7 +12,8 @@ The local-wallet route described below is preserved. The account service adds
 password, RFC 6238 authenticator TOTP (Google Authenticator/FreeOTP), registered
 EOA challenge-signature and hardware CA certificate-proof methods. Email OTP
 remains excluded from login. The owner separately authorized reserved-email OTP
-for security resets on 2026-10-06; see `AUTH-RECOVERY.md`. These routes use real server verification,
+for security resets and mandatory registration-email ownership on 2026-10-06;
+see `AUTH-RECOVERY.md` and `EMAIL-REGISTRATION.md`. These routes use real server verification,
 fixed tenant/account/wallet bindings, HttpOnly sessions and live revocation
 checks. See [Account authentication](ACCOUNT-AUTHENTICATION.md) for implementation,
 enrollment/recovery, operational constraints and the hardware bridge boundary.
@@ -111,3 +112,19 @@ panels, log out, switch account and chain, reload, expire the session, and resum
 an existing recovery journal. Never provide seed phrases or private keys to the
 DApp. Real signing, chain transactions, deployment and independent security review
 remain separate authorized acceptance work.
+
+## Ordinary registration and existing-account email migration
+
+The public registration entry verifies an email first, then requests an explicit
+registration-purpose wallet signature before ordinary account creation. An
+optional password is hashed server-side. Email OTP is not offered as a login
+method. Existing account-name login remains supported; verified email can also
+identify the same account for password/TOTP login. Ordinary signup cannot assign
+a role, administrator permission, tenant or hardware-CA binding.
+
+Existing accounts without a registered email remain able to authenticate and
+complete the required migration in settings. No store key or existing factor is
+recreated. Close, account/chain changes, Back, expiry and cancellation invalidate
+pending registration work and refuse late automatic login. A durable account
+creation already submitted cannot be undone by closing the page; check normal
+registered-wallet login before starting again in that case.

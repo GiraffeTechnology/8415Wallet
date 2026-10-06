@@ -4,8 +4,9 @@ The owner changed the OTP requirement on 2026-10-04: **authenticator-generated
 TOTP**, such as Google Authenticator or FreeOTP, replaces email OTP for login.
 Email codes are never a login method. The 2026-10-06 management extension adds
 reserved, verified email OTP and a reserved security answer exclusively for
-security-reset verification. They do not replace fresh independent login or the
-old authenticator/recovery proof. There is no email-code login endpoint.
+security-reset verification. Separate registration-purpose email ownership OTP
+is mandatory for ordinary signup and legacy migration. Reset factors do not
+replace fresh independent login or the old authenticator/recovery proof. There is no email-code login endpoint.
 
 ## Implemented boundaries
 
@@ -80,13 +81,14 @@ The authenticated **Security and login methods** panel reports password,
 registered-wallet, hardware CA and authenticator states independently for the
 current account. Several methods can be configured concurrently. The public
 method selector chooses a login attempt; it does not globally disable the other
-methods. Initial password, wallet and CA bindings remain operator-provisioned;
-there is no public administration or account-binding endpoint.
+methods. Operator/CA bindings remain separately provisioned. Ordinary signup
+can establish its wallet and optional password only after email ownership and
+wallet-control verification; there is no public administration endpoint.
 
 `GET /auth/account` requires the current HttpOnly session and its CSRF header,
 checks tenant/origin/selected account/chain binding, and returns
 `schema: "8415wallet-account/1"`, `tenant`, `origin`, `username`, `account`,
-`chainId`, `methods`, `authenticator`, `recovery` and `management`. Each of
+`chainId`, `methods`, `authenticator`, `recovery`, `registration` and `management`. Each of
 `methods.password`,
 `methods.wallet`, `methods.ca` and `methods.totp` has boolean `enabled` and `bound`
 fields, plus `available` for server runtime support. CA `available` reports
@@ -124,7 +126,8 @@ all account sessions and displays eight independent 128-bit recovery codes
 once. Recovery codes are stored only as salted SHA-256 digests and are each
 consumed once. Save them privately before dismissing the output. A recovery or
 TOTP login cannot enroll another authenticator without an independent recent
-login. There is no unauthenticated reset endpoint. If every recovery method is
+login. There is no unauthenticated reset endpoint. Public ordinary-account registration
+is a separate email-plus-wallet-proof flow; it cannot reset an existing account. If every recovery method is
 lost, use the operator's separately authorized identity-recovery process;
 this change does not invent one or bypass it.
 
@@ -134,9 +137,9 @@ this change does not invent one or bypass it.
 `password`, `wallet`, `ca` and `totp`. It requires a fresh independent login,
 rejects duplicates, unknown methods, unbound factors and unavailable hardware CA,
 and requires at least one available independent password/wallet/CA method to
-remain enabled. Multiple methods can remain enabled concurrently. Initial
-binding still comes only from the operator; this route cannot create passwords,
-wallet/chain bindings or CA fingerprints.
+remain enabled. Multiple methods can remain enabled concurrently. This route
+selects existing bindings only; it cannot create passwords, wallet/chain bindings
+or CA fingerprints. Ordinary signup and operator provisioning are separate flows.
 
 Changing an enrolled TOTP method's enabled state also requires its current TOTP
 or saved recovery code (`existingCode`, plus `recovery: true` for a recovery code)
@@ -319,3 +322,20 @@ production configuration.
 References: [RFC 6238](https://www.rfc-editor.org/rfc/rfc6238),
 [ERC-4361](https://eips.ethereum.org/EIPS/eip-4361), and
 [OpenSSL verification options](https://docs.openssl.org/3.0/man1/openssl-verification-options/).
+
+## Required registration email
+
+[Email registration](EMAIL-REGISTRATION.md) specifies ordinary signup and existing
+account migration. Email ownership is verified before a new ordinary account is
+created, and an EOA proof binds its selected wallet/chain. A user may optionally
+set a password in that signup transaction. The account receives no administrative
+or transaction authority. Verified email is an identifier for password/TOTP
+login; an email code is never a login method.
+
+Existing operator-provisioned accounts keep their current login methods while
+settings show the required email migration. Authenticated migration preserves
+TOTP counters, recovery factors, method selections and encrypted state. Changing
+an established email additionally requires the existing reserved recovery proof;
+new email ownership is verified before the identity and recovery recipient change
+atomically. Email/wallet uniqueness and ordinary account creation are persisted
+in the existing encrypted store, with no key regeneration.

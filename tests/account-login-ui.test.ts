@@ -2,7 +2,7 @@ import * as uiI18n from '../web/i18n.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { Wallet, verifyMessage, getAddress, hashMessage, Interface } from 'ethers';
+import { Wallet, verifyMessage, getAddress, hashMessage, Interface, getBytes } from 'ethers';
 import { WalletLogin, WalletLoginError } from '../web/login-core.mjs';
 import { AccountAuthClient } from '../web/account-auth.mjs';
 import { clearEnrollmentQr, renderEnrollmentQr } from '../web/enrollment-qr.mjs';
@@ -10,33 +10,42 @@ const source = readFileSync(new URL('../web/wallet-auth.mjs', import.meta.url), 
   .replace(/^import[^\n]*\n/gm, '').replace(/^export \{[^\n]*\n/gm, '').replace('export const walletLogin', 'const walletLogin');
 function fixture(method: string) {
   const signer = Wallet.createRandom(), origin = 'https://wallet.example.invalid:18443', elements = new Map<string, any>(), requests: any[] = [], calls: string[] = [];
-  const state = { hold: null as null | Promise<void>, accountHold: null as null | Promise<void>, fail: false, revoked: false, enrolled: false, cancelled: false, badAccount: false, mailAvailable: false, reserved: false, rejectPath: '', recoveryHold: null as null | Promise<void> };
+  const state = { hold: null as null | Promise<void>, accountHold: null as null | Promise<void>, fail: false, revoked: false, enrolled: false, cancelled: false, badAccount: false, mailAvailable: false, reserved: false, rejectPath: '', recoveryHold: null as null | Promise<void>, registrationHold: null as null | Promise<void>, registrationConfirmHold: null as null | Promise<void>, registeredEmail: null as string | null, registrationCancelled: false, signatureHold: null as null | Promise<void> };
   const timers = new Map<number, () => void>(), windowEvents = new Map<string, (event?: any) => unknown>();
   let timerId = 0;
-  const session = { id: 'a'.repeat(43), csrf: 'b'.repeat(43), tenant: 'xiongan', origin, username: 'tester', account: signer.address, chainId: '1', kind: method, issuedAt: Date.now(), expiresAt: Date.now() + 900000 };
+  const issuedAt = Date.now();
+  const session = { id: 'a'.repeat(43), csrf: 'b'.repeat(43), tenant: 'xiongan', origin, username: 'tester', account: signer.address, chainId: '1', kind: method, issuedAt, expiresAt: issuedAt + 900000 };
   const element = (id: string) => {
     if (!elements.has(id)) elements.set(id, { hidden: true, inert: true, textContent: '', value: '', checked: false, disabled: false,
       handlers: new Map(), addEventListener(event: string, handler: () => unknown) { this.handlers.set(event, handler); } });
     return elements.get(id);
   };
   element('wallet-login-method').value = method; element('auth-username').value = 'tester'; element('auth-password').value = 'synthetic-password-only'; element('auth-code').value = '123456';
-  const provider = { on() {}, removeListener() {}, async request({ method }: any) { calls.push(method);
-    if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [signer.address]; if (method === 'eth_chainId') return '0x1'; throw Error('Unexpected provider call'); } };
+  const providerEvents = new Map<string, Set<() => void>>();
+  const provider = { on(event: string, fn: () => void) { if (!providerEvents.has(event)) providerEvents.set(event, new Set()); providerEvents.get(event)!.add(fn); }, removeListener(event: string, fn: () => void) { providerEvents.get(event)?.delete(fn); }, async request({ method, params }: any) { calls.push(method);
+    if (method === 'eth_requestAccounts' || method === 'eth_accounts') return [signer.address]; if (method === 'eth_chainId') return '0x1'; if (method === 'personal_sign') { if (state.signatureHold) await state.signatureHold; return signer.signMessage(getBytes(params[0])); } throw Error('Unexpected provider call'); } };
   const fetcher = async (url: URL, options: any) => {
     const path = url.pathname.slice(6), body = options.body ? JSON.parse(options.body) : null; requests.push({ path, options, body });
     let data: any;
-    if (path === 'capabilities') data = { schema: '8415wallet-auth/1', tenant: 'xiongan', origin, methods: ['password', 'totp'] };
+    if (path === 'capabilities') data = { schema: '8415wallet-auth/1', tenant: 'xiongan', origin, methods: ['password', 'totp'], registration: { available: state.mailAvailable, emailRequired: true } };
     else if (path === 'bootstrap') data = { csrf: 'preauth' };
     else if (path === 'session') data = session;
     else if (path === 'account') {
       if (state.accountHold) await state.accountHold;
       data = { schema: '8415wallet-account/1', tenant: 'xiongan', origin, username: 'tester', account: state.badAccount ? Wallet.createRandom().address : signer.address, chainId: '1',
         methods: { password: { enabled: true, bound: true }, wallet: { enabled: true, bound: true }, ca: { enabled: false, bound: false }, totp: { enabled: state.enrolled, bound: state.enrolled } },
+        registration: { required: !state.registeredEmail, complete: !!state.registeredEmail, email: state.registeredEmail, emailMasked: state.registeredEmail ? 't***@example.invalid' : null, emailOtpAvailable: state.mailAvailable },
         recovery: { configured: state.reserved, emailOtpAvailable: state.mailAvailable, questionId: state.reserved ? 'recovery-phrase' : null, emailMasked: state.reserved ? 't***@example.invalid' : null },
         authenticator: { enrolled: state.enrolled, pending: false }, management: { freshIndependentLogin: method === 'password', reauthenticateBy: session.issuedAt + 300000, existingCodeRequired: state.enrolled } };
     }
     else if (path === 'logout') { state.revoked = true; data = { loggedOut: true }; }
     else if (path === 'totp/enroll/start') { if (state.hold) await state.hold; data = { enrollmentId: 'e'.repeat(43), secret: 'SYNTHETIC_SETUP_SECRET', uri: 'otpauth://totp/test', expiresAt: Date.now() + 300000 }; }
+    else if (path === 'registration/start' || path === 'registration/email/start') { if (state.registrationHold) await state.registrationHold; data = { challengeId: 's'.repeat(43), expiresAt: Date.now() + 300000, emailMasked: 't***@example.invalid', digits: 8 }; }
+    else if (path === 'registration/verify') data = { verified: true, registrationId: 'v'.repeat(43), expiresAt: Date.now() + 300000 };
+    else if (path === 'registration/challenge') data = { id: 'w'.repeat(43), tenant: 'xiongan', origin, account: signer.address, chainId: '1', method: 'wallet', message: 'Synthetic ordinary account proof\nurn:8415wallet:purpose:registration' };
+    else if (path === 'registration/confirm') { if (state.registrationConfirmHold) await state.registrationConfirmHold; session.kind = 'wallet'; state.registeredEmail = 'tester@example.invalid'; data = { registered: true, session }; }
+    else if (path === 'registration/email/confirm') { state.registeredEmail = 'tester@example.invalid'; data = { registered: true, loggedOut: true }; }
+    else if (path === 'registration/cancel' || path === 'registration/email/cancel') { state.registrationCancelled = true; data = { cancelled: true }; }
     else if (path === 'account/methods') data = { updated: true, loggedOut: true };
     else if (['recovery/enroll/start', 'recovery/reset/start'].includes(path)) { if (state.recoveryHold) await state.recoveryHold; data = { challengeId: 'c'.repeat(43), expiresAt: Date.now() + 300000, emailMasked: 't***@example.invalid', digits: 8 }; }
     else if (path === 'recovery/reset/confirm') data = { resetProof: 'p'.repeat(43), expiresAt: Date.now() + 120000 };
@@ -55,10 +64,10 @@ function fixture(method: string) {
   const login = new Function('document', 'globalThis', 'setTimeout', 'clearTimeout', ...Object.keys(sdk), `${source}\nreturn walletLogin;`)(
     { getElementById: element, addEventListener() {} }, { ethereum: provider, location: { origin }, addEventListener(event: string, handler: (event?: any) => unknown) { windowEvents.set(event, handler); } },
     (handler: () => void) => { timers.set(++timerId, handler); return timerId; }, (id: number) => timers.delete(id), ...Object.values(sdk));
-  return { element, state, session, login, requests, calls, timers, windowEvents, click: (id: string) => element(id).handlers.get('click')(), change: () => element('wallet-login-method').handlers.get('change')() };
+  return { element, state, session, login, requests, calls, timers, windowEvents, emit: (event: string) => { for (const fn of providerEvents.get(event) ?? []) fn(); }, click: (id: string) => element(id).handlers.get('click')(), change: () => element('wallet-login-method').handlers.get('change')() };
 }
 for (const method of ['password', 'totp']) test(`actual ${method} UI handler clears credentials, requests only account access and unlocks verified identity`, async () => {
-  const f = fixture(method); await f.click('wallet-login'); assert.equal(f.element('wallet-private').hidden, false);
+  const f = fixture(method); await f.click('wallet-login'); assert.equal(f.element('wallet-private').hidden, false, f.element('wallet-login-status').textContent);
   assert.equal(f.element('auth-password').value, ''); assert.equal(f.element('auth-code').value, '');
   assert.equal(f.calls.includes('personal_sign'), false);
   const request = f.requests.find(v => v.path === method); assert.equal(request.body.username, 'tester'); assert.equal(request.body.account, f.session.account);
@@ -260,4 +269,82 @@ test('canceling reset verification during proof-dependent enrollment refuses the
   const pending = f.click('auth-enroll-start'); await new Promise(resolve => setImmediate(resolve)); await f.click('auth-email-cancel'); release(); await pending;
   assert.equal(f.element('auth-enroll-secret').textContent, ''); assert.equal(f.element('auth-confirm-fields').hidden, true);
   assert.equal(f.element('wallet-private').hidden, true); assert.throws(() => f.login.assert());
+});
+
+async function signupVerified(f: ReturnType<typeof fixture>) {
+  f.state.mailAvailable = true; await f.click('auth-registration-open');
+  f.element('auth-registration-email').value = 'tester@example.invalid'; await f.click('auth-registration-start');
+  f.element('auth-registration-code').value = '12345678'; await f.click('auth-registration-verify');
+}
+test('ordinary signup verifies email before any provider request and binds a wallet session with optional password', async () => {
+  const f = fixture('password'); await signupVerified(f); assert.deepEqual(f.calls, []);
+  assert.equal(f.element('auth-registration-wallet-fields').hidden, false); assert.equal(f.element('wallet-private').hidden, true);
+  f.element('auth-registration-password').value = 'synthetic-password-only'; f.element('auth-registration-password-confirm').value = 'synthetic-password-only';
+  await f.click('auth-registration-finish');
+  assert.equal(f.element('wallet-private').hidden, false); assert.equal(f.login.assert().kind, 'wallet');
+  assert.equal(f.element('auth-registration-password').value, ''); assert.equal(f.element('auth-registration-code').value, '');
+  const created = f.requests.find(r => r.path === 'registration/confirm'); assert.equal(created.body.registrationId, 'v'.repeat(43)); assert.equal(created.body.password, 'synthetic-password-only');
+  assert.equal(created.body.account, f.session.account); assert.equal(created.body.username, undefined); assert.equal(created.body.role, undefined);
+  assert.equal(f.element('auth-reserved-email').value, 'tester@example.invalid'); assert.equal(f.element('auth-reserved-email').readOnly, true);
+});
+test('an unverified or mistyped signup code never reaches a wallet-control request', async () => {
+  const f = fixture('password'); f.state.mailAvailable = true; await f.click('auth-registration-open');
+  await f.click('auth-registration-finish'); assert.deepEqual(f.calls, []);
+  f.element('auth-registration-email').value = 'tester@example.invalid'; await f.click('auth-registration-start');
+  f.state.rejectPath = 'registration/verify'; f.element('auth-registration-code').value = 'wrong'; await f.click('auth-registration-verify');
+  assert.equal(f.element('auth-registration-code-fields').hidden, false); assert.equal(f.element('auth-registration-wallet-fields').hidden, true);
+  assert.deepEqual(f.calls, []); assert.equal(f.element('auth-registration-code').value, '');
+});
+test('optional signup password mismatch is refused before any wallet prompt', async () => {
+  const f = fixture('password'); await signupVerified(f); f.element('auth-registration-password').value = 'long-synthetic-password'; f.element('auth-registration-password-confirm').value = 'different';
+  await f.click('auth-registration-finish'); assert.deepEqual(f.calls, []); assert.match(f.element('auth-registration-status').textContent, /match/);
+});
+test('closing delayed signup mail clears fields and refuses late challenge or language revival', async () => {
+  const f = fixture('password'); f.state.mailAvailable = true; await f.click('auth-registration-open');
+  f.element('auth-registration-email').value = 'tester@example.invalid'; let release!: () => void;
+  f.state.registrationHold = new Promise<void>(resolve => { release = resolve; }); const pending = f.click('auth-registration-start');
+  await new Promise(resolve => setImmediate(resolve)); f.click('auth-registration-close'); release(); await pending;
+  assert.equal(f.element('auth-registration').hidden, true); assert.equal(f.element('auth-registration-email').value, ''); assert.deepEqual(f.calls, []);
+  for (const { id } of uiI18n.LOCALES) { uiI18n.setLocale(id, { persist: false }); assert.equal(f.element('auth-registration-status').textContent, ''); }
+  uiI18n.setLocale('en', { persist: false }); assert.equal(f.state.registrationCancelled, true);
+});
+test('cancel during submitted signup prevents late automatic login', async () => {
+  const f = fixture('password'); await signupVerified(f); let release!: () => void;
+  f.state.registrationConfirmHold = new Promise<void>(resolve => { release = resolve; }); const pending = f.click('auth-registration-finish');
+  await new Promise(resolve => setImmediate(resolve)); f.click('auth-registration-close'); release(); await pending;
+  assert.equal(f.element('wallet-private').hidden, true); assert.equal(f.element('auth-registration').hidden, true); assert.throws(() => f.login.assert());
+});
+test('existing-account email migration keeps login available, clears OTP and signs out only after verification', async () => {
+  const f = fixture('password'); f.state.mailAvailable = true; await f.click('wallet-login'); await f.click('auth-manage-open');
+  assert.equal(f.element('wallet-private').hidden, false); assert.match(f.element('auth-registration-account-state').textContent, /needs a verified/);
+  f.element('auth-registration-account-email').value = 'tester@example.invalid'; await f.click('auth-registration-account-start');
+  assert.equal(f.element('wallet-private').hidden, false); f.element('auth-registration-account-code').value = '12345678'; await f.click('auth-registration-account-confirm');
+  assert.equal(f.element('wallet-private').hidden, true); assert.equal(f.element('auth-registration-account-code').value, '');
+  assert.equal(f.requests.filter(r => r.path === 'registration/email/start').length, 1);
+});
+
+for (const event of ['accountsChanged', 'chainChanged', 'disconnect']) test(`provider ${event} during signup signing cancels before account creation request`, async () => {
+  const f = fixture('password'); await signupVerified(f); let release!: () => void;
+  f.state.signatureHold = new Promise<void>(resolve => { release = resolve; }); const pending = f.click('auth-registration-finish');
+  await new Promise(resolve => setImmediate(resolve)); assert.equal(f.calls.includes('personal_sign'), true); f.emit(event); release(); await pending;
+  assert.equal(f.requests.some(r => r.path === 'registration/confirm'), false); assert.equal(f.element('wallet-private').hidden, true); assert.equal(f.element('auth-registration-email').value, '');
+});
+test('locale switches during verified signup retain consent-free form values without repeating requests', async () => {
+  const f = fixture('password'); await signupVerified(f); f.element('auth-registration-password').value = 'synthetic-signup-password';
+  const requests = f.requests.length;
+  for (const { id } of uiI18n.LOCALES) { uiI18n.setLocale(id, { persist: false }); assert.equal(f.element('auth-registration-wallet-fields').hidden, false); assert.equal(f.element('auth-registration-password').value, 'synthetic-signup-password'); }
+  assert.equal(f.requests.length, requests); assert.deepEqual(f.calls, []); f.click('auth-registration-close'); uiI18n.setLocale('en', { persist: false });
+});
+
+test('signup expiry cancels server-side pending registration and clears the verified proof', async () => {
+  const f = fixture('password'); await signupVerified(f); const expiry = [...f.timers.values()].at(-1)!; expiry();
+  await new Promise(resolve => setImmediate(resolve)); assert.equal(f.state.registrationCancelled, true);
+  assert.equal(f.element('auth-registration-wallet-fields').hidden, true); assert.equal(f.element('auth-registration-code-fields').hidden, true);
+  await f.click('auth-registration-finish'); assert.deepEqual(f.calls, []);
+});
+test('legacy migration with reserved factors requires their reset proof before enabling submission', async () => {
+  const f = fixture('password'); f.state.mailAvailable = true; f.state.reserved = true; await f.click('wallet-login'); await f.click('auth-manage-open');
+  assert.equal(f.element('auth-registration-account-start').disabled, true); assert.equal(f.element('auth-registration-change-help').hidden, false);
+  f.element('auth-reset-answer').value = 'synthetic private recovery phrase'; await f.click('auth-reset-start'); f.element('auth-email-code').value = '12345678'; await f.click('auth-email-confirm');
+  assert.equal(f.element('auth-registration-account-start').disabled, false);
 });

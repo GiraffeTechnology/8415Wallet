@@ -257,6 +257,14 @@ test('fake SMTP proves fixed sender/host, verified implicit TLS, authenticated e
   assert.match(smtp.wire.join(''), /cannot log you in or approve a transaction/);
   assert.doesNotMatch(smtp.wire.join(''), /answerHash|questionId|AUTH LOGIN|STARTTLS/);
 });
+test('fake SMTP accepts registration purpose only as email verification with the fixed sender', async () => {
+  const smtp = fakeSmtp(), send = createSmtpOtpSender({ port: 465, username: 'synthetic', password: 'synthetic', connect: smtp.connect });
+  assert.deepEqual(await send({ ...emailMessage(), purpose: 'registration' }), { accepted: true });
+  assert.match(smtp.wire.join(''), /Subject: 8415wallet account email verification/);
+  assert.match(smtp.wire.join(''), /Your account email verification code is: 12345678/);
+  assert.match(smtp.wire.join(''), /cannot log you in or approve a transaction/);
+  assert.equal(smtp.connection.length, 1);
+});
 test('SMTP rejects invalid TLS, missing AUTH and rejected delivery without fallback or raw diagnostic leakage', async () => {
   for (const options of [{ authorized: false }, { protocol: 'TLSv1.1' }, { noAuth: true }, { rejectAuth: true }, { rejectData: true }]) {
     const smtp = fakeSmtp(options), send = createSmtpOtpSender({ port: 465, username: 'synthetic', password: 'synthetic', connect: smtp.connect });

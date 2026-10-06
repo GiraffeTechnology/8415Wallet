@@ -20,3 +20,5 @@
 .auth-enroll-qr[hidden] { display: none; }
 
 .auth-entry-actions{margin:20px 0}#auth-management{border-top:1px solid var(--line);margin-top:24px;padding-top:24px}.auth-method-states{display:grid;gap:12px}.auth-method-states>div{display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;padding:12px;background:var(--canvas);border-radius:12px}.auth-method-states dt{font-weight:600}.auth-method-states dd{margin:0;color:var(--muted)}#auth-management>.card-heading{align-items:flex-start}#auth-management>.card-heading h3{margin:0}
+
+#auth-registration,#auth-registration-account{border-top:1px solid var(--line);padding-top:24px;margin-top:24px}#auth-registration h3{margin:0}#auth-registration-open{width:100%;margin:12px 0}

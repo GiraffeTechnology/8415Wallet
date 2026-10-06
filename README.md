@@ -102,3 +102,14 @@ The service/proxy templates are **not activated**; the public template has no
 account binding and intentionally cannot start. New regression sources have not
 been run in this preparation. Existing UI deployment and test evidence are not
 promoted to genuine authentication acceptance.
+
+## Account registration and authentication settings
+
+Ordinary account registration requires verified email ownership followed by an
+origin-, tenant-, wallet- and chain-bound EOA proof. Password login can be added
+during signup; enabled methods remain independent. Existing accounts can complete
+required email migration from authenticated settings without replacing their
+credential store or encryption key. Email OTP is limited to registration and
+security-reset verification, never email-only login. See
+[Email registration](docs/EMAIL-REGISTRATION.md) and
+[Account authentication](docs/ACCOUNT-AUTHENTICATION.md).

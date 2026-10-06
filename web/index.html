@@ -15,7 +15,7 @@
       <option value="ca" data-i18n="ui.013">Token: hardware CA certificate</option>
     </select></label>
     <div id="account-login-fields" hidden>
-      <label><span data-i18n="ui.014">Account name</span> <input id="auth-username" data-auth-control autocomplete="username" maxlength="64" spellcheck="false"></label>
+      <label><span data-i18n="registration.identifier">Email or existing account name</span> <input id="auth-username" data-auth-control autocomplete="username" maxlength="254" spellcheck="false"></label>
       <label id="auth-password-label"><span data-i18n="ui.010">Password</span> <input id="auth-password" data-auth-control type="password" autocomplete="current-password" maxlength="1024"></label>
       <label id="auth-code-label" hidden><span data-i18n="ui.015">Authenticator or recovery code</span> <input id="auth-code" data-auth-control autocomplete="one-time-code" maxlength="64" spellcheck="false"></label>
       <label id="auth-recovery-label" hidden><input id="auth-recovery" data-auth-control type="checkbox"><span data-i18n="ui.016">Use one saved recovery code</span></label>
@@ -25,11 +25,33 @@
 
     <p class="muted" data-i18n="account.multi">You can keep several sign-in methods enabled for this account. Choosing one for this login does not disable the others.</p>
     <div class="actions auth-entry-actions"><button id="auth-initial-open" data-auth-control type="button" aria-controls="auth-management" aria-expanded="false" data-i18n="account.initial">Initial setup</button><button id="auth-manage-open" data-auth-control type="button" aria-controls="auth-management" aria-expanded="false" data-i18n="account.manage">Manage / reset sign-in methods</button></div>
+    <button id="auth-registration-open" data-auth-control type="button" aria-controls="auth-registration" aria-expanded="false" data-i18n="registration.open">Register with email</button>
+    <section id="auth-registration" hidden aria-labelledby="auth-registration-title">
+      <div class="card-heading"><h3 id="auth-registration-title" tabindex="-1" data-i18n="registration.title">Register an ordinary wallet account</h3><button id="auth-registration-close" data-auth-control type="button" data-i18n="registration.close">Cancel registration</button></div>
+      <p data-i18n="registration.help">Verify your email, then prove control of your wallet. This creates an ordinary account only. No administrator access or transaction permission is granted.</p>
+      <p data-i18n="registration.existingHelp">Already have an account? Sign in first, then verify its email in account settings. Do not create a second account for the same wallet.</p>
+      <label><span data-i18n="registration.email">Registration email (required)</span><input id="auth-registration-email" data-auth-control type="email" required autocomplete="email" maxlength="254" spellcheck="false"></label>
+      <button id="auth-registration-start" data-auth-control type="button" data-i18n="registration.send">Send registration code</button>
+      <div id="auth-registration-code-fields" hidden><label><span data-i18n="recovery.code">Eight-digit email code</span><input id="auth-registration-code" data-auth-control inputmode="numeric" autocomplete="one-time-code" maxlength="8"></label><button id="auth-registration-verify" data-auth-control type="button" data-i18n="registration.verify">Verify registration email</button></div>
+      <div id="auth-registration-wallet-fields" hidden>
+        <label><span data-i18n="registration.password">New password (optional)</span><input id="auth-registration-password" data-auth-control type="password" autocomplete="new-password" maxlength="1024"></label><label><span data-i18n="registration.passwordConfirm">Confirm new password</span><input id="auth-registration-password-confirm" data-auth-control type="password" autocomplete="new-password" maxlength="1024"></label>
+        <p class="muted" data-i18n="registration.passwordHelp">Leave both fields empty to start with registered-wallet login. An optional password must match and contain at least 12 characters. Never enter a wallet seed phrase or private key.</p>
+        <button id="auth-registration-finish" data-auth-control type="button" data-i18n="registration.wallet">Prove wallet control and finish registration</button>
+      </div><p id="auth-registration-status" role="status"></p>
+    </section>
     <section id="auth-management" hidden aria-labelledby="auth-management-title">
       <div class="card-heading"><h3 id="auth-management-title" tabindex="-1" data-i18n="account.title">Account authentication settings</h3><button id="auth-management-close" data-auth-control type="button" data-i18n="account.close">Close settings</button></div>
       <p data-i18n="account.guide">Verify your identity with a password, registered wallet or configured hardware CA. Then check your account’s methods below and set up or replace an authenticator.</p>
       <p id="auth-management-status" role="status" data-i18n="account.signInRequired">Sign in to view and manage this account’s methods. Local-only wallet login cannot manage server credentials.</p>
       <button id="auth-reauthenticate" data-auth-control type="button" hidden data-i18n="account.verify">Verify identity again</button>
+      <section id="auth-registration-account" hidden aria-labelledby="auth-registration-account-title">
+        <h3 id="auth-registration-account-title" data-i18n="registration.migrateTitle">Account registration email</h3><p id="auth-registration-account-state" role="status"></p>
+        <p id="auth-registration-change-help" hidden data-i18n="registration.changeHelp">Changing a verified account email requires your reserved recovery verification and existing authenticator/recovery proof. The new email must also be verified.</p>
+        <label><span data-i18n="registration.email">Registration email (required)</span><input id="auth-registration-account-email" data-auth-control type="email" required autocomplete="email" maxlength="254" spellcheck="false"></label>
+        <button id="auth-registration-account-start" data-auth-control type="button" data-i18n="registration.migrate">Verify email for this account</button>
+        <div id="auth-registration-account-code-fields" hidden><label><span data-i18n="recovery.code">Eight-digit email code</span><input id="auth-registration-account-code" data-auth-control inputmode="numeric" autocomplete="one-time-code" maxlength="8"></label><button id="auth-registration-account-confirm" data-auth-control type="button" data-i18n="recovery.confirm">Verify email code</button></div>
+        <button id="auth-registration-account-cancel" data-auth-control type="button" hidden data-i18n="recovery.cancel">Cancel email verification</button><p id="auth-registration-account-status" role="status"></p>
+      </section>
       <section id="auth-method-states" hidden aria-labelledby="auth-method-states-title"><h3 id="auth-method-states-title" data-i18n="account.methods">This account’s sign-in methods</h3><dl class="auth-method-states">
         <div><dt><label><input id="auth-enable-password" data-auth-control type="checkbox" disabled><span data-i18n="ui.010">Password</span></label></dt><dd id="auth-state-password"></dd></div><div><dt><label><input id="auth-enable-wallet" data-auth-control type="checkbox" disabled><span data-i18n="ui.012">Token: registered wallet account</span></label></dt><dd id="auth-state-wallet"></dd></div><div><dt><label><input id="auth-enable-ca" data-auth-control type="checkbox" disabled><span data-i18n="ui.013">Token: hardware CA certificate</span></label></dt><dd id="auth-state-ca"></dd></div><div><dt><label><input id="auth-enable-totp" data-auth-control type="checkbox" disabled><span data-i18n="ui.011">Authenticator code (Google Authenticator / FreeOTP)</span></label></dt><dd id="auth-state-totp"></dd></div>
       </dl><p data-i18n="account.methodsHelp">Select one or more bound methods. Keep at least one password, registered-wallet or hardware-CA method enabled. Changing authenticator access also needs its current code or a recovery code. Saving signs out all sessions.</p><button id="auth-methods-save" data-auth-control type="button" data-i18n="account.saveMethods" disabled>Save enabled methods</button><p data-i18n="account.configured">Configured methods stay enabled independently. Adding an authenticator does not remove password, wallet or hardware-CA access.</p></section>
@@ -59,6 +81,7 @@
           <button id="auth-reset-start" data-auth-control type="button" data-i18n="recovery.reset">Verify reserved answer and send reset code</button>
           <p data-i18n="recovery.updateHelp">To change reserved details, verify the existing answer and email first. Then enter the new details below; the new email must also be verified.</p>
         </div>
+        <p data-i18n="registration.sameEmail">Recovery verification uses the same verified account email. Change that identity only through account-email verification.</p>
         <div id="auth-reserve-fields">
           <label><span data-i18n="recovery.email">Reserved reset email</span><input id="auth-reserved-email" data-auth-control type="email" autocomplete="email" maxlength="254" spellcheck="false"></label>
           <label><span data-i18n="recovery.question">Reserved security question</span><select id="auth-reserved-question-id" data-auth-control><option value="recovery-phrase" data-i18n="recovery.question.recovery-phrase">What is your private recovery phrase?</option><option value="first-school" data-i18n="recovery.question.first-school">What private phrase reminds you of your first school?</option><option value="childhood-place" data-i18n="recovery.question.childhood-place">What private phrase reminds you of a childhood place?</option></select></label>
