@@ -18,7 +18,7 @@ export function deterministicArchive(root, output) {
   // Also check the tree before tar can follow an unexpected filesystem entry.
   walk(root);
   const tar = execFileSync('tar', ['--sort=name', '--mtime=UTC 1970-01-01', '--owner=0', '--group=0',
-    '--numeric-owner', '--format=gnu', '--mode=u+rwX,go+rX,go-w', '-cf', '-', '-C', root, '.'],
+    '--numeric-owner', '--format=ustar', '--mode=u+rwX,go+rX,go-w', '-cf', '-', '-C', root, '.'],
   { maxBuffer: 1 << 28 });
   const gzip = execFileSync('gzip', ['-9', '-n'], { input: tar, maxBuffer: 1 << 28 });
   writeFileSync(output, gzip);
