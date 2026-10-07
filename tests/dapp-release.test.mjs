@@ -4,6 +4,7 @@ import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, w
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test } from 'node:test';
+import { readDeliveryArchive } from '../scripts/package/verify-delivery.mjs';
 import { RELEASE_PROFILES, loadReleaseProfile, resolveReleaseProfile, validateDeploymentConfig, verifyReleaseLocation } from '../web/release-profile.mjs';
 import { captureSource, deterministicArchive, exportSource, sha256, stagePublicWeb, validateStaticTree } from '../scripts/package/dapp-release.mjs';
 
@@ -224,3 +225,24 @@ test('deployment reservations are explicit, validated and independent of environ
   }
   assert.deepEqual(validateDeploymentConfig({ environment: 'unconfigured', url: null }), { environment: 'unconfigured', url: null });
 });
+
+test('source archives with published long archive names round-trip through the strict delivery reader', () => temporary(root => {
+  initialize(root);
+  const directory = 'releases/2026-10-05-delivery-archive';
+  mkdirSync(join(root, directory), { recursive: true });
+  const paths = [
+    `${directory}/Xiongan-DApp-Branch-Sync-Recovery-8c786de7-20261003-github-safe.zip`,
+    `${directory}/Xiongan-Wallet-Checksum-Repair-Recovery-93934f9-20261003-github-safe.zip`
+  ];
+  for (const path of paths) writeFileSync(join(root, path), 'synthetic archive bytes\n');
+  git(root, 'add', directory);
+  const source = captureSource(root), first = join(root, 'first.tar.gz'), second = join(root, 'second.tar.gz');
+  assert.equal(exportSource(root, source, first), exportSource(root, source, second));
+  const entries = readDeliveryArchive(readFileSync(first));
+  assert.deepEqual([...entries.keys()].sort(), source.entries.map(entry => entry.path).sort());
+  for (const path of paths) {
+    assert.ok(path.length > 100);
+    assert.equal(entries.get(path).bytes.toString(), 'synthetic archive bytes\n');
+    assert.equal(entries.get(path).mode, 0o644);
+  }
+}));

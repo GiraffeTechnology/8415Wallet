@@ -1,0 +1,122 @@
+{
+  "publication_date": "2026-10-05",
+  "repository": "GiraffeTechnology/8415Wallet",
+  "source_identity_is_not_publication_commit": true,
+  "archives": [
+    {
+      "original_filename": "8415wallet-UI-Beta-CANDIDATE-bc203c72.zip",
+      "original_size": 3593561,
+      "original_sha256": "5c1937dbe2b020176bc0b650327c3ad4442eafe7f9fc773d11244a190e300b57",
+      "repository": "GiraffeTechnology/8415Wallet",
+      "archive_status": "candidate",
+      "representation": "github_safe_archive",
+      "files": [
+        {
+          "path": "releases/2026-10-05-delivery-archive/8415wallet-UI-Beta-CANDIDATE-bc203c72-github-safe.zip",
+          "size": 3595261,
+          "sha256": "91ea937f37cd1a7702761107d1b2ec8a68019c8559f7f2c44a2d94f849380b7b",
+          "git_blob_sha1": "b20b11ff654631ef84af492cce7dd2398f2f67ce"
+        }
+      ],
+      "mirror_full_filename": "8415wallet-UI-Beta-CANDIDATE-bc203c72-github-safe.zip",
+      "mirror_full_size": 3595261,
+      "mirror_full_sha256": "91ea937f37cd1a7702761107d1b2ec8a68019c8559f7f2c44a2d94f849380b7b",
+      "source_commit": "bc203c7225e5e8898cdff3303981c9ef63b8f931"
+    },
+    {
+      "original_filename": "8415wallet-V2-V3-DApp-Beta-Handoff-1f4a9ae6-20261004.zip",
+      "original_size": 11015079,
+      "original_sha256": "df5058bec9d5c12cffb9ca10cd7ea991e46696207a50f3d2ccf47ac375681838",
+      "repository": "GiraffeTechnology/8415Wallet",
+      "archive_status": "historical",
+      "representation": "existing_immutable_original",
+      "files": [
+        {
+          "path": "releases/2026-10-04-login-beta/8415wallet-V2-V3-DApp-Beta-Handoff-1f4a9ae6-20261004.zip",
+          "size": 11015079,
+          "sha256": "df5058bec9d5c12cffb9ca10cd7ea991e46696207a50f3d2ccf47ac375681838",
+          "git_blob_sha1": "95d454e833ce70c107c50f4dda15a90c16c94089"
+        }
+      ],
+      "source_commit": "1f4a9ae6dd5b8b062ab4f903920cf4b39d158e36",
+      "source_tree": "366a1b4e744d6414dce6a1feab390a3fe1a99095",
+      "first_publication_commit": "909a2b39590467da326ac7e120e431319f75f8f9"
+    },
+    {
+      "original_filename": "8415wallet-v3-beta-review.zip",
+      "original_size": 368186,
+      "original_sha256": "121ea692fb7f3878ee4432a325894f79a17848838e4698d920924e6b066dd0a9",
+      "repository": "GiraffeTechnology/8415Wallet",
+      "archive_status": "historical",
+      "representation": "github_safe_archive",
+      "files": [
+        {
+          "path": "releases/2026-10-05-delivery-archive/8415wallet-v3-beta-review-github-safe.zip",
+          "size": 352250,
+          "sha256": "7866a40b412ce13ee232577499a7c12c3f9f63ba8333b11ea0263b7f3d48dee9",
+          "git_blob_sha1": "f2b33edb69edcca9670376bbac3e72688d8971cf"
+        }
+      ],
+      "mirror_full_filename": "8415wallet-v3-beta-review-github-safe.zip",
+      "mirror_full_size": 352250,
+      "mirror_full_sha256": "7866a40b412ce13ee232577499a7c12c3f9f63ba8333b11ea0263b7f3d48dee9"
+    },
+    {
+      "original_filename": "Xiongan-DApp-Branch-Sync-Recovery-8c786de7-20261003.zip",
+      "original_size": 185794,
+      "original_sha256": "b71946a5f3786c2f292f0be8bbe6b81549391fcd03f8c51be7d4752dffa4a568",
+      "repository": "GiraffeTechnology/8415Wallet",
+      "archive_status": "historical",
+      "representation": "github_safe_archive",
+      "files": [
+        {
+          "path": "releases/2026-10-05-delivery-archive/Xiongan-DApp-Branch-Sync-Recovery-8c786de7-20261003-github-safe.zip",
+          "size": 191046,
+          "sha256": "921dcacd2455ced895d0f0cb4df31dcea2aac83cb0dfa68ffc73532e58b8884b",
+          "git_blob_sha1": "a160931add5de41f8be0c7da40a9dd9d01750770"
+        }
+      ],
+      "mirror_full_filename": "Xiongan-DApp-Branch-Sync-Recovery-8c786de7-20261003-github-safe.zip",
+      "mirror_full_size": 191046,
+      "mirror_full_sha256": "921dcacd2455ced895d0f0cb4df31dcea2aac83cb0dfa68ffc73532e58b8884b"
+    },
+    {
+      "original_filename": "Xiongan-Wallet-Checksum-Repair-Recovery-93934f9-20261003.zip",
+      "original_size": 958147,
+      "original_sha256": "26b9aea081492e5e9f7425535850d71739aa13df411a44a9a278a31a1f67cb55",
+      "repository": "GiraffeTechnology/8415Wallet",
+      "archive_status": "historical",
+      "representation": "github_safe_archive",
+      "files": [
+        {
+          "path": "releases/2026-10-05-delivery-archive/Xiongan-Wallet-Checksum-Repair-Recovery-93934f9-20261003-github-safe.zip",
+          "size": 977625,
+          "sha256": "03043c74c34417039528250ee6e8e5aeb15c4200b625c6c4cc6794828a085cb4",
+          "git_blob_sha1": "36e3852ddca6325f15c39f3bef96d932be8d6ab9"
+        }
+      ],
+      "mirror_full_filename": "Xiongan-Wallet-Checksum-Repair-Recovery-93934f9-20261003-github-safe.zip",
+      "mirror_full_size": 977625,
+      "mirror_full_sha256": "03043c74c34417039528250ee6e8e5aeb15c4200b625c6c4cc6794828a085cb4"
+    },
+    {
+      "original_filename": "Xiongan-Wallet-SIN-Handoff-763b0067.zip",
+      "original_size": 106467,
+      "original_sha256": "2781d8db19b99c1f12f337674847033186940188b0c5317b5afe722cd4b320e6",
+      "repository": "GiraffeTechnology/8415Wallet",
+      "archive_status": "historical",
+      "representation": "github_safe_archive",
+      "files": [
+        {
+          "path": "releases/2026-10-05-delivery-archive/Xiongan-Wallet-SIN-Handoff-763b0067-github-safe.zip",
+          "size": 108756,
+          "sha256": "8f59bac7e5aacf1b286f8b6be28507f95e6469623aa16ee3b5c77711526e7f48",
+          "git_blob_sha1": "58a02895cf744dc46153cbfdca8d26f98e5284ec"
+        }
+      ],
+      "mirror_full_filename": "Xiongan-Wallet-SIN-Handoff-763b0067-github-safe.zip",
+      "mirror_full_size": 108756,
+      "mirror_full_sha256": "8f59bac7e5aacf1b286f8b6be28507f95e6469623aa16ee3b5c77711526e7f48"
+    }
+  ]
+}

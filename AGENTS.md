@@ -585,3 +585,14 @@ treat a later move as data loss rather than as a configuration change.
 Which address a given environment serves on, and which ports are reserved there,
 is deployment configuration rather than a product requirement; it belongs in that
 environment's deployment document.
+
+## Delivery archive inventory (2026-10-05)
+
+Historical and candidate archives are indexed in
+[releases/2026-10-05-delivery-archive/README.md](releases/2026-10-05-delivery-archive/README.md).
+Preserve each archive's exact bytes, source identity, checksums and candidate label.
+The October 4 installation handoff remains an immutable historical artifact;
+use the separately approved current package for any new deployment.
+GitHub-safe mirrors differ from their private originals; do not interchange hashes.
+Archive publication does not establish deployment, current-head CI, genuine-device
+acceptance or a general release. Existing security and deployment rules remain in force.
