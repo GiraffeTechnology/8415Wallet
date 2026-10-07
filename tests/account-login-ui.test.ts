@@ -10,7 +10,7 @@ const source = readFileSync(new URL('../web/wallet-auth.mjs', import.meta.url), 
   .replace(/^import[^\n]*\n/gm, '').replace(/^export \{[^\n]*\n/gm, '').replace('export const walletLogin', 'const walletLogin');
 function fixture(method: string) {
   const signer = Wallet.createRandom(), origin = 'https://wallet.example.invalid:18443', elements = new Map<string, any>(), requests: any[] = [], calls: string[] = [];
-  const state = { hold: null as null | Promise<void>, accountHold: null as null | Promise<void>, fail: false, revoked: false, enrolled: false, cancelled: false, badAccount: false, mailAvailable: false, reserved: false, rejectPath: '', recoveryHold: null as null | Promise<void>, registrationHold: null as null | Promise<void>, registrationConfirmHold: null as null | Promise<void>, registeredEmail: null as string | null, registrationCancelled: false, signatureHold: null as null | Promise<void> };
+  const state = { hold: null as null | Promise<void>, accountHold: null as null | Promise<void>, fail: false, revoked: false, enrolled: false, cancelled: false, badAccount: false, mailAvailable: false, reserved: false, rejectPath: '', rejectCode: 'AUTH_REFUSED', recoveryHold: null as null | Promise<void>, registrationHold: null as null | Promise<void>, registrationConfirmHold: null as null | Promise<void>, registeredEmail: null as string | null, registrationCancelled: false, signatureHold: null as null | Promise<void>, passwordManagement: true, passwordBound: true, passwordEnabled: true, stale: false, passwordHold: null as null | Promise<void>, capabilitiesHold: null as null | Promise<void>, sessionHold: null as null | Promise<void>, passwordBadResponse: false, passwordNetworkFailure: false };
   const timers = new Map<number, () => void>(), windowEvents = new Map<string, (event?: any) => unknown>();
   let timerId = 0;
   const issuedAt = Date.now();
@@ -27,16 +27,17 @@ function fixture(method: string) {
   const fetcher = async (url: URL, options: any) => {
     const path = url.pathname.slice(6), body = options.body ? JSON.parse(options.body) : null; requests.push({ path, options, body });
     let data: any;
-    if (path === 'capabilities') data = { schema: '8415wallet-auth/1', tenant: 'xiongan', origin, methods: ['password', 'totp'], registration: { available: state.mailAvailable, emailRequired: true } };
+    if (path === 'capabilities') { if (state.capabilitiesHold) await state.capabilitiesHold; data = { schema: '8415wallet-auth/1', tenant: 'xiongan', origin, methods: ['password', 'totp', 'wallet', 'ca'], ...(state.passwordManagement ? { passwordManagement: true } : {}), registration: { available: state.mailAvailable, emailRequired: true } }; }
     else if (path === 'bootstrap') data = { csrf: 'preauth' };
-    else if (path === 'session') data = session;
+    else if (path === 'session') { if (state.sessionHold) await state.sessionHold; data = session; }
+    else if (path === 'challenge') { session.kind = body.method; data = { id: 'w'.repeat(43), tenant: 'xiongan', origin, account: signer.address, chainId: '1', method: body.method, message: 'Synthetic registered-wallet login proof' }; }
     else if (path === 'account') {
       if (state.accountHold) await state.accountHold;
       data = { schema: '8415wallet-account/1', tenant: 'xiongan', origin, username: 'tester', account: state.badAccount ? Wallet.createRandom().address : signer.address, chainId: '1',
-        methods: { password: { enabled: true, bound: true }, wallet: { enabled: true, bound: true }, ca: { enabled: false, bound: false }, totp: { enabled: state.enrolled, bound: state.enrolled } },
+        methods: { password: { enabled: state.passwordBound && state.passwordEnabled, bound: state.passwordBound }, wallet: { enabled: true, bound: true }, ca: { enabled: false, bound: false }, totp: { enabled: state.enrolled, bound: state.enrolled } },
         registration: { required: !state.registeredEmail, complete: !!state.registeredEmail, email: state.registeredEmail, emailMasked: state.registeredEmail ? 't***@example.invalid' : null, emailOtpAvailable: state.mailAvailable },
         recovery: { configured: state.reserved, emailOtpAvailable: state.mailAvailable, questionId: state.reserved ? 'recovery-phrase' : null, emailMasked: state.reserved ? 't***@example.invalid' : null },
-        authenticator: { enrolled: state.enrolled, pending: false }, management: { freshIndependentLogin: method === 'password', reauthenticateBy: session.issuedAt + 300000, existingCodeRequired: state.enrolled } };
+        authenticator: { enrolled: state.enrolled, pending: false }, management: { freshIndependentLogin: ['password', 'wallet', 'ca'].includes(session.kind) && !state.stale, reauthenticateBy: state.stale ? Date.now() - 1 : session.issuedAt + 300000, existingCodeRequired: state.enrolled } };
     }
     else if (path === 'logout') { state.revoked = true; data = { loggedOut: true }; }
     else if (path === 'totp/enroll/start') { if (state.hold) await state.hold; data = { enrollmentId: 'e'.repeat(43), secret: 'SYNTHETIC_SETUP_SECRET', uri: 'otpauth://totp/test', expiresAt: Date.now() + 300000 }; }
@@ -47,6 +48,7 @@ function fixture(method: string) {
     else if (path === 'registration/email/confirm') { state.registeredEmail = 'tester@example.invalid'; data = { registered: true, loggedOut: true }; }
     else if (path === 'registration/cancel' || path === 'registration/email/cancel') { state.registrationCancelled = true; data = { cancelled: true }; }
     else if (path === 'account/methods') data = { updated: true, loggedOut: true };
+    else if (path === 'account/password') { if (state.passwordHold) await state.passwordHold; if (state.passwordNetworkFailure) throw Error('Synthetic connection loss'); data = state.passwordBadResponse ? { updated: true } : { updated: true, loggedOut: true }; }
     else if (['recovery/enroll/start', 'recovery/reset/start'].includes(path)) { if (state.recoveryHold) await state.recoveryHold; data = { challengeId: 'c'.repeat(43), expiresAt: Date.now() + 300000, emailMasked: 't***@example.invalid', digits: 8 }; }
     else if (path === 'recovery/reset/confirm') data = { resetProof: 'p'.repeat(43), expiresAt: Date.now() + 120000 };
     else if (path === 'recovery/enroll/confirm') data = { configured: true, loggedOut: true };
@@ -54,7 +56,7 @@ function fixture(method: string) {
     else if (path === 'totp/enroll/cancel') { state.cancelled = true; data = { cancelled: true, confirmationInProgress: false }; }
     else if (path === 'totp/enroll/confirm') data = { enrolled: true, recoveryCodes: ['synthetic-recovery-code'], loggedOut: true };
     else { if (state.hold) await state.hold; data = state.fail ? { error: 'AUTH_REFUSED' } : session; }
-    if (state.rejectPath === path) data = { error: 'AUTH_REFUSED' };
+    if (state.rejectPath === path) data = { error: state.rejectCode };
     return { ok: state.rejectPath !== path && !(state.fail && ['password', 'totp'].includes(path)), text: async () => JSON.stringify(data) };
   };
   class BoundClient extends AccountAuthClient { constructor({ tenant }: any) { super({ tenant, origin, fetcher }); } }
@@ -131,14 +133,14 @@ for (const { id } of uiI18n.LOCALES) test(`locale ${id} cannot unlock login or r
 });
 
 
-test('first setup and management entry are available before login without provider or auth requests', async () => {
-  const f = fixture('totp'); await f.click('auth-initial-open');
+test('public entry is request-free and explicit setup checks capabilities without requesting provider access', async () => {
+  const f = fixture('totp'); assert.deepEqual(f.calls, []); assert.equal(f.requests.length, 0); await f.click('auth-initial-open');
   assert.equal(f.element('auth-management').hidden, false); assert.equal(f.element('auth-enrollment').hidden, true);
-  assert.equal(f.element('wallet-login-method').value, 'password'); assert.equal(f.element('auth-existing-fields').hidden, true);
-  assert.deepEqual(f.calls, []); assert.deepEqual(f.requests, []);
+  assert.equal(f.element('wallet-login-method').value, 'wallet'); assert.equal(f.element('auth-existing-fields').hidden, true);
+  assert.deepEqual(f.calls, []); assert.deepEqual(f.requests.map(r => r.path), ['capabilities']);
   f.click('auth-management-close'); assert.equal(f.element('auth-management').hidden, true);
   await f.click('auth-manage-open'); assert.equal(f.element('auth-management').hidden, false);
-  assert.deepEqual(f.calls, []); assert.deepEqual(f.requests, []);
+  assert.deepEqual(f.calls, []); assert.deepEqual(f.requests.map(r => r.path), ['capabilities', 'capabilities']);
 });
 for (const { id } of uiI18n.LOCALES) test(`login action follows method and ${id} without extra provider or network requests`, () => {
   const f = fixture('password');
@@ -354,4 +356,168 @@ test('UI session fixture uses one clock instant and never fabricates an overlong
   try { Date.now = () => ++tick; f = fixture('totp'); } finally { Date.now = originalNow; }
   assert.equal(f.session.expiresAt - f.session.issuedAt, 900000);
   await f.click('wallet-login'); assert.equal(f.element('wallet-private').hidden, false);
+});
+
+function passwordEntries(f: ReturnType<typeof fixture>, value = 'synthetic-new-password') {
+  f.element('auth-new-password').value = value; f.element('auth-new-password-confirm').value = value;
+}
+test('passwordless registered account sets its first password through the actual handler without an old password', async () => {
+  const f = fixture('wallet'); f.state.passwordBound = false;
+  await f.click('wallet-login'); await f.click('auth-initial-open');
+  assert.equal(f.element('auth-password-fields').hidden, false); assert.equal(f.element('auth-password-save').disabled, false);
+  assert.equal(f.element('auth-password-save').textContent, uiI18n.t('account.passwordInitial'));
+  assert.equal(f.element('auth-password-factor-help').hidden, true); assert.equal(f.element('auth-password-reset-help').hidden, true);
+  assert.equal(f.element('auth-existing-fields').hidden, true);
+  passwordEntries(f); const providerCalls = f.calls.length; await f.click('auth-password-save');
+  const request = f.requests.find(r => r.path === 'account/password');
+  assert.deepEqual(request.body, { password: 'synthetic-new-password', purpose: 'initial' });
+  assert.equal(request.options.credentials, 'same-origin'); assert.equal(request.options.headers['X-Wallet-CSRF'], f.session.csrf);
+  assert.equal(f.calls.slice(providerCalls).includes('personal_sign'), false);
+  assert.equal(f.element('auth-new-password').value, ''); assert.equal(f.element('auth-new-password-confirm').value, '');
+  assert.equal(f.element('wallet-private').hidden, true); assert.equal(f.element('auth-password-fields').hidden, true);
+  assert.equal(f.element('wallet-login-status').textContent, uiI18n.t('account.passwordSaved')); assert.throws(() => f.login.assert());
+});
+test('password replacement uses bound state even when password login is disabled and never changes the enabled-method selection', async () => {
+  const f = fixture('wallet'); f.state.passwordEnabled = false;
+  await f.click('wallet-login'); await f.click('auth-manage-open');
+  assert.equal(f.element('auth-enable-password').checked, false); assert.equal(f.element('auth-enable-wallet').checked, true);
+  assert.equal(f.element('auth-password-save').textContent, uiI18n.t('account.passwordReplace'));
+  passwordEntries(f); await f.click('auth-password-save');
+  assert.deepEqual(f.requests.find(r => r.path === 'account/password').body, { password: 'synthetic-new-password', purpose: 'replace' });
+  assert.equal(f.requests.some(r => r.path === 'account/methods'), false);
+});
+for (const value of ['', 'short', '密'.repeat(342)]) test(`password validation rejects ${value ? value.length : 'empty'} characters before network activity and clears both inputs`, async () => {
+  const f = fixture('password'); await f.click('wallet-login'); await f.click('auth-manage-open'); passwordEntries(f, value);
+  const before = f.requests.length; await f.click('auth-password-save');
+  assert.equal(f.requests.length, before); assert.equal(f.element('auth-password-status').textContent, uiI18n.t('account.passwordMismatch'));
+  assert.equal(f.element('auth-new-password').value, ''); assert.equal(f.element('auth-new-password-confirm').value, '');
+});
+test('mismatched passwords are cleared without submitting or retaining them in localized output', async () => {
+  const f = fixture('password'); await f.click('wallet-login'); await f.click('auth-manage-open'); passwordEntries(f);
+  f.element('auth-new-password-confirm').value = 'synthetic-other-password'; await f.click('auth-password-save');
+  assert.equal(f.requests.some(r => r.path === 'account/password'), false);
+  for (const { id } of uiI18n.LOCALES) { uiI18n.setLocale(id, { persist: false }); assert.equal(f.element('auth-new-password').value, ''); assert.equal(f.element('auth-new-password-confirm').value, ''); assert.equal(f.element('auth-password-status').textContent.includes('synthetic'), false); }
+  uiI18n.setLocale('en', { persist: false });
+});
+for (const method of ['wallet-local', 'totp', 'recovery']) test(`initial setup from ${method} chooses registered wallet without an automatic connection or signature`, async () => {
+  const f = fixture(method === 'recovery' ? 'totp' : method);
+  if (method === 'recovery') { f.session.kind = 'recovery'; f.element('auth-recovery').checked = true; }
+  if (method !== 'wallet-local') await f.click('wallet-login');
+  const calls = f.calls.length; await f.click('auth-initial-open');
+  assert.equal(f.element('wallet-login-method').value, 'wallet'); assert.equal(f.calls.length, calls);
+  assert.equal(f.element('auth-password-fields').hidden, true); assert.equal(f.element('auth-password-save').disabled, true);
+});
+test('initial setup overrides an unauthenticated Password selection without asking for a nonexistent password', async () => {
+  const f = fixture('password'); await f.click('auth-initial-open');
+  assert.equal(f.element('wallet-login-method').value, 'wallet'); assert.equal(f.element('auth-password-label').hidden, true);
+  assert.equal(f.element('auth-password').value, ''); assert.equal(f.element('auth-new-password').disabled, true);
+  assert.deepEqual(f.calls, []); assert.deepEqual(f.requests.map(r => r.path), ['capabilities']);
+});
+test('initial setup preserves an already authenticated fresh independent password session', async () => {
+  const f = fixture('password'); await f.click('wallet-login'); const binding = f.login.capture(), calls = f.calls.length;
+  await f.click('auth-initial-open'); f.login.assert(binding);
+  assert.equal(f.element('wallet-login-method').value, 'password'); assert.equal(f.element('auth-password-fields').hidden, false);
+  assert.equal(f.calls.length, calls); assert.equal(f.requests.some(r => r.path === 'logout'), false);
+});
+for (const fresh of [false, true]) test(`unsupported password-management capability explains the same-origin upgrade with ${fresh ? 'fresh login' : 'public settings'}`, async () => {
+  const f = fixture('password'); f.state.passwordManagement = false;
+  if (fresh) await f.click('wallet-login'); await f.click('auth-manage-open');
+  assert.equal(f.element('auth-password-state').textContent, uiI18n.t('account.passwordUpgrade'));
+  assert.equal(f.element('auth-password-fields').hidden, true); assert.equal(f.element('auth-new-password').disabled, true);
+  passwordEntries(f); await f.click('auth-password-save'); assert.equal(f.requests.some(r => r.path === 'account/password'), false);
+  assert.equal(f.element('auth-new-password').value, '');
+});
+for (const method of ['totp', 'password']) test(`${method === 'totp' ? 'authenticator-only' : 'stale independent'} session cannot write a password`, async () => {
+  const f = fixture(method); f.state.stale = method === 'password'; await f.click('wallet-login'); await f.click('auth-manage-open');
+  assert.equal(f.element('auth-password-fields').hidden, true); assert.equal(f.element('auth-password-save').disabled, true);
+  passwordEntries(f); await f.click('auth-password-save'); assert.equal(f.requests.some(r => r.path === 'account/password'), false);
+  assert.equal(f.element('auth-new-password').value, '');
+});
+for (const bound of [false, true]) test(`${bound ? 'replacement' : 'initial password'} carries all configured factors and preserves unconsumed reset proof after refusal`, async () => {
+  const f = fixture('wallet'); f.state.passwordBound = bound; f.state.enrolled = true; f.state.reserved = true; f.state.mailAvailable = true;
+  await f.click('wallet-login'); await f.click('auth-manage-open');
+  assert.equal(f.element('auth-password-factor-help').hidden, false); assert.equal(f.element('auth-password-reset-help').hidden, false);
+  assert.equal(f.element('auth-password-save').disabled, true); passwordEntries(f); await f.click('auth-password-save');
+  assert.equal(f.requests.some(r => r.path === 'account/password'), false);
+  f.element('auth-reset-answer').value = 'synthetic private recovery phrase'; await f.click('auth-reset-start');
+  f.element('auth-email-code').value = '12345678'; await f.click('auth-email-confirm'); assert.equal(f.element('auth-password-save').disabled, false);
+  f.state.rejectPath = 'account/password'; passwordEntries(f); f.element('auth-existing-code').value = 'wrong'; await f.click('auth-password-save');
+  f.state.rejectPath = ''; passwordEntries(f); f.element('auth-existing-code').value = 'synthetic-unused-recovery'; f.element('auth-existing-recovery').checked = true; await f.click('auth-password-save');
+  const sent = f.requests.filter(r => r.path === 'account/password'); assert.equal(sent.length, 2);
+  assert.deepEqual(sent.map(r => r.body.resetProof), ['p'.repeat(43), 'p'.repeat(43)]);
+  assert.deepEqual(sent[1].body, { password: 'synthetic-new-password', purpose: bound ? 'replace' : 'initial', existingCode: 'synthetic-unused-recovery', recovery: true, resetProof: 'p'.repeat(43) });
+  assert.equal(f.element('auth-existing-code').value, '');
+});
+test('repeated password clicks submit once and cancellation clears inputs before a late result', async () => {
+  const f = fixture('password'); await f.click('wallet-login'); await f.click('auth-manage-open'); passwordEntries(f);
+  let release!: () => void; f.state.passwordHold = new Promise<void>(resolve => { release = resolve; });
+  const pending = f.click('auth-password-save'); await new Promise(resolve => setImmediate(resolve));
+  assert.equal(f.element('auth-new-password').value, ''); assert.equal(f.element('auth-new-password-confirm').value, '');
+  assert.equal(f.element('auth-password-save').disabled, true); await f.click('auth-password-save'); await f.click('auth-password-cancel'); release(); await pending;
+  assert.equal(f.requests.filter(r => r.path === 'account/password').length, 1); assert.equal(f.element('wallet-private').hidden, true);
+  assert.equal(f.element('wallet-login-status').textContent, uiI18n.t('account.passwordSubmitted'));
+});
+test('cancel before a live-session check finishes cannot submit the captured password later', async () => {
+  const f = fixture('password'); await f.click('wallet-login'); await f.click('auth-manage-open'); passwordEntries(f);
+  let release!: () => void; f.state.sessionHold = new Promise<void>(resolve => { release = resolve; });
+  const pending = f.click('auth-password-save'); await new Promise(resolve => setImmediate(resolve)); await f.click('auth-password-cancel'); release(); await pending;
+  assert.equal(f.requests.some(r => r.path === 'account/password'), false); assert.equal(f.element('wallet-private').hidden, true);
+});
+for (const event of ['auth-password-cancel', 'auth-management-close', 'wallet-logout', 'popstate', 'keydown', 'pagehide', 'pageshow', 'accountsChanged', 'chainChanged', 'disconnect']) test(`${event} clears unsent password fields and locale changes cannot revive them`, async () => {
+  const f = fixture('password'); await f.click('wallet-login'); await f.click('auth-manage-open'); passwordEntries(f);
+  if (['accountsChanged', 'chainChanged', 'disconnect'].includes(event)) f.emit(event);
+  else if (f.windowEvents.has(event)) f.windowEvents.get(event)!({ key: 'Escape', persisted: true });
+  else await f.click(event);
+  for (const { id } of uiI18n.LOCALES) { uiI18n.setLocale(id, { persist: false }); assert.equal(f.element('auth-new-password').value, ''); assert.equal(f.element('auth-new-password-confirm').value, ''); }
+  assert.equal(f.requests.some(r => r.path === 'account/password'), false); uiI18n.setLocale('en', { persist: false });
+});
+test('management freshness expiry clears password entry and refuses submission', async () => {
+  const f = fixture('password'); await f.click('wallet-login'); await f.click('auth-manage-open'); passwordEntries(f);
+  const expire = [...f.timers.values()].at(-1)!; const originalNow = Date.now;
+  try { Date.now = () => f.session.issuedAt + 300001; expire(); assert.equal(f.element('auth-new-password').value, ''); assert.equal(f.element('auth-password-fields').hidden, true); await f.click('auth-password-save'); }
+  finally { Date.now = originalNow; }
+  assert.equal(f.requests.some(r => r.path === 'account/password'), false);
+});
+test('close invalidates delayed capability results and never exposes password controls', async () => {
+  const f = fixture('password'); let release!: () => void; f.state.capabilitiesHold = new Promise<void>(resolve => { release = resolve; });
+  const pending = f.click('auth-initial-open'); await new Promise(resolve => setImmediate(resolve)); f.click('auth-management-close'); release(); await pending;
+  assert.equal(f.element('auth-management').hidden, true); assert.equal(f.element('auth-password-fields').hidden, true); assert.deepEqual(f.calls, []);
+});
+for (const failure of ['passwordBadResponse', 'passwordNetworkFailure'] as const) test(`${failure} locks the account and does not automatically replay the password write`, async () => {
+  const f = fixture('password'); await f.click('wallet-login'); await f.click('auth-manage-open'); passwordEntries(f); f.state[failure] = true;
+  await f.click('auth-password-save'); assert.equal(f.requests.filter(r => r.path === 'account/password').length, 1);
+  assert.equal(f.element('wallet-private').hidden, true); assert.equal(f.element('wallet-login-status').textContent, uiI18n.t('account.passwordSubmitted'));
+  assert.equal(f.element('auth-new-password').value, '');
+});
+for (const code of ['AUTH_UNAVAILABLE', 'AUTH_UNEXPECTED_SERVER_FAILURE', 'malformed-error']) test(`${code} after password submission is treated as an unknown outcome and cannot be replayed`, async () => {
+  const f = fixture('password'); await f.click('wallet-login'); await f.click('auth-manage-open'); passwordEntries(f);
+  f.state.rejectPath = 'account/password'; f.state.rejectCode = code; await f.click('auth-password-save');
+  assert.equal(f.element('wallet-private').hidden, true); assert.equal(f.element('auth-password-fields').hidden, true);
+  assert.equal(f.element('wallet-login-status').textContent, uiI18n.t('account.passwordSubmitted')); assert.throws(() => f.login.assert());
+  passwordEntries(f); await f.click('auth-password-save'); assert.equal(f.requests.filter(r => r.path === 'account/password').length, 1);
+  assert.equal(f.element('auth-new-password').value, ''); assert.equal(f.element('auth-new-password-confirm').value, '');
+});
+for (const code of ['AUTH_RECENT_INDEPENDENT_LOGIN_REQUIRED', 'AUTH_SETUP_STATE_CHANGED']) test(`${code} ends stale password management instead of retrying old account state`, async () => {
+  const f = fixture('password'); await f.click('wallet-login'); await f.click('auth-manage-open'); passwordEntries(f);
+  f.state.rejectPath = 'account/password'; f.state.rejectCode = code; await f.click('auth-password-save');
+  assert.equal(f.element('wallet-private').hidden, true); assert.equal(f.element('auth-password-fields').hidden, true);
+  assert.equal(f.requests.filter(r => r.path === 'account/password').length, 1); assert.equal(f.element('auth-new-password').value, '');
+});
+test('password recovery link stays within the open workflow without history navigation or automatic requests', async () => {
+  const f = fixture('password'); f.state.reserved = true; f.state.mailAvailable = true; await f.click('wallet-login'); await f.click('auth-manage-open');
+  let prevented = false, focused = false, scrolled = false;
+  f.element('auth-reset-answer').focus = () => { focused = true; }; f.element('auth-recovery-settings').scrollIntoView = () => { scrolled = true; };
+  const requests = f.requests.length, calls = f.calls.length;
+  f.element('auth-password-recovery-link').handlers.get('click')({ preventDefault() { prevented = true; } });
+  assert.equal(prevented && focused && scrolled, true); assert.equal(f.element('auth-management').hidden, false);
+  assert.equal(f.requests.length, requests); assert.equal(f.calls.length, calls);
+});
+for (const action of ['cancel', 'expire']) test(`reset proof ${action} clears password entry and disables saving until the required factors are reverified`, async () => {
+  const f = fixture('password'); f.state.reserved = true; f.state.mailAvailable = true; await f.click('wallet-login'); await f.click('auth-manage-open');
+  f.element('auth-reset-answer').value = 'synthetic private recovery phrase'; await f.click('auth-reset-start');
+  f.element('auth-email-code').value = '12345678'; await f.click('auth-email-confirm'); passwordEntries(f);
+  if (action === 'cancel') await f.click('auth-email-cancel'); else [...f.timers.values()].at(-1)!();
+  assert.equal(f.element('auth-new-password').value, ''); assert.equal(f.element('auth-new-password-confirm').value, '');
+  assert.equal(f.element('auth-password-save').disabled, true); await f.click('auth-password-save');
+  assert.equal(f.requests.some(r => r.path === 'account/password'), false);
 });

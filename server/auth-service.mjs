@@ -1,5 +1,5 @@
 /** Same-origin, single-process account authentication. No transaction signing authority. */
-import { randomToken, digest, equal, verifyPassword, matchTotp, newTotpSecret, provisioningUri, recoveryCodes } from './crypto.mjs';
+import { randomToken, digest, equal, hashPassword, verifyPassword, matchTotp, newTotpSecret, provisioningUri, recoveryCodes } from './crypto.mjs';
 import { loginOrigin, loginMessage } from '../web/login-core.mjs';
 import { verifyMessage, getAddress } from 'ethers';
 import { validateAccountBindings } from './config-validation.mjs';
@@ -85,8 +85,16 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
   function revokeAccount(username) {
     for (const current of sessions.values()) if (current.username === username) revokeSession(current);
   }
+  function passwordFor(user, credential) {
+    // A persisted account password supersedes the original configured/signup
+    // hash. Malformed overrides must fail closed, never revive the old password.
+    if (credential?.passwordHash === undefined) return user?.passwordHash;
+    requireThat(typeof credential.passwordHash === 'string' && /^scrypt-v1\$[a-f0-9]{32}\$[a-f0-9]{64}$/.test(credential.passwordHash),
+      'AUTH_PASSWORD_STATE_REFUSED', 503);
+    return credential.passwordHash;
+  }
   function methodStates(user, credential) {
-    const bindings = { password: Boolean(user.passwordHash), wallet: user.wallets.length > 0,
+    const bindings = { password: Boolean(passwordFor(user, credential)), wallet: user.wallets.length > 0,
       ca: user.caFingerprints.length > 0, totp: Boolean(credential?.secret) };
     return Object.fromEntries(accountMethods.map(method => [method, { available: method !== 'ca' || Boolean(verifyCa), bound: bindings[method],
       enabled: bindings[method] && (method !== 'ca' || Boolean(verifyCa)) &&
@@ -174,7 +182,7 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
     requireThat(req.url?.startsWith('/auth/') && !req.url.includes('?'), 'AUTH_ROUTE_REFUSED', 404);
     const path = req.url.slice(6), ip = req.socket.remoteAddress ?? 'unknown';
     await directory.ready;
-    if (req.method === 'GET' && path === 'capabilities') return { schema: '8415wallet-auth/1', tenant, origin,
+    if (req.method === 'GET' && path === 'capabilities') return { schema: '8415wallet-auth/1', tenant, origin, passwordManagement: true,
       methods: ['password', 'totp', 'wallet', ...(verifyCa ? ['ca'] : [])], registration: { available: Boolean(sendOtp), emailRequired: true }, totp: { algorithm: 'SHA1', digits: 6, period: 30 }, hardwareCa: verifyCa ? 'bridge-v1' : null };
     if (req.method === 'GET' && path === 'bootstrap') {
       limit(`bootstrap:${ip}`, 60); capacity(preauth);
@@ -234,6 +242,35 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
       const result = await recoveryService.handler(path, body, localSession(req));
       if (result.loggedOut) res.setHeader('Set-Cookie', cookie(sessionName, '', 0));
       return result;
+    }
+    if (path === 'account/password') {
+      const session = localSession(req); recentIndependent(session); limit(`password-management:${session.username}`, 10);
+      requireThat(Object.keys(body).every(key => ['password', 'purpose', 'existingCode', 'recovery', 'resetProof'].includes(key)) &&
+        ['initial', 'replace'].includes(body.purpose) && typeof body.password === 'string' && body.password.length >= 12 &&
+        Buffer.byteLength(body.password) <= 1024 && (body.recovery === undefined || typeof body.recovery === 'boolean') &&
+        (body.existingCode === undefined || typeof body.existingCode === 'string' && body.existingCode.length <= 64) &&
+        (body.resetProof === undefined || typeof body.resetProof === 'string' && /^[A-Za-z0-9_-]{43}$/.test(body.resetProof)),
+      'AUTH_PASSWORD_INPUT_REFUSED', 400);
+      const user = users.get(session.username), credential = await credentialFor(session);
+      const checkPurpose = prior => requireThat(body.purpose === (passwordFor(user, prior) ? 'replace' : 'initial'), 'AUTH_SETUP_STATE_CHANGED', 409);
+      recentIndependent(session); checkPurpose(credential);
+      requireThat(expensive < 2, 'AUTH_BUSY', 503); expensive++;
+      let passwordHash;
+      try { passwordHash = await hashPassword(body.password); } finally { expensive--; body.password = ''; }
+      await store.transaction(`${tenant}:${session.username}`, prior => {
+        // Check after hashing and again inside the serialized commit. Logout,
+        // clock/freshness changes and a competing credential update must win.
+        recentIndependent(session); requireThat((prior?.revision ?? 0) === session.revision);
+        directory.checkCredential(session.username, prior); checkPurpose(prior);
+        const next = prior?.secret ? withConsumedCode(prior, body.existingCode, body.recovery === true) : { ...prior };
+        // Existing factors only: no email-only bootstrap and no invented old
+        // password/TOTP requirement for a passwordless account.
+        recoveryService.consumeProof(session, body.resetProof, prior);
+        return { ...next, passwordHash, ...(body.purpose === 'initial' && Array.isArray(prior?.enabledMethods) ?
+          { enabledMethods: [...new Set([...prior.enabledMethods, 'password'])] } : {}), revision: session.revision + 1 };
+      });
+      revokeAccount(session.username); res.setHeader('Set-Cookie', cookie(sessionName, '', 0));
+      return { updated: true, loggedOut: true };
     }
     if (path === 'account/methods') {
       const session = localSession(req); recentIndependent(session); limit(`methods:${session.username}`, 10);
@@ -310,9 +347,12 @@ export function createAuthService({ origin, tenant, accounts, store, verifyCa = 
       const user = boundUser(body.username, selected);
       limit(`account:${user?.username ?? digest(body.username.toLowerCase())}`, 10); let revision;
       if (path === 'password') {
+        const credential = user ? await store.read(`${tenant}:${user.username}`) : null;
+        if (user) directory.checkCredential(user.username, credential);
+        const passwordHash = passwordFor(user, credential); revision = credential?.revision ?? 0;
         requireThat(expensive < 2, 'AUTH_BUSY', 503); expensive++;
         let verified;
-        try { verified = await verifyPassword(body.password, user?.passwordHash); } finally { expensive--; }
+        try { verified = await verifyPassword(body.password, passwordHash); } finally { expensive--; }
         requireThat(verified && user);
       } else {
         requireThat(user); revision = await consumeCode(user.username, body.code, body.recovery === true, { login: true });

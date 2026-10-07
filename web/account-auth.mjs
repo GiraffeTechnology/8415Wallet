@@ -1,7 +1,7 @@
 /** Same-origin account login client. Passwords/codes are never persisted. */
 import { WalletLoginError } from './login-core.mjs';
 export class AccountAuthClient {
-  #tenant; #fetch; #csrf = null; #session = null; #origin; #registrationEpoch = 0;
+  #tenant; #fetch; #csrf = null; #session = null; #origin; #registrationEpoch = 0; #capabilities = null;
   constructor({ tenant, origin = globalThis.location.origin, fetcher = globalThis.fetch.bind(globalThis) }) { this.#tenant = tenant; this.#fetch = fetcher; this.#origin = origin; }
   async request(path, body, { keepalive = false } = {}) {
     const response = await this.#fetch(new URL(`/auth/${path}`, this.#origin), { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', cache: 'no-store', keepalive,
@@ -15,8 +15,9 @@ export class AccountAuthClient {
   async capabilities() {
     const value = await this.request('capabilities');
     if (value.schema !== '8415wallet-auth/1' || value.tenant !== this.#tenant || value.origin !== this.#origin) throw new WalletLoginError('LOGIN_SERVICE_BINDING_REFUSED');
-    return value;
+    this.#capabilities = value; return value;
   }
+  get supportsPasswordManagement() { return this.#capabilities?.passwordManagement === true; }
   async registrationStart(email) {
     const epoch = ++this.#registrationEpoch;
     const current = () => { if (epoch !== this.#registrationEpoch) throw new WalletLoginError('LOGIN_CANCELLED'); };
@@ -125,6 +126,13 @@ export class AccountAuthClient {
   }
   async setMethods(enabledMethods, existingCode, recovery = false) {
     return this.request('account/methods', { enabledMethods, existingCode, recovery });
+  }
+  async setPassword(body) {
+    if (!this.#session) throw new WalletLoginError('LOGIN_REQUIRED');
+    if (!this.supportsPasswordManagement) throw new WalletLoginError('AUTH_PASSWORD_MANAGEMENT_UNAVAILABLE');
+    const result = await this.request('account/password', body);
+    if (result.updated !== true || result.loggedOut !== true) throw new WalletLoginError('LOGIN_SERVER_RESPONSE_REFUSED');
+    this.#session = null; return result;
   }
   async startEnrollment(existingCode, recovery = false, purpose, resetProof) {
     if (!this.#session) throw new WalletLoginError('LOGIN_REQUIRED');

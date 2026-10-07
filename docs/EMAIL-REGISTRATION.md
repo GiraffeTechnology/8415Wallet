@@ -35,6 +35,12 @@ password or authenticator/recovery proof. The email itself is not a credential.
 Only the established EOA signature verifier is supported on this server route;
 server ERC-1271/6492 registration is not claimed.
 
+A user who omits the optional signup password can add it later through
+`POST /auth/account/password`, after a fresh registered-wallet or configured CA
+login and any already configured authenticator/recovery checks. Existing accounts
+must use that protected route rather than register the same wallet again. See
+[password management](ACCOUNT-AUTHENTICATION.md#initial-password-setup-and-replacement).
+
 ## Existing accounts and email changes
 
 Old account-name/password, wallet, TOTP/recovery and CA login are not disabled by
@@ -50,7 +56,7 @@ registration OTP. No arbitrary recipient is accepted by a reset endpoint.
 
 Confirmation updates email identity and, if present, the recovery profile email
 in the same atomic transaction. It preserves the account name, wallet/chain
-bindings, password hash, CA fingerprints, authenticator secret, remaining
+bindings, original and encrypted-override password hashes, CA fingerprints, authenticator secret, remaining
 recovery codes, method choices, unrelated credential data and existing store
 key. The submitted existing code is consumed as intended. The credential revision
 increments and every account session/pending factor setup is revoked.

@@ -203,21 +203,28 @@ access and removes SMTP credential references when the operator applies it.
 ## Authentication state semantics and safe code rollback
 
 Credential ciphertext still uses envelope/store format 1. New packages separately
-record `authStateSemantics: 8415wallet-auth-state/2` for registration, enabled login
-methods and reserved recovery factors. Absence of that marker denotes legacy
-semantics 1. The installer permits the reviewed forward 1→2 transition and
-same-generation code rollback, but refuses 2→1 even if ciphertext can decrypt.
-Old code could discard newer fields or bypass recovery requirements; compatible
-encryption alone does not make such a rollback safe.
+record `authStateSemantics: 8415wallet-auth-state/3` for authenticated initial
+password setup/replacement and the account's encrypted password-hash override.
+Generation 2 added registration, enabled login methods and reserved recovery
+factors; absence of a marker denotes legacy semantics 1. The installer permits
+the reviewed forward transitions 1→2, 1→3 and 2→3 and same-generation code
+rollback. It refuses every backward transition, including 3→2, 3→1 and 2→1,
+whether requested as a rollback or disguised as an upgrade. Unknown generations
+fail closed. Old code could ignore a password override and revive its superseded
+configured/signup password, discard newer fields or bypass recovery requirements;
+compatible encryption alone does not make such a rollback safe.
 
 Before a forward upgrade, follow the user's approved offline backup and recovery
 process. A backup is for coordinated disaster recovery, never automatic reversal
-of consumed OTP/recovery counters. Once a generation-2 candidate start is attempted,
-an uncertain failure does not restart legacy code: it stops the candidate when
-possible and retains the new release and operation lock with an explicit recovery
-error. The operator must inspect and fix/advance generation-2 code, preserving
-current credentials and counters. Never delete state, rekey, restore stale
-ciphertext or remove retained locks merely to pass an installer check.
+of consumed OTP/recovery counters or superseded passwords. Once a forward
+generation transition's candidate start is attempted, an uncertain failure does
+not restart the older-generation code: it stops the candidate when possible and
+retains the new release and operation lock with an explicit recovery error. The
+operator must inspect and fix/advance the retained generation, preserving current
+credentials and counters. Never delete state, rekey, restore stale ciphertext,
+remove password overrides, bypass the managed runtime transition checks or
+remove retained locks merely to pass an installer check. This versioned installer
+guard does not claim to make a manually launched old runtime safe.
 
 ## Existing PR58 TCP deployments: bounded import, never initialize again
 
@@ -279,7 +286,7 @@ and unrelated services remain outside this command's scope. Mail remains disable
 until the separately authorized SMTP configuration process above.
 
 A pre-start ordinary failure restores only code/configuration/proxy files;
-credential state is never restored. A retained generation-2 transition is
+credential state is never restored. A retained forward-generation transition is
 forward-only, even when startup or nginx reload failed. The runtime's persistent
 configuration fence prevents reboot from starting a partially installed candidate.
 The operator fixes the reported host condition, preserves current credentials,
@@ -291,14 +298,14 @@ node deploy/auth-xiongan/migrate-legacy.mjs resume --tenant xiongan
 
 Resume requires the same trusted-terminal confirmation, revalidates protected
 backups, current authenticated state, exact candidate and nginx include graph,
-and starts only the verified generation-2 runtime. It never restarts legacy code
+and starts only the verified candidate-generation runtime. It never restarts legacy code
 or copies old ciphertext over consumed counters. A safely restored pre-start
 attempt can be retried with the complete `migrate` command; each completed backup
 is retained separately. Conflicting/unknown writer locks, damaged or missing
 current state, unknown changes or unfinished snapshot writes require operator
 inspection, not deletion of locks or secret files. Repeated successful resume
 reports already imported. Normal managed `upgrade` works after import; legacy
-proxy rollback and a generation-1 code downgrade remain refused.
+proxy rollback and any earlier-generation code downgrade remain refused.
 
 Synthetic tests cover known-source/binding/permission/refusal checks, exact byte
 preservation, empty stores, stop/writer conflicts, pre-start restoration and
