@@ -345,3 +345,48 @@ test('importer does not impose a product-wide TCP port reservation', async t => 
   assert.equal((await inspectLegacy(f.options)).summary.status, 'supported-legacy-awaiting-operator-confirmation');
   assert.equal(f.calls.some(c => c.includes('stop')), false);
 });
+
+/** CLI grammar regressions: no fixture files, service commands or credential reads. */
+function migrationCliArguments(extra = []) {
+  return ['migrate', ...Object.entries({
+    package: '/synthetic-cli/package', node: '/synthetic-cli/node',
+    tenant: 'xiongan', origin: 'https://fixture.invalid:9446',
+    'source-commit': LEGACY_COMMIT, 'legacy-source': '/synthetic-cli/source',
+    'legacy-service': 'synthetic-cli.service', 'legacy-config': '/synthetic-cli/config',
+    'legacy-key': '/synthetic-cli/key', 'legacy-state': '/synthetic-cli/state',
+    'legacy-proxy': '/synthetic-cli/proxy', 'nginx-site': '/synthetic-cli/site'
+  }).flatMap(([name, value]) => [`--${name}`, value]), ...extra];
+}
+const rootCliOptions = {
+  skip: process.platform !== 'linux' || process.getuid?.() !== 0 || process.geteuid?.() !== 0
+    ? 'requires managed Linux root; do not count a skipped CLI case as acceptance' : false
+};
+async function refuseCliBeforeEffects(args, expected) {
+  let outputWrites = 0;
+  await assert.rejects(cli(args, { isTTY: false }, {
+    isTTY: false, write() { outputWrites++; throw Error('UNEXPECTED_CLI_OUTPUT'); }
+  }), { message: expected });
+  assert.equal(outputWrites, 0);
+}
+for (const names of [
+  ['legacy-image-baseline-sha256'],
+  ['empty-state-evidence-sha256'],
+  ['legacy-image-baseline-sha256', 'empty-state-evidence-sha256']
+]) test(`real CLI accepts declared SHA256 flags: ${names.join(',')}`, rootCliOptions, async () => {
+  await refuseCliBeforeEffects(migrationCliArguments(names.flatMap(name => [`--${name}`, '1'.repeat(64)])),
+    'AUTH_TRUSTED_TERMINAL_REQUIRED');
+});
+for (const name of ['legacy-image-baseline-sha256', 'empty-state-evidence-sha256'])
+  test(`real CLI rejects duplicate ${name}`, rootCliOptions, async () => {
+    await refuseCliBeforeEffects(migrationCliArguments([
+      `--${name}`, '1'.repeat(64), `--${name}`, '2'.repeat(64)
+    ]), 'AUTH_INSTALL_ARGUMENT_REFUSED');
+  });
+for (const extra of [
+  ['--unknown-sha256', '1'.repeat(64)],
+  ['--legacy-image-baseline-sha257', '1'.repeat(64)],
+  ['--empty-state-evidence-sha256'],
+  ['--legacy_image_baseline_sha256', '1'.repeat(64)]
+]) test(`real CLI refuses unknown/malformed SHA argument ${extra[0]}/${extra.length}`, rootCliOptions, async () => {
+  await refuseCliBeforeEffects(migrationCliArguments(extra), 'AUTH_INSTALL_ARGUMENT_REFUSED');
+});

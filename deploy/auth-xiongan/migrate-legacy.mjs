@@ -691,7 +691,7 @@ export async function cli(args, input = process.stdin, output = process.stdout) 
   if (process.platform !== 'linux' || process.getuid?.() !== 0 || process.geteuid?.() !== 0) fail('AUTH_INSTALL_LINUX_ROOT_REQUIRED');
   if (process.env.NODE_OPTIONS || process.env.NODE_PATH || process.env.CREDENTIALS_DIRECTORY || Object.keys(process.env).some(k => k.startsWith('WALLET_AUTH_'))) fail('AUTH_AMBIENT_CREDENTIAL_REFUSED');
   const options = {};
-  for (let i = 0; i < rest.length; i += 2) { if (!/^--[a-z-]+$/.test(rest[i] ?? '') || !rest[i + 1] || Object.hasOwn(options, rest[i])) fail('AUTH_INSTALL_ARGUMENT_REFUSED'); options[rest[i]] = rest[i + 1]; }
+  for (let i = 0; i < rest.length; i += 2) { if (!/^--[a-z][a-z0-9-]*$/.test(rest[i] ?? '') || !rest[i + 1] || Object.hasOwn(options, rest[i])) fail('AUTH_INSTALL_ARGUMENT_REFUSED'); options[rest[i]] = rest[i + 1]; }
   const required = ['package', 'node', 'tenant', 'origin', 'source-commit', 'legacy-source', 'legacy-service', 'legacy-config', 'legacy-key', 'legacy-state', 'legacy-proxy', 'nginx-site'];
   const allowed = command === 'resume' ? ['tenant'] : [...required, 'legacy-node', 'allow-empty-state', 'legacy-node-policy', 'legacy-image-baseline', 'legacy-image-baseline-sha256', 'empty-state-evidence', 'empty-state-evidence-sha256', 'activation-evidence'];
   if (!['check', 'migrate', 'resume'].includes(command) || Object.keys(options).some(k => !allowed.includes(k.slice(2))) || (command !== 'resume' && required.some(k => !options[`--${k}`])) || options['--allow-empty-state'] && options['--allow-empty-state'] !== 'yes') fail('AUTH_INSTALL_ARGUMENT_REFUSED');
