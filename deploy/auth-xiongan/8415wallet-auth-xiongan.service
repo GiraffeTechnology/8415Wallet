@@ -1,0 +1,39 @@
+# PREPARATION ONLY / NOT INSTALLED / NOT ACTIVATED.
+[Unit]
+Description=8415wallet Xiongan same-origin account authentication
+After=network.target
+ConditionPathExists=/etc/8415wallet-auth-xiongan/auth.json
+ConditionPathExists=/etc/8415wallet-auth-xiongan/store-key
+
+[Service]
+Type=simple
+User=root
+Group=root
+WorkingDirectory=/opt/8415wallet-auth-xiongan/current
+# Exact Node 22/24 executable must be verified by Control before activation.
+ExecStart=/usr/bin/node server/service-entry.mjs
+LoadCredential=store-key:/etc/8415wallet-auth-xiongan/store-key
+StateDirectory=8415wallet-auth-xiongan
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+CapabilityBoundingSet=
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+IPAddressDeny=any
+IPAddressAllow=localhost
+ReadWritePaths=/var/lib/8415wallet-auth-xiongan
+Restart=on-failure
+RestartSec=5
+TimeoutStartSec=30
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

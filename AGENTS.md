@@ -1,5 +1,29 @@
 # 8415wallet AGENTS.md
 
+## Historical authorized Beta installation scope (2026-10-05)
+
+This dated record covers the supplied October 4 archive, not the current
+application build or a new deployment authorization. Current authentication,
+registration and recovery requirements below remain in force.
+
+ArtFi control was assigned the client-requested ArtFi iteration, installation and
+joint testing using the Beta package on branch `delivery/install-handoff-20261004`.
+The exact source is `1f4a9ae6dd5b8b062ab4f903920cf4b39d158e36`; the archive SHA256
+is `df5058bec9d5c12cffb9ca10cd7ea991e46696207a50f3d2ccf47ac375681838`.
+Preserve the immutable supplied archive and verify its nested manifests before
+installation. That client instruction, rather than artifact publication alone,
+covered production-like Beta installation and joint testing in the approved
+CTYun/SIN Linux environment. Windows is a source/report workstation only.
+
+Historical Charity completion, full V3 acceptance and independent general-release
+audit are not prerequisites for this Beta installation and testing. Remaining
+genuine-wallet, public-testnet, device and W-20 observations are collected and
+reported separately; no old result is inherited by a changed source or origin.
+Public entry navigation may skip login, but protected assets/history still require
+verified login. Mainnet/real-value testing, credential disclosure, unknown-outcome
+replay and changes to shared or other-task services remain outside that historical scope.
+GitHub writes remain English only.
+
 ## Product Boundary
 
 8415wallet is a general-purpose application-layer wallet compatible with
@@ -35,57 +59,56 @@ standalone use.
 
 ---
 
-## Current installation handoff (2026-10-04)
+## Account login methods (owner update, 2026-10-04)
 
-The private repository stores the immutable manual-deployment package at
-[`releases/2026-10-04-login-beta/`](releases/2026-10-04-login-beta/README.md).
-Download
-[`8415wallet-V2-V3-DApp-Beta-Handoff-1f4a9ae6-20261004.zip`](releases/2026-10-04-login-beta/8415wallet-V2-V3-DApp-Beta-Handoff-1f4a9ae6-20261004.zip)
-with an account authorized for this repository. Preserve repository privacy;
-do not publish the package, source or evidence to an external public location.
+Support password, authenticator TOTP (Google Authenticator/FreeOTP), local
+private-key challenge signing and configured hardware CA challenge signing.
+Email OTP is not a login method. The owner update on 2026-10-06 adds reset-only
+email verification from noreply@8415wallet.com together with a previously reserved
+security answer. Preserve fresh independent identity verification and existing
+authenticator/recovery proof; email or security answers never replace them. Read
+`docs/AUTH-RECOVERY.md` and `docs/EMAIL-REGISTRATION.md`. Email ownership OTP
+is also required for registration; it remains unavailable as a login method. Never suggest provider connection authenticates an account.
 
-- Archive size: **11,015,079 bytes**.
-- SHA-256: `df5058bec9d5c12cffb9ca10cd7ea991e46696207a50f3d2ccf47ac375681838`.
-- Built source commit: `1f4a9ae6dd5b8b062ab4f903920cf4b39d158e36`.
-- Built source tree: `366a1b4e744d6414dce6a1feab390a3fe1a99095`.
-- DApps: V2 platform **2.2.0-beta**, Xiongan V2 tenant **2.2.0-beta**,
-  and V3 platform **3.0.0-beta**. The optional SDK/CLI packages remain separate.
+Read `docs/ACCOUNT-AUTHENTICATION.md` and `docs/WALLET-LOGIN.md` before changing
+authentication. Passwords/TOTP require server verification and revocable sessions;
+client-only flags cannot implement them. Preserve origin/tenant/account/chain
+binding, CSRF, one-use challenge/TOTP/recovery handling, encrypted credential
+state and enrollment confirmation. Operator and hardware-CA bindings come from independently verified configuration.
+Ordinary self-registration requires verified email ownership plus an exact
+origin/tenant/account/chain/purpose-bound EOA control proof; it grants no operator,
+tenant-management, private-record or transaction authority. Registration email is
+mandatory, unique per tenant, and verified before account creation. Existing
+accounts retain login access to complete verified-email migration without rekeying
+or discarding credentials. See `docs/EMAIL-REGISTRATION.md`. Never trust
+client-supplied identity flags or create an account from email OTP alone. No private key,
+seed phrase, hardware PIN, live authenticator seed or production store key belongs
+in source, logs, artifacts or a page form. Synthetic test credentials are local
+fixtures only. No production provisioning, deployment or transaction is implied.
 
-This archive includes the verified-wallet-login privacy gate. Its public entry
-remains open, but connecting a provider alone cannot display assets or history.
-Login is bound to origin/account/chain, expires, and is held only in memory.
-Read `docs/WALLET-LOGIN.md`; it does not confer transaction authority, encrypt
-device storage or make public chain data confidential.
+The local wallet route retains EOA/ERC-1271 support; the new server wallet route
+currently verifies EOA signatures. Hardware CA integration uses a defined bridge
+plus certificate-chain/purpose/time/revocation verification, not a checkbox or
+universal-driver claim. Record device/middleware acceptance separately. Login and
+transaction approval remain separate. Keep the immutable earlier release ZIP
+unchanged; updated artifacts need their own exact source identity after review.
 
-Before installation, verify the outer archive against the adjacent `SHA256SUMS`,
-extract it, and read `START-HERE-EN.md`. Verify the extracted handoff's own
-`SHA256SUMS`, select one `dapps/` profile, then check that profile's manifest,
-`RELEASE.json` and extracted checksums. Preserve the `web/` and `dist/browser/`
-layout; the entry is `web/index.html`. No private key or seed phrase is required.
+---
 
-The deployment URLs are intentionally unset. Obtain the authorized environment,
-exact origin and confirmed port allocation, plus verified testnet deployment
-manifests and authorized test accounts, before configuring or serving a build.
-Follow `docs/BETA-DAPP-DELIVERY.md`, regenerate configuration-bound manifests
-and hashes for that build, and retain this original archive unchanged. TCP 443
-remains reserved for SSH on every server; never invent a replacement port or
-change listeners, SSH, DNS, TLS, firewalls or credentials as part of this handoff.
-Keep existing recovery journals and their origin intact during upgrades.
+## Interface localization (owner update, 2026-10-04)
 
-The source's [merged-main CI run](https://github.com/GiraffeTechnology/8415Wallet/actions/runs/37209416014)
-passed both Node 22 and Node 24 jobs. The archived report records 1,069 Node
-cases, 89 local-EVM cases, package/install/reproducibility checks, and synthetic
-Chromium desktop/mobile-viewport evidence. These are exact-source automated
-results, not genuine-wallet or physical-device acceptance. Genuine provider
-prompts, deployed endpoint/headers/rollback, public-testnet receipts, W-20 and
-independent security review remain separate manual acceptance work. No server
-deployment or real transaction is authorized or established by this publication.
-
-The artifact's source identity stays the commit above even when a later commit
-adds this archive or updates documentation. Never relabel old bytes as a build
-of the publication commit. Repository repairs and artifact/documentation changes
-use separate PRs; the release owner merges only after all CI for the exact PR
-head is green. Historical dated results below do not supersede current checks.
+Keep the compact native six-choice language dropdown (owner update, 2026-10-06), with English as the default and
+locale IDs en, zh-Hans, zh-Hant, fr, es and ja. The owner explicitly authorizes
+multilingual fixed UI catalogs and selector labels; identifiers, engineering
+documents and PR prose remain English. Token names, descriptions and metadata
+must retain their original decoded source strings and be safely rendered as text.
+Do not translate signed terms, raw transaction values, addresses or protocol
+identifiers. Switching language must not reload, reauthenticate, reset consent,
+repeat provider requests, or send transactions. Native labels and first-party
+protocol explanations belong to the presentation layer; keep finality, contest,
+freshness and legal identity distinct. See docs/UI-LOCALIZATION.md. The approved
+Figma layout is a separate implementation scope; localization alone is not a
+claim that it was ported. Preserve the original logo; do not redraw it.
 
 ---
 
@@ -464,12 +487,11 @@ satisfied by a merge:
 - **W-20**, which asks for one deployed same-token multi-wallet journey and
   cannot be satisfied locally by construction.
 
-At the time of that September 25 batch, GitHub Actions had not run the work:
-the observed runs since September 19 failed before a runner or step started,
-including pushes to `main`. The local pipeline tables were therefore labelled
-as local, not green CI. That historical runner blockage is superseded by the
-exact-source October 4 CI evidence in the current installation handoff above;
-future changes still require their own exact-head CI result.
+The September 25 batch had no executed GitHub Actions evidence at that time.
+That historical runner blockage is superseded by the exact-source October 4
+merged-main run `37209416014`, with successful Node 22 and Node 24 jobs.
+Future changes require their own exact-head result; retain the old local tables
+as historical local evidence, not a current repository-wide CI prohibition.
 
 Do not describe the new source as never tested, and do not describe it as
 released. Do not invent results, and do not infer that development is complete
@@ -549,45 +571,28 @@ callback/refund, recovery, independent security audit and deployed UI evidence. 
 baseline, local EVM, public-testnet and UI results separately; a documentation
 change or one completed leg is not full acceptance.
 
-## TCP port 443 reservation
+## Served origin and stored state
 
-On every server this project deploys to, TCP port 443 is reserved for SSH. Do
-not configure HTTP, HTTPS, web servers, reverse proxies or TLS listeners to
-bind TCP port 443, and do not stop, rebind, replace or otherwise disrupt SSH to
-free it.
+A web origin is scheme, host **and port**, so the address a wallet is served on
+is part of its origin. Every IndexedDB operation journal belongs to that origin,
+including an operation left in `outcome-unknown` — the record the recovery path
+exists to find. Moving a served wallet to a different scheme, host or port
+strands them all.
 
-Before selecting a web or bridge port, inspect the existing deployment and
-operations configuration and reuse an explicitly confirmed allocation. Do not
-guess a replacement port. If the allocation is unclear, report the missing
-configuration rather than changing a service binding.
+Settle the serving address before a deployment carries genuine wallet use, and
+treat a later move as data loss rather than as a configuration change.
 
-A web origin is scheme, host and port, so the port a wallet is served on is
-part of its origin. Moving a served wallet to a different port strands every
-IndexedDB operation journal written under the old one, including an operation
-left in `outcome-unknown` — the record the recovery path exists to find. Settle
-the port before a deployment carries genuine wallet use, and treat a later move
-as data loss rather than as a configuration change.
-
-The bare hostname reaches port 443 and therefore SSH, so a wallet served on
-another port is reachable only with the port spelled out, and the port becomes
-part of what a user verifies in the address bar. That is a cost of this
-reservation, not a defect to work around. HSTS does not mitigate it, because it
-upgrades the scheme and not the port.
-
-Certificate issuance must use the HTTP-01 challenge over port 80. TLS-ALPN-01
-validates on TCP 443 and is unavailable under this reservation.
-
-Recording this rule does not authorize server access or changes to SSH,
-firewalls, credentials, network settings or security settings.
+Which address a given environment serves on, and which ports are reserved there,
+is deployment configuration rather than a product requirement; it belongs in that
+environment's deployment document.
 
 ## Delivery archive inventory (2026-10-05)
 
-The private delivery archive inventory and GitHub-safe publication mirrors are
-recorded in [releases/2026-10-05-delivery-archive/README.md](releases/2026-10-05-delivery-archive/README.md).
-Read the manifest, SHA-256 checksums, omission records and candidate labels before
-using any package. Sanitized mirrors have different bytes and hashes from their
-original handoffs; their publication commit is not their application source identity.
-Publication does not establish a merge, deployment, general release, current-head
-CI pass or genuine-device acceptance. Existing product, security and port rules
-remain in force.
-
+Historical and candidate archives are indexed in
+[releases/2026-10-05-delivery-archive/README.md](releases/2026-10-05-delivery-archive/README.md).
+Preserve each archive's exact bytes, source identity, checksums and candidate label.
+The October 4 installation handoff remains an immutable historical artifact;
+use the separately approved current package for any new deployment.
+GitHub-safe mirrors differ from their private originals; do not interchange hashes.
+Archive publication does not establish deployment, current-head CI, genuine-device
+acceptance or a general release. Existing security and deployment rules remain in force.

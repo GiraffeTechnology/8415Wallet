@@ -12,6 +12,23 @@ Both DApp packages are functional-testing Betas. Genuine wallet/public-testnet, 
 
 See [DApp packaging and deployment](docs/BETA-DAPP-DELIVERY.md), [PRD coverage](docs/BETA-PRD-COVERAGE.md), and [the Xiongan tenant boundary](docs/XIONGAN-WALLET.md).
 
+## Login methods
+
+Assets and history stay hidden until login. Choose password, an authenticator
+code (Google Authenticator / FreeOTP), a local wallet/private-key signature, or
+a configured hardware CA token. OTP means RFC 6238 TOTP; email OTP is not used.
+Password, TOTP and CA methods require the same-origin authentication service and
+an independently provisioned account-to-wallet binding. Local wallet signing
+still works in a static deployment. Keys stay in the wallet or hardware device;
+login never approves a transaction.
+
+[Account authentication](docs/ACCOUNT-AUTHENTICATION.md) covers setup, encrypted
+TOTP storage, recovery codes, revocable sessions, hardware-CA adapter requirements
+and deployment inputs. The generic CA bridge is implemented and cryptographically
+tested; a specific physical device/middleware is not yet accepted. No production
+credentials or services are provisioned by the feature. The old immutable handoff
+archive is unchanged and does not contain these new login methods.
+
 ## Build and verify
 
 Use Node 22.18 or newer and the committed lockfile.
@@ -26,7 +43,7 @@ npm run pack:dapp:all
 
 The package manifests record exact source commit/tree, PRD hash, runtime hashes, profile, entry point and build commands. A shared runtime is explicit: V2 enables its standalone feature profile; V3 additionally enables linked responsibility controls.
 
-The local reference server is `npm run wallet:browser:serve`. Its loopback address is for development only. Deployed URLs must contain the confirmed scheme, hostname, port and entry path. TCP 443 is reserved for SSH on CTYun and SIN; do not guess a replacement port or rewrite an origin used by an unresolved browser journal.
+The local reference server is `npm run wallet:browser:serve`. Its loopback address is for development only. Deployed URLs must contain the confirmed scheme, hostname, port and entry path, taken from the deployment configuration rather than guessed. Never rewrite an origin that an unresolved browser journal was written under.
 
 ## Protocol and custody boundaries
 
@@ -70,3 +87,29 @@ are loaded or displayed. Login is memory-only and must be repeated after reload;
 connecting an account alone is insufficient. See [wallet login and its exact
 privacy boundary](docs/WALLET-LOGIN.md). Public blockchain data remains public, and
 this client-side gate is not private-API authorization.
+
+## Interface languages
+
+The browser UI supports English, Simplified Chinese, Traditional Chinese, French,
+Spanish and Japanese through fixed source catalogs and a compact language control.
+Token metadata remains source-original. See [UI localization](docs/UI-LOCALIZATION.md)
+for privacy, transaction-value and verification boundaries.
+# Authentication deployment preparation
+
+The Xiongan account-service and browser-local authenticator QR preparation is
+documented in [AUTH-PROVISIONING-PREPARATION](docs/AUTH-PROVISIONING-PREPARATION.md).
+The service/proxy templates are **not activated**; the public template has no
+account binding and intentionally cannot start. New regression sources have not
+been run in this preparation. Existing UI deployment and test evidence are not
+promoted to genuine authentication acceptance.
+
+## Account registration and authentication settings
+
+Ordinary account registration requires verified email ownership followed by an
+origin-, tenant-, wallet- and chain-bound EOA proof. Password login can be added
+during signup; enabled methods remain independent. Existing accounts can complete
+required email migration from authenticated settings without replacing their
+credential store or encryption key. Email OTP is limited to registration and
+security-reset verification, never email-only login. See
+[Email registration](docs/EMAIL-REGISTRATION.md) and
+[Account authentication](docs/ACCOUNT-AUTHENTICATION.md).

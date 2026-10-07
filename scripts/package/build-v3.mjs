@@ -16,15 +16,14 @@ import { dirname, join, relative, resolve } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { importGraph } from './shared.mjs';
 import { V3_DOCUMENTS, verifyBoundaryDocument, verifyDocumentEntries } from './v3-document-contract.mjs';
+import { REQUIRED_NOTICE, findAcceptanceClaim } from './release-contract.mjs';
 
 const root = process.cwd();
 const stage = join(root, 'dist', 'package-v3');
 const ENTRIES = ['src/index.ts', 'src/controls/index.ts', 'src/controls/fileOperationStore.ts',
   'src/browser.ts', 'src/cli/main.ts'];
 /** The candidate ships the control surface; what it must never ship is a claim. */
-const FORBIDDEN_CLAIMS = [/independently audited/i, /security[- ]approved/i, /production[- ]ready/i,
-  /release[- ]accepted/i];
-const REQUIRED_NOTICE = 'NOT_INDEPENDENTLY_AUDITED';
+
 
 const sources = importGraph(root, ENTRIES);
 const controls = sources.filter((f) => f.startsWith('src/controls/'));
@@ -40,8 +39,9 @@ verifyBoundaryDocument(readFileSync(join(root, 'docs/INTEGRATION-BOUNDARIES.md')
 // The notice is a shipped fact, not a build-time intention.
 const notice = readFileSync('PACKAGE-V3.md', 'utf8');
 if (!notice.includes(REQUIRED_NOTICE)) { console.error('PACKAGE_V3_STATUS_NOTICE_MISSING'); process.exit(1); }
-for (const claim of FORBIDDEN_CLAIMS) {
-  if (claim.test(notice.replace(/not independently audited/gi, '').replace(/NOT_INDEPENDENTLY_AUDITED/g, ''))) {
+{
+  const claim = findAcceptanceClaim(notice);
+  if (claim) {
     console.error('PACKAGE_V3_WOULD_CLAIM_ACCEPTANCE', String(claim));
     process.exit(1);
   }

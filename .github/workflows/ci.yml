@@ -43,7 +43,7 @@ jobs:
       - name: Verified wallet login browser privacy
         shell: bash
         run: |
-          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          export WALLET_BROWSER_CHROMIUM="${WALLET_BROWSER_CHROMIUM:-$(command -v google-chrome || command -v chromium)}"
           test -n "$WALLET_BROWSER_CHROMIUM"
           node scripts/controls/login-ui-smoke.cjs
 
@@ -56,10 +56,58 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+      - name: Account authentication browser journeys
+        shell: bash
+        run: |
+          export WALLET_BROWSER_CHROMIUM="${WALLET_BROWSER_CHROMIUM:-$(command -v google-chrome || command -v chromium)}"
+          test -n "$WALLET_BROWSER_CHROMIUM"
+          node scripts/controls/login-methods-ui-smoke.cjs
+
+      - name: Account authentication browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallet-account-auth-browser-node-${{ matrix.node-version }}
+          path: /tmp/8415-auth-methods-ui-evidence
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Multilingual wallet browser privacy and review invariants
+        shell: bash
+        run: |
+          export WALLET_BROWSER_CHROMIUM="${WALLET_BROWSER_CHROMIUM:-$(command -v google-chrome || command -v chromium)}"
+          test -n "$WALLET_BROWSER_CHROMIUM"
+          node scripts/controls/i18n-ui-smoke.cjs
+
+      - name: Multilingual wallet browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallet-i18n-browser-node-${{ matrix.node-version }}
+          path: /tmp/8415-i18n-ui-evidence
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Approved wallet UI browser journeys
+        shell: bash
+        run: |
+          export WALLET_BROWSER_CHROMIUM="${WALLET_BROWSER_CHROMIUM:-$(command -v google-chrome || command -v chromium)}"
+          test -n "$WALLET_BROWSER_CHROMIUM"
+          node scripts/controls/approved-ui-smoke.cjs
+
+      - name: Approved wallet UI browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallet-approved-ui-node-${{ matrix.node-version }}
+          path: /tmp/8415-approved-ui-evidence
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Xiongan synthetic browser recovery
         shell: bash
         run: |
-          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          export WALLET_BROWSER_CHROMIUM="${WALLET_BROWSER_CHROMIUM:-$(command -v google-chrome || command -v chromium)}"
           test -n "$WALLET_BROWSER_CHROMIUM"
           npm run wallet:xiongan:smoke
 
@@ -78,7 +126,7 @@ jobs:
       - name: ERC20 browser recovery
         shell: bash
         run: |
-          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          export WALLET_BROWSER_CHROMIUM="${WALLET_BROWSER_CHROMIUM:-$(command -v google-chrome || command -v chromium)}"
           test -n "$WALLET_BROWSER_CHROMIUM"
           node scripts/controls/erc20-ui-smoke.cjs
 
@@ -131,7 +179,7 @@ jobs:
       - name: Standalone settlement browser recovery
         shell: bash
         run: |
-          export WALLET_BROWSER_CHROMIUM="$(command -v google-chrome || command -v chromium)"
+          export WALLET_BROWSER_CHROMIUM="${WALLET_BROWSER_CHROMIUM:-$(command -v google-chrome || command -v chromium)}"
           test -n "$WALLET_BROWSER_CHROMIUM"
           HARDHAT_CONFIG=hardhat.rehearsal.config.cjs node scripts/controls/settlement-ui-smoke.cjs
 
@@ -141,5 +189,40 @@ jobs:
         with:
           name: settlement-browser-node-${{ matrix.node-version }}
           path: /tmp/8415-settlement-ui-evidence
+          if-no-files-found: ignore
+          retention-days: 7
+
+      - name: Authentication runtime package
+        run: npm run pack:auth
+
+      - name: Authentication runtime integrity
+        run: npm run pack:auth:verify
+
+      - name: Isolated installed authentication journey
+        run: npm run test:auth:installed
+
+      - name: Reproducible authentication runtime
+        shell: bash
+        run: |
+          sha256sum dist/8415wallet-auth-runtime-*.tar.gz > /tmp/auth-archive-sha256
+          npm run pack:auth
+          sha256sum --check /tmp/auth-archive-sha256
+          npm run pack:auth:verify
+
+      - name: Reusable DApp delivery kit
+        run: npm run pack:delivery
+
+      - name: Reusable DApp delivery integrity
+        run: npm run pack:delivery:verify
+
+      - name: Reusable DApp artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reusable-dapp-kit-node-${{ matrix.node-version }}
+          path: |
+            dist/8415wallet-dapp-delivery-*.tar.gz
+            dist/delivery-package-manifest.json
+            dist/auth-package-manifest.json
           if-no-files-found: ignore
           retention-days: 7

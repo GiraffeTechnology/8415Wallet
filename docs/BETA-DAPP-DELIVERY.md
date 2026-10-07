@@ -150,8 +150,8 @@ confirmed environment/URL. The configuration must contain exactly:
 
 For an assigned endpoint, replace the deployment object with its environment
 (`ctyun`, `sin`, `other`, or local testing `local`) and the **complete confirmed
-entry URL**, including scheme, host, explicit allocated TCP port, any path
-prefix and `/web/index.html`. Configuration has no default web port. Nonlocal
+entry URL**, including scheme, host, any configured non-default TCP port, path
+prefix and `/web/index.html`. Standard HTTPS may omit its default port. Nonlocal
 endpoints require HTTPS; local HTTP is restricted to loopback. Credentials,
 queries, fragments, encoded and noncanonical paths are refused. A configured
 release also refuses browser actions at any different origin or entry path;
@@ -159,25 +159,22 @@ there is no preview override. Build a separate explicit local configuration
 for loopback preview instead of changing a deployed release URL. Never put RPC keys, wallet keys, bearer
 tokens or account credentials in this public file.
 
-**TCP 443 is reserved for SSH on CTYun and SIN in this delivery.** The validator
-refuses that web port for either environment. Inspect the existing deployment
-and operations configuration and obtain the confirmed web allocation. Do not
-infer an alternative port, stop/rebind SSH, alter firewalls or install a proxy
-on a reserved listener. If the endpoint has not been supplied, deliver the
-unconfigured artifact and record the missing endpoint instead of inventing a
-link. The platform name alone must not be converted into a default-443 URL.
+Take the web endpoint from the target environment's deployment configuration;
+which ports it reserves is stated there, not here. The installer enforces
+whatever that configuration lists as reserved and has no environment-specific
+rule of its own. If the endpoint has not been supplied, deliver the unconfigured
+artifact and record the missing endpoint instead of inventing a link: a platform
+name alone is not a URL and must not be converted into an invented endpoint.
 
 
 The configured URL is the **public browser endpoint**, which is not necessarily
-an origin server's listener. For direct CTYun/SIN hosting, the configured port
-must be the confirmed non-443 web listener. If operations explicitly approves
-a separate externally managed TLS front door, its public HTTPS endpoint may
-use 443 while its CTYun/SIN upstream still uses the separately approved non-443
-listener. Record both allocations and the actual TLS termination boundary in
-the deployment evidence. In that case `environment: "other"` describes the
-external public endpoint; it must never be used to disguise a CTYun/SIN web
-listener on the reserved port. No proxy, external service, DNS change, listener
-allocation or public URL is created or authorized by this package.
+an origin server's listener. Obtain each endpoint and listener allocation from
+deployment configuration, preserving configured reservations and occupied ports.
+A separately managed TLS front door and its upstream may use different ports;
+record both allocations and the actual TLS termination boundary in deployment
+evidence. Environment names are metadata and do not determine port eligibility.
+No proxy, external service, DNS change, listener allocation or public URL is
+created or authorized by this package.
 
 ```sh
 npm run pack:dapp:v2 -- --config /path/to/confirmed-public-config.json

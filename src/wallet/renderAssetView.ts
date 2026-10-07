@@ -11,12 +11,12 @@ import { wrapText } from './wrap.ts';
  * signals — finality, contest, and what the contract is — are separate blocks
  * for the same reason.
  */
-export function renderAssetView(view: AssetView): string {
+export function renderAssetView(view: AssetView, translate: (text: string) => string = text => text): string {
   const lines: string[] = [];
-  const write = (text = '') => lines.push(text);
-  const field = (label: string, value: string) => write(`  ${label.padEnd(20)}${value}`);
+  const write = (text = '') => lines.push(translate(text));
+  const field = (label: string, value: string) => lines.push(`  ${translate(label).padEnd(20)}${label === 'Reason' ? value : translate(value)}`);
   const wrap = (text: string) => {
-    for (const line of wrapText(text, 74)) write(`    ${line}`);
+    for (const line of wrapText(translate(text), 74)) write(`    ${line}`);
   };
 
   write(`Token ${view.tokenId}  ·  ${view.identity.address}  ·  chain ${view.identity.chainId}`);
@@ -102,7 +102,7 @@ export function renderAssetView(view: AssetView): string {
     [
       view.conformance.projection ? 'projection 0x6309e170' : 'projection absent',
       view.conformance.settlement ? 'settlement 0xf4a7d71b' : 'settlement absent',
-    ].join('  ·  '),
+    ].map(translate).join('  ·  '),
   );
   wrap(view.identityNote);
 
