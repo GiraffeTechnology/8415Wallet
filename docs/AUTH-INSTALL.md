@@ -241,6 +241,7 @@ manifest, then runs this read-only preflight from that verified package:
 ```
 node deploy/auth-xiongan/migrate-legacy.mjs check \
   --package VERIFIED_NEW_PACKAGE_DIRECTORY --node RESOLVED_NODE_EXECUTABLE \
+  --legacy-node EXACT_LEGACY_EXECUTABLE \
   --tenant xiongan --origin EXISTING_EXACT_HTTPS_ORIGIN \
   --source-commit a942495d6b6913a0026a6c2a8ce27eed9e9098f2 \
   --legacy-source RESOLVED_OLD_RUNTIME_DIRECTORY \
@@ -306,3 +307,100 @@ uses actual legacy TCP and new Unix services, consumes real synthetic TOTP and
 recovery values before import and checks replay rejection plus password/verified
 mail afterward. These fixtures contain no production credentials and do not
 claim an actual host migration, genuine user/device acceptance or an audit.
+
+### Independent old and candidate Node bindings
+
+`--node` selects the new candidate executable and its installed receipt.
+`--legacy-node` independently binds the executable spelled in the exact old
+unit. Omission retains the historical same-executable behavior. Do not rewrite
+an old unit merely to pass the comparison. Both paths must be absolute protected
+regular files, with single-link/no-symlink checks and protected ancestors; Linux
+production execution requires root ownership. The new argument does not permit
+an unprivileged-owned runtime or alias. Such an old deployment requires a
+separately reviewed operational remediation or a separately reviewed migration
+contract, not permission relaxation in this importer. New migration journals pin
+the legacy executable identity before pre-start recovery; changed identity refuses
+automatic recovery. Existing journals are not silently rewritten.
+
+The word read-only describes filesystem mutation, not credential access: `check`
+opens the protected key and authenticates encrypted state in memory. Do not invoke
+it under a metadata-only/no-key-read instruction. A missing state file or a
+preflight timeout is not evidence that the store was never enrolled; neither
+authorizes `--allow-empty-state yes`. Locate the timeout using nonsecret host/process
+metadata before considering another authorized check.
+
+### Explicit observed-alias forward-only import (source candidate, not acceptance)
+
+The optional `--legacy-node-policy observed-alias-forward-only` mode distinguishes
+observing the old unit from trusting its executable. It requires an exact
+`--legacy-node` alias plus `--legacy-image-baseline` and independently approved
+`--legacy-image-baseline-sha256`. The protected JSON record schema is
+`8415wallet-legacy-image-baseline/1`, with exact fields aliasPath, resolvedPath,
+sourceCommit, uid, gid, mode (permission integer), size, sha256 and
+publisherEvidenceSha256 in addition to schema. SourceCommit remains the exact
+PR58 merge. Obtain actual image/digest and provenance from an independent approved
+distribution/evidence channel, not by declaring the currently observed user-owned
+file trustworthy. No baseline is bundled or invented for production.
+
+The tool observes a root-owned leaf alias, rejects intermediate aliases/chains,
+hashes the resolved regular single-link image through one no-follow handle,
+checks its recorded owner/permissions/ancestors and binds the running unit's PID,
+start time, UID set and image. It never runs that image or copies it into the new
+candidate. Non-root ownership of the old target is observational only. The new
+candidate still requires a protected root-owned regular Node; the old alias cannot
+be passed as the new Node. These checks cannot retrospectively prove that the old
+user-writable runtime was uncompromised.
+
+After explicit trusted-terminal forward-only confirmation, it creates a separate
+`legacy-alias-migration.json`, operation lock and persistent private fence. A new
+task-owned exact unit drop-in adds ConditionPathExists negating that fence; the
+original unit bytes are retained as history and are not rewritten to pass preflight.
+The fence must be persisted and verified before the service is stopped. Snapshots
+and candidate installation follow. The fence is removed only after an independently
+verified candidate is installed and its forward-only start intent is durable.
+Only the candidate can then be started; existing key/state bytes are preserved.
+
+Any failed transition retains the operation lock/journal and stops the bound unit
+where possible. It NEVER calls the protected-mode legacy restore/restart branch.
+This can require continued downtime. `resume --tenant xiongan` dispatches by the
+separate journal and only resumes a fully installed verified candidate. Failures
+before that phase, unfinished writer locks and partially removed/changed fences
+require explicit scoped operator review; there is no inferred stale-lock cleanup
+or automatic replay. No consumed ciphertext is restored. Existing protected-node
+migrations and their original journal schema retain their previous behavior.
+
+An absent ciphertext additionally requires all three fixed evidence arguments:
+`--empty-state-evidence`, its independently approved
+`--empty-state-evidence-sha256`, and `--activation-evidence`. The confirmation
+record schema is `8415wallet-never-enrolled-confirmation/1`; exact fields are
+schema, scopeSha256, userConfirmed=true, confirmedAt (integer timestamp),
+activationEvidenceSha256 and answers. The exact answers keys password, totp,
+recoveryCodes, emailOrOtherAccount and deletedResetRestoredOrMoved must all be NO,
+personally confirmed in the trusted terminal. Any YES/UNKNOWN is refused.
+
+The original record schema `8415wallet-original-activation-evidence/1` has exact
+fields schema, scopeSha256, initializationOutcome=complete,
+passwordProvisioned=false, credentialWrites=0, enrollmentEvents=0 and
+unknownOutcomes=0. Its raw bytes must match the confirmation's external evidence
+pin. Both scope digests use SHA256 of UTF-8 JSON.stringify of an object in this
+exact insertion order: tenant, origin, sourceCommit, statePath. These are private
+host records, not public deployment bindings or proof that can be manufactured
+from absence. The authorized operator must establish their provenance and factual
+corroboration; a root-owned file alone cannot establish a real person's statement.
+Missing original records are a real external input gap, not permission to create
+placeholder approvals. A late real state file is authenticated and preserved,
+never replaced by empty state. No initialization command is part of this mode.
+
+The isolated synthetic cases for this mode are authored source, not an executed
+Linux pipeline or production migration. Required independent review includes
+fence/reboot/crash behavior, UID/PID/image drift, untouched shared aliases, strict
+candidate protection, genuine evidence provenance and installed Unix recovery.
+
+In the explicit alias mode only, `check`/inspect is metadata-only for credentials:
+it checks protected key/state file metadata, not their contents, and reports
+credentialsAuthenticated=false. Cryptographic validation is deferred until the
+personally confirmed migration has installed its persistent fence, stopped the
+legacy unit and acquired the writer lock. An invalid credential then retains a
+stopped/fenced service for review; it never causes a legacy restart. Default
+protected-node `check` retains its existing in-memory credential validation, so
+do not invoke the default mode under a no-key-read preflight instruction.
