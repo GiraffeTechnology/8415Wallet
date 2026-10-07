@@ -41,9 +41,22 @@
     </section>
     <section id="auth-management" hidden aria-labelledby="auth-management-title">
       <div class="card-heading"><h3 id="auth-management-title" tabindex="-1" data-i18n="account.title">Account authentication settings</h3><button id="auth-management-close" data-auth-control type="button" data-i18n="account.close">Close settings</button></div>
-      <p data-i18n="account.guide">Verify your identity with a password, registered wallet or configured hardware CA. Then check your account’s methods below and set up or replace an authenticator.</p>
+      <p data-i18n="account.guide">Verify your identity with an existing password, registered wallet or configured hardware CA. Then set or change a password, manage an authenticator, and choose enabled methods below.</p>
       <p id="auth-management-status" role="status" data-i18n="account.signInRequired">Sign in to view and manage this account’s methods. Local-only wallet login cannot manage server credentials.</p>
       <button id="auth-reauthenticate" data-auth-control type="button" hidden data-i18n="account.verify">Verify identity again</button>
+      <section id="auth-password-settings" aria-labelledby="auth-password-title">
+        <h3 id="auth-password-title" data-i18n="account.passwordTitle">Account password</h3>
+        <p id="auth-password-state" role="status"></p>
+        <div id="auth-password-fields" hidden>
+          <label><span data-i18n="account.newPassword">New password</span><input id="auth-new-password" data-auth-control type="password" autocomplete="new-password" minlength="12" maxlength="1024" disabled></label>
+          <label><span data-i18n="account.confirmPassword">Confirm new password</span><input id="auth-new-password-confirm" data-auth-control type="password" autocomplete="new-password" minlength="12" maxlength="1024" disabled></label>
+          <p class="muted" data-i18n="account.passwordHelp">Use at least 12 characters, at most 1024 UTF-8 bytes, and matching entries. Never enter a wallet seed phrase or private key. Saving signs out every account session.</p>
+          <p id="auth-password-factor-help" hidden data-i18n="account.passwordFactor">This account has an authenticator. Enter its current code or one unused recovery code in the protected-changes field below, even if authenticator login is disabled.</p>
+          <p id="auth-password-reset-help" hidden><a id="auth-password-recovery-link" href="#auth-recovery-settings" data-i18n="account.passwordReset">Verify the reserved security answer and email code below before saving this password.</a></p>
+          <div class="actions"><button id="auth-password-save" data-auth-control type="button" disabled data-i18n="account.passwordInitial">Set password</button><button id="auth-password-cancel" data-auth-control type="button" data-i18n="account.passwordCancel">Cancel password entry</button></div>
+        </div>
+        <p id="auth-password-status" role="status"></p>
+      </section>
       <section id="auth-registration-account" hidden aria-labelledby="auth-registration-account-title">
         <h3 id="auth-registration-account-title" data-i18n="registration.migrateTitle">Account registration email</h3><p id="auth-registration-account-state" role="status"></p>
         <p id="auth-registration-change-help" hidden data-i18n="registration.changeHelp">Changing a verified account email requires your reserved recovery verification and existing authenticator/recovery proof. The new email must also be verified.</p>
@@ -93,7 +106,7 @@
         <button id="auth-email-cancel" data-auth-control type="button" hidden data-i18n="recovery.cancel">Cancel email verification</button>
         <p id="auth-recovery-verification-status" role="status"></p>
       </section>
-      <p class="muted" data-i18n="account.operator">Password, wallet and hardware-CA bindings are managed through the operator’s verified process. This page never initializes the server or replaces its store key.</p>
+      <p class="muted" data-i18n="account.operator">Wallet and hardware-CA bindings use their verified registration or operator processes. This page never initializes the server or replaces its store key.</p>
     </section>
     <section id="auth-recovery-output" hidden><h3><span data-i18n="ui.028">Save your recovery codes now</span></h3><p><span data-i18n="ui.029">Each code works once. Store them somewhere private. Setup signed you out and revoked previous sessions. These codes are shown only once.</span></p><pre id="auth-recovery-codes"></pre><button id="auth-recovery-dismiss" data-auth-control type="button"><span data-i18n="ui.030">I saved them; hide codes</span></button></section>
 <details class="login-disclosures"><summary><span data-i18n="ui.005">Wallet login</span></summary>    <p><span data-i18n="ui.006">The public entry stays open. Assets, balances, holdings and history appear only after a verified wallet login. Choose a login method. Login grants no transaction authority; every transfer still needs your wallet approval.</span></p>

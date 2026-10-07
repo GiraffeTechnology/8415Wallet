@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { captureAuthSource, deterministicAuthArchive } from '../scripts/package/build-auth.mjs';
-import { AUTH_SCHEMA, AUTH_STATUS, AUTH_STATE_SEMANTICS, LEGACY_AUTH_STATE_SEMANTICS, authStateSemantics, validateAuthStateTransition, jsonBytes, packagePathAllowed, readAuthArchive, runtimePackage, sha256, sourcePathAllowed, sourceTree, unpackAuthArchive, verifyAuthArchive, verifyAuthDirectory, walkAuth } from '../scripts/package/verify-auth.mjs';
+import { AUTH_SCHEMA, AUTH_STATUS, AUTH_STATE_SEMANTICS, REGISTRATION_AUTH_STATE_SEMANTICS, LEGACY_AUTH_STATE_SEMANTICS, authStateSemantics, validateAuthStateTransition, jsonBytes, packagePathAllowed, readAuthArchive, runtimePackage, sha256, sourcePathAllowed, sourceTree, unpackAuthArchive, verifyAuthArchive, verifyAuthDirectory, walkAuth } from '../scripts/package/verify-auth.mjs';
 import { paths, nginxLocation, upgrade, rollbackCode } from '../deploy/auth-xiongan/install.mjs';
 
 function temporary(t) { const path = mkdtempSync(join(tmpdir(), 'wallet-auth-package-test-')); t.after(() => rmSync(path, { recursive: true, force: true })); return path; }
@@ -57,17 +57,21 @@ test('production manifest pins ethers and retains only production lock entries',
 test('auth state semantics allow only the reviewed forward edge and same-generation rollback', () => {
   const legacy = { runtime: { credentialStoreFormat: 1 } };
   const explicitLegacy = { runtime: { credentialStoreFormat: 1, authStateSemantics: LEGACY_AUTH_STATE_SEMANTICS } };
+  const registration = { runtime: { credentialStoreFormat: 1, authStateSemantics: REGISTRATION_AUTH_STATE_SEMANTICS } };
   const current = { runtime: { credentialStoreFormat: 1, authStateSemantics: AUTH_STATE_SEMANTICS } };
+  assert.doesNotThrow(() => validateAuthStateTransition(legacy, registration));
+  assert.doesNotThrow(() => validateAuthStateTransition(registration, current));
+  assert.throws(() => validateAuthStateTransition(registration, legacy), /STATE_SEMANTICS_DOWNGRADE_REFUSED/);
   assert.equal(authStateSemantics(legacy), LEGACY_AUTH_STATE_SEMANTICS);
   assert.doesNotThrow(() => validateAuthStateTransition(legacy, explicitLegacy, { rollback: true }));
   assert.doesNotThrow(() => validateAuthStateTransition(legacy, current));
   assert.doesNotThrow(() => validateAuthStateTransition(current, structuredClone(current), { rollback: true }));
-  for (const old of [legacy, explicitLegacy]) {
+  for (const old of [legacy, explicitLegacy, registration]) {
     assert.throws(() => validateAuthStateTransition(current, old), /STATE_SEMANTICS_DOWNGRADE_REFUSED/);
     assert.throws(() => validateAuthStateTransition(current, old, { rollback: true }), /STATE_SEMANTICS_DOWNGRADE_REFUSED/);
   }
   assert.throws(() => validateAuthStateTransition(legacy, current, { rollback: true }), /STATE_SEMANTICS_TRANSITION_REFUSED/);
-  for (const value of [null, 2, '', '8415wallet-auth-state/3', '1', {}]) {
+  for (const value of [null, 2, '', '8415wallet-auth-state/4', '1', {}]) {
     assert.throws(() => authStateSemantics({ runtime: { authStateSemantics: value } }), /STATE_SEMANTICS_REFUSED/);
     assert.throws(() => validateAuthStateTransition(current, { runtime: { authStateSemantics: value } }), /STATE_SEMANTICS_REFUSED/);
   }
@@ -78,7 +82,7 @@ test('directory verification preserves legacy readability and validates the inde
   f.release.runtime.authStateSemantics = AUTH_STATE_SEMANTICS; f.update();
   assert.equal(verifyAuthDirectory(f.runtimeRoot).runtime.credentialStoreFormat, 1);
   assert.equal(authStateSemantics(verifyAuthDirectory(f.runtimeRoot)), AUTH_STATE_SEMANTICS);
-  f.release.runtime.authStateSemantics = '8415wallet-auth-state/3'; f.update();
+  f.release.runtime.authStateSemantics = '8415wallet-auth-state/4'; f.update();
   assert.throws(() => verifyAuthDirectory(f.runtimeRoot), /STATE_SEMANTICS_REFUSED/);
 });
 
@@ -117,9 +121,9 @@ test('legacy inactive installation can upgrade to new semantics without creating
   await assert.rejects(rollbackCode(f.options), /STATE_SEMANTICS_DOWNGRADE_REFUSED/);
   assert.equal(existsSync(join(f.target.root, 'operation.lock')), false);
 });
-for (const state of ['never-activated', 'registered', 'reserved-reset']) {
-  test(`code transitions preserve ${state} state and refuse downgrade before any switch`, async t => {
-    const legacy = fixture(t, { label: `old-${state}` });
+for (const semantics of [undefined, REGISTRATION_AUTH_STATE_SEMANTICS]) for (const state of ['never-activated', 'registered', 'reserved-reset']) {
+  test(`code transitions preserve ${state} state and refuse downgrade to ${semantics ?? 'legacy'} before any switch`, async t => {
+    const legacy = fixture(t, { semantics, label: `old-${state}` });
     const current = fixture(t, { semantics: AUTH_STATE_SEMANTICS, label: `current-${state}` });
     const next = fixture(t, { semantics: AUTH_STATE_SEMANTICS, label: `next-${state}` });
     const f = installedFixture(current, { prior: legacy }), keyPath = join(f.target.config, 'store-key');
@@ -142,8 +146,8 @@ for (const state of ['never-activated', 'registered', 'reserved-reset']) {
     else { assert.equal(readFileSync(keyPath, 'utf8'), 'SYNTHETIC-NON-CREDENTIAL'); assert.deepEqual(readFileSync(f.config.statePath), bytes); }
   });
 }
-test('uncertain cross-generation start never falls back to code that can discard new state', async t => {
-  const legacy = fixture(t, { label: 'legacy-running' }), next = fixture(t, { semantics: AUTH_STATE_SEMANTICS, label: 'new-uncertain-start' });
+for (const semantics of [undefined, REGISTRATION_AUTH_STATE_SEMANTICS]) test(`uncertain cross-generation start never falls back to ${semantics ?? 'legacy'} code`, async t => {
+  const legacy = fixture(t, { semantics, label: 'legacy-running' }), next = fixture(t, { semantics: AUTH_STATE_SEMANTICS, label: 'new-uncertain-start' });
   const f = installedFixture(legacy, { status: 'proxy-enabled' }), calls = [];
   const state = Buffer.from('SYNTHETIC-STATE-MUST-STAY-UNCHANGED'); f.privatePut(f.config.statePath, state);
   const run = async (file, args) => { calls.push([file, args]); if (args[0] === 'start') throw Error('Synthetic uncertain start; no process was launched.'); };

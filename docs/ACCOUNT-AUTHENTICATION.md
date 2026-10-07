@@ -86,7 +86,9 @@ current account. Several methods can be configured concurrently. The public
 method selector chooses a login attempt; it does not globally disable the other
 methods. Operator/CA bindings remain separately provisioned. Ordinary signup
 can establish its wallet and optional password only after email ownership and
-wallet-control verification; there is no public administration endpoint.
+wallet-control verification. An existing account can set its first password or
+replace its password after fresh independent server authentication and any
+already configured recovery checks; there is no public administration endpoint.
 
 `GET /auth/account` requires the current HttpOnly session and its CSRF header,
 checks tenant/origin/selected account/chain binding, and returns
@@ -134,6 +136,64 @@ is a separate email-plus-wallet-proof flow; it cannot reset an existing account.
 lost, use the operator's separately authorized identity-recovery process;
 this change does not invent one or bypass it.
 
+### Initial password setup and replacement
+
+`GET /auth/capabilities` advertises `passwordManagement: true` only for a runtime
+implementing this flow. The client must not infer password-management support or
+an account's password binding from the generic `methods: ["password", ...]`
+capability. An old or absent server requires a reviewed same-origin deployment
+update, not an unauthenticated password fallback.
+
+`POST /auth/account/password` accepts only `password`, mandatory
+`purpose: "initial" | "replace"`, and optional `existingCode`, `recovery` and
+`resetProof`. It accepts no username, email, wallet, role or other identity
+selector; the authenticated session determines the account. It requires:
+
+- A password, registered-wallet or configured CA server session issued within
+  five minutes. Local-only wallet display login, TOTP/recovery-only login,
+  registration email OTP or a security answer alone cannot authorize this route.
+- The actual current password state must match `purpose`. An existing
+  passwordless account can authenticate with its registered wallet or CA and
+  choose `initial`; no old password or never-enrolled authenticator is required.
+- If an authenticator is already enrolled, a current TOTP or unused recovery
+  code is required even when TOTP login is disabled. If reserved recovery factors
+  exist, their current security-answer/email verification must supply the
+  existing one-use `resetProof`. This applies to both initial and replacement
+  operations, and requires only factors that actually exist.
+- A password of at least 12 JavaScript characters and at most 1024 UTF-8 bytes,
+  with the same fixed-cost salted scrypt parameters used at signup. The UI
+  requires matching confirmation and clears the password fields on dismissal,
+  submission, identity change and logout. Passwords must never enter logs,
+  browser persistence, URLs or source.
+
+Password management is limited to ten attempts per account/15 minutes and shares
+the two-concurrent-derivation bound with password/CA authentication. Hashing occurs
+before the serialized credential transaction. Transaction entry rechecks the live
+session, freshness, current revision, purpose and required factors. TOTP/recovery
+consumption, the new hash and revision increment commit together. A queued request
+cannot revive logout or overwrite another credential change. Once an atomic
+write has been submitted to durable storage, closing the UI cannot undo it;
+sign in again to determine the result of an interrupted response.
+
+Successful writes return `{ updated: true, loggedOut: true }` and revoke every
+session and pending setup/reset proof for that account. Initial setup adds the
+password method while preserving other selections; replacement preserves the
+entire method selection, including a password intentionally left disabled.
+All other credential fields, registered email, wallet/chain/CA bindings,
+authenticator seed, remaining recovery codes and the independent store key are
+preserved. The new hash lives at the account's encrypted `passwordHash` field.
+Authentication and account status prefer it to the original operator-configured
+or signup-directory hash; a malformed encrypted override fails closed. Password
+login also binds the verified hash to its credential revision so an in-flight
+old-password attempt cannot issue a session after replacement.
+
+Encrypted envelope/store format 1 is unchanged. These override semantics require
+authentication-state generation 3 and its downgrade guard; see
+[safe runtime transitions](AUTH-INSTALL.md#authentication-state-semantics-and-safe-code-rollback).
+Restart reads the override using the original key. Never restore an older
+credential snapshot or run a generation-1/2 runtime against updated state: an old
+runtime could ignore the override and revive a superseded configured password.
+
 ### Per-account enabled methods
 
 `POST /auth/account/methods` accepts an exact `enabledMethods` array drawn from
@@ -142,7 +202,9 @@ rejects duplicates, unknown methods, unbound factors and unavailable hardware CA
 and requires at least one available independent password/wallet/CA method to
 remain enabled. Multiple methods can remain enabled concurrently. This route
 selects existing bindings only; it cannot create passwords, wallet/chain bindings
-or CA fingerprints. Ordinary signup and operator provisioning are separate flows.
+or CA fingerprints. Use the separate password-management route for an existing
+account's password, ordinary signup for a new account, and authorized operator
+provisioning for privileged bindings.
 
 Changing an enrolled TOTP method's enabled state also requires its current TOTP
 or saved recovery code (`existingCode`, plus `recovery: true` for a recovery code)
@@ -260,10 +322,13 @@ secret, port allocation or real account. Before an authorized installation:
   Do not remove a lock until the old process has been confirmed stopped.
   Multiple replicas require a separately designed transactional shared store,
   shared rate limits and revocation, not copying this file between instances.
-- To revoke an account or change its password/wallet/certificate bindings,
-  update the authorized account configuration and restart the service. Restart
-  invalidates all server sessions. Protect configuration and encrypted state
-  using the deployment's existing access-control process.
+- Existing accounts should use the authenticated password-management route
+  above for initial setup and password replacement. Changing an old configuration
+  hash does not supersede a newer encrypted account password. For account
+  revocation or wallet/certificate binding changes, use the separately authorized
+  operator process and restart the service; restart invalidates all server
+  sessions. Protect configuration and encrypted state using the deployment's
+  existing access-control process. Do not remove encrypted overrides as a reset.
 
 No production key, account, OTP seed, trust grant, listener, TLS/DNS/firewall
 setting, real email or transaction is created by this source change. Static

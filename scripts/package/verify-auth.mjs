@@ -10,8 +10,10 @@ import { gunzipSync } from 'node:zlib';
 export const AUTH_SCHEMA = '8415wallet-auth-runtime/1';
 export const AUTH_STATUS = 'NONPRODUCTION_PACKAGE_NOT_ACTIVATED';
 // State meaning is versioned independently of the unchanged AES envelope format.
-// Legacy code may discard registration/recovery fields even though it decrypts v1.
-export const AUTH_STATE_SEMANTICS = '8415wallet-auth-state/2';
+// Older code may discard factor fields or revive a superseded configured password
+// even though it can decrypt the unchanged v1 envelope.
+export const AUTH_STATE_SEMANTICS = '8415wallet-auth-state/3';
+export const REGISTRATION_AUTH_STATE_SEMANTICS = '8415wallet-auth-state/2';
 export const LEGACY_AUTH_STATE_SEMANTICS = '8415wallet-auth-state/1';
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
 export const jsonBytes = object => `${JSON.stringify(object, null, 2)}\n`;
@@ -22,15 +24,17 @@ const gitPattern = /^[0-9a-f]{40}$/;
 export function authStateSemantics(release) {
   const value = release?.runtime?.authStateSemantics;
   // An absent declaration is the pre-registration/recovery generation only.
-  fail(value === undefined || value === LEGACY_AUTH_STATE_SEMANTICS || value === AUTH_STATE_SEMANTICS, 'STATE_SEMANTICS_REFUSED');
+  fail(value === undefined || [LEGACY_AUTH_STATE_SEMANTICS, REGISTRATION_AUTH_STATE_SEMANTICS, AUTH_STATE_SEMANTICS].includes(value), 'STATE_SEMANTICS_REFUSED');
   return value ?? LEGACY_AUTH_STATE_SEMANTICS;
 }
 export function validateAuthStateTransition(current, candidate, { rollback = false } = {}) {
   const from = authStateSemantics(current), to = authStateSemantics(candidate);
   if (from === to) return;
-  fail(!(from === AUTH_STATE_SEMANTICS && to === LEGACY_AUTH_STATE_SEMANTICS), 'STATE_SEMANTICS_DOWNGRADE_REFUSED');
-  // This is the one reviewed forward edge. Unknown future generations fail closed.
-  fail(!rollback && from === LEGACY_AUTH_STATE_SEMANTICS && to === AUTH_STATE_SEMANTICS, 'STATE_SEMANTICS_TRANSITION_REFUSED');
+  const generations = [LEGACY_AUTH_STATE_SEMANTICS, REGISTRATION_AUTH_STATE_SEMANTICS, AUTH_STATE_SEMANTICS];
+  fail(generations.indexOf(to) > generations.indexOf(from), 'STATE_SEMANTICS_DOWNGRADE_REFUSED');
+  // Only the enumerated, reviewed forward generations are accepted. A rollback
+  // cannot silently perform a forward migration; unknown future versions fail.
+  fail(!rollback, 'STATE_SEMANTICS_TRANSITION_REFUSED');
 }
 export const sourcePathAllowed = path => /^(?:server\/[a-z][a-z0-9-]*\.mjs|web\/login-core\.mjs|deploy\/auth-xiongan\/(?:(?:install|migrate-legacy)\.mjs|8415wallet-auth-xiongan\.service|auth-location\.nginx\.conf)|docs\/AUTH-INSTALL\.md|scripts\/package\/verify-auth\.mjs|LICENSE)$/.test(path);
 export function safePath(path) {

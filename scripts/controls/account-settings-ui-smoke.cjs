@@ -76,7 +76,7 @@ async function run() {
       }
       assert.deepEqual(requests, []); assert.deepEqual(await page.evaluate(() => globalThis.__settingsCalls), []);
       await page.selectOption('#ui-locale', 'en'); await page.selectOption('#wallet-login-method', 'totp');
-      await page.click('#auth-initial-open'); assert.equal(await page.inputValue('#wallet-login-method'), 'password');
+      await page.click('#auth-initial-open'); assert.equal(await page.inputValue('#wallet-login-method'), 'wallet');
       await page.keyboard.press('Escape'); assert.equal(await page.locator('#auth-management').isVisible(), false);
       await page.click('#auth-manage-open'); await login();
       assert.equal(await page.isChecked('#auth-enable-password'), true); assert.equal(await page.isChecked('#auth-enable-wallet'), true);

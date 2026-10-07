@@ -157,4 +157,4 @@ async function main() {
     console.log(JSON.stringify(evidence, null, 2));
   } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }
 }
-main().then(() => require('./account-settings-ui-smoke.cjs').run()).then(() => require('./registration-ui-smoke.cjs').run()).catch(error => { console.error(error); process.exitCode = 1; });
+main().then(() => require('./account-settings-ui-smoke.cjs').run()).then(() => require('./registration-ui-smoke.cjs').run()).then(() => require('./password-settings-ui-smoke.cjs').run()).catch(error => { console.error(error); process.exitCode = 1; });
