@@ -355,7 +355,7 @@ export default {
     "account.tenantPasswordTitle": "Définir ou modifier le mot de passe d’un locataire",
     "account.tenantPasswordHelp": "Choisissez le locataire. Continuez à son adresse d’origine ; le mot de passe y reste.",
     "account.tenantPasswordTenant": "Locataire",
-    "account.tenantPasswordAction": "Action",
+    "account.tenantPasswordAction": "Opération",
     "account.tenantPasswordInitial": "Définir le mot de passe",
     "account.tenantPasswordManage": "Modifier le mot de passe",
     "account.tenantPasswordContinue": "Continuer chez le locataire",
@@ -471,7 +471,7 @@ export default {
   "es": {
     "account.tenantPasswordTitle": "Establecer o cambiar la contraseña de un tenant",
     "account.tenantPasswordHelp": "Elija el tenant. Continúe en su dirección original; la contraseña permanece allí.",
-    "account.tenantPasswordTenant": "Tenant",
+    "account.tenantPasswordTenant": "Entidad",
     "account.tenantPasswordAction": "Acción",
     "account.tenantPasswordInitial": "Establecer contraseña",
     "account.tenantPasswordManage": "Cambiar contraseña",
