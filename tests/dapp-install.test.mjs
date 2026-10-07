@@ -16,11 +16,13 @@ const hashFiles = root => Object.fromEntries(walk(root).map(path => [path, sha25
 const sums = root => put(root, 'SHA256SUMS', walk(root).filter(path => path !== 'SHA256SUMS').sort().map(path => `${sha256(readFileSync(join(root, path)))}  ${path}`).join('\n') + '\n');
 const template = id => ({ schema: '8415wallet-release/1', product: '8415wallet', platform: '8415wallet.com', profile: id, tenant: { id: 'default', label: '8415wallet' }, deployment: { environment: 'unconfigured', url: null } });
 const config = () => ({ ...template('v2'), tenant: { id: 'example', label: 'Synthetic Example' }, deployment: { environment: 'local', url: 'http://127.0.0.1:23456/wallet/web/index.html' } });
-function fixture(t, revision = 'first') {
+const passwordRoutingPaths = ['web/tenant-password-routing.mjs', 'web/tenant-password-ui.mjs', 'web/tenant-password-routing.json'];
+function fixture(t, revision = 'first', routingMutation = {}) {
   const root = mkdtempSync(join(tmpdir(), 'wallet-kit-test-')); t.after(() => rmSync(root, { recursive: true, force: true }));
   const sourceRoot = join(root, 'source'), runtime = join(root, 'runtime'), kit = join(root, 'kit'); mkdirSync(sourceRoot); mkdirSync(runtime); mkdirSync(kit);
   const authPaths = ['server/main.mjs', 'server/service-entry.mjs', 'server/runtime-entry.mjs', 'server/auth-service.mjs', 'server/crypto.mjs', 'server/config-validation.mjs', 'server/ca-verifier.mjs', 'server/store.mjs', 'server/operator-init.mjs', 'server/operator-activate.mjs', 'web/login-core.mjs', 'deploy/auth-xiongan/install.mjs', 'deploy/auth-xiongan/8415wallet-auth-xiongan.service', 'deploy/auth-xiongan/auth-location.nginx.conf', 'docs/AUTH-INSTALL.md', 'scripts/package/verify-auth.mjs', 'LICENSE'];
   for (const path of new Set([...authPaths, ...DELIVERY_FILES, 'docs/ERC-8415-Wallet-PRD.md'])) put(sourceRoot, path, `Synthetic fixture ${revision}: ${path}\n`);
+  for (const path of passwordRoutingPaths) put(sourceRoot, path, readFileSync(new URL(`../${path}`, import.meta.url)));
   const pkg = { name: '8415wallet', version: '0.1.0', license: 'CC0-1.0', dependencies: { ethers: '^6.17.0' } };
   const lock = { name: '8415wallet', lockfileVersion: 3, packages: { '': { dependencies: pkg.dependencies }, 'node_modules/ethers': { version: '6.17.0', resolved: 'https://registry.npmjs.org/ethers/-/ethers-6.17.0.tgz', integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==' } } };
   put(sourceRoot, 'package.json', jsonBytes(pkg)); put(sourceRoot, 'package-lock.json', jsonBytes(lock));
@@ -43,6 +45,10 @@ function fixture(t, revision = 'first') {
     const ui = join(root, id); mkdirSync(ui); const cfg = template(id), profile = resolveReleaseProfile(cfg);
     put(ui, 'web/index.html', '<meta http-equiv="Content-Security-Policy" content="default-src self">');
     put(ui, 'web/release-config.json', jsonBytes(cfg)); put(ui, 'web/release-profile.mjs', 'export {};\n'); put(ui, 'dist/browser/browser.js', `export const fixture = '${revision}';\n`);
+    for (const path of passwordRoutingPaths) {
+      if (path !== routingMutation.omit) put(ui, path, readFileSync(join(sourceRoot, path)));
+    }
+    if (routingMutation.config) put(ui, 'web/tenant-password-routing.json', jsonBytes(routingMutation.config));
     const runtimeFiles = hashFiles(ui); put(ui, 'docs/ERC-8415-Wallet-PRD.md', readFileSync(join(sourceRoot, 'docs/ERC-8415-Wallet-PRD.md')));
     const { entries, ...identity } = source;
     const release = { schema: '8415wallet-dapp-release/2', profile: id, version: profile.version, status: profile.status, source: identity, sourceArchive: artifacts.source,
@@ -187,4 +193,23 @@ test('generic installer accepts 443 when unreserved and refuses explicitly reser
   publicConfig.deployment.reservedPorts = [443];
   assert.throws(() => installDapp({ ...f.input, config: publicConfig, target: join(f.root, 'other') }), /RESERVED_PORT/);
   assert.throws(() => createDappConfig({ tenant: 'example', label: 'Example', profile: 'v2', environment: 'ctyun', url: publicConfig.deployment.url, reservedPorts: [443], output: join(f.root, 'reserved.json') }), /RESERVED_PORT/);
+});
+
+for (const missing of passwordRoutingPaths) {
+  test(`self-consistent synthetic kit refuses missing password routing asset: ${missing}`, t => {
+    const f = fixture(t, 'missing-routing', { omit: missing });
+    assert.throws(() => verifyDeliveryArchive(f.archive, f.pins), /PASSWORD_ROUTING_RUNTIME_MISSING/);
+  });
+}
+test('self-consistent synthetic kit refuses enabled packaged password readiness', t => {
+  const routes = JSON.parse(readFileSync(new URL('../web/tenant-password-routing.json', import.meta.url), 'utf8'));
+  routes.entries[0].passwordManagementReady = true;
+  const f = fixture(t, 'ready-routing', { config: routes });
+  assert.throws(() => verifyDeliveryArchive(f.archive, f.pins), /PASSWORD_ROUTING_DEFAULT_NOT_READY_REQUIRED/);
+});
+test('self-consistent synthetic kit refuses malformed packaged password routing schema', t => {
+  const routes = JSON.parse(readFileSync(new URL('../web/tenant-password-routing.json', import.meta.url), 'utf8'));
+  routes.schema = 'unsupported-routing-schema';
+  const f = fixture(t, 'malformed-routing', { config: routes });
+  assert.throws(() => verifyDeliveryArchive(f.archive, f.pins), /PASSWORD_ROUTING_SCHEMA_REFUSED/);
 });

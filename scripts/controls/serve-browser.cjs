@@ -9,6 +9,7 @@ const port=Number(process.env.WALLET_BROWSER_PORT??'8415');
 if(!Number.isInteger(port)||port<1024||port>65535)throw new Error('BROWSER_PORT_REFUSED');
 const web=new Set(['index.html','login-core.mjs','wallet-auth.mjs','account-auth.mjs','app.mjs','public-store.mjs','wallet.css','external-assets.mjs','external-store.mjs','ui-lock.mjs','release-profile.mjs','release-config.json','settlement-store.mjs','legacy-clearing.mjs','legacy-clearing-store.mjs','i18n.mjs','locale-ui.mjs','native-i18n.mjs','wallet-shell.mjs','tenant-avatar.mjs']);
 web.add('enrollment-qr.mjs'); web.add('qr-generator.mjs');
+web.add('tenant-password-routing.mjs'); web.add('tenant-password-ui.mjs'); web.add('tenant-password-routing.json');
 const mime={'.html':'text/html; charset=utf-8','.mjs':'text/javascript; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.jpg':'image/jpeg','.jpeg':'image/jpeg','.png':'image/png','.webp':'image/webp','.svg':'image/svg+xml','.woff2':'font/woff2','.ttf':'font/ttf','.txt':'text/plain; charset=utf-8'};
 const server=http.createServer((req,res)=>{
   res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Cache-Control','no-store');

@@ -1,3 +1,4 @@
+import { passwordPanelAction } from './tenant-password-routing.mjs';
 /** Release identity is presentation configuration, never signing authority. */
 const freeze = value => {
   Object.values(value).forEach(child => { if (child && typeof child === 'object') freeze(child); });
@@ -62,7 +63,7 @@ export function verifyReleaseLocation(profile, location = globalThis.location) {
   let actual, expected;
   try { actual = new URL(location.href); expected = new URL(profile.deployment.url); }
   catch { fail('RELEASE_LOCATION_REQUIRED'); }
-  if (actual.origin !== expected.origin || actual.pathname !== expected.pathname || actual.search || actual.hash) fail('RELEASE_LOCATION_MISMATCH');
+  if (actual.origin !== expected.origin || actual.pathname !== expected.pathname || actual.search || (actual.hash && !passwordPanelAction(profile, actual))) fail('RELEASE_LOCATION_MISMATCH');
   return profile;
 }
 

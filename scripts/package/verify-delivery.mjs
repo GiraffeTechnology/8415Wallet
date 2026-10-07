@@ -8,10 +8,11 @@ import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 import { safePath, sha256, sourceTree, unpackAuthArchive, verifyAuthDirectory, walkAuth } from './verify-auth.mjs';
 import { resolveReleaseProfile } from '../../web/release-profile.mjs';
+import { validatePasswordRoutes } from '../../web/tenant-password-routing.mjs';
 export { sha256 };
 export const DELIVERY_SCHEMA = '8415wallet-dapp-delivery/1';
 export const DELIVERY_FILES = ['deploy/dapp/install.mjs', 'scripts/package/verify-delivery.mjs', 'scripts/package/verify-auth.mjs',
-  'web/release-profile.mjs', 'config/releases/v2.json', 'config/releases/v3.json', 'config/releases/xiongan-v2.json',
+  'web/release-profile.mjs', 'web/tenant-password-routing.mjs', 'config/releases/v2.json', 'config/releases/v3.json', 'config/releases/xiongan-v2.json',
   'docs/DAPP-INSTALL.md', 'docs/AUTH-INSTALL.md', 'LICENSE'];
 const fail = (condition, code) => { if (!condition) throw Error(`DAPP_DELIVERY_${code}`); };
 const digestPattern = /^[0-9a-f]{64}$/;
@@ -87,6 +88,10 @@ export function verifyDappEntries(entries, manifest, source, profileId) {
   const runtime = new Map([...entries].filter(([path]) => /^(web\/|dist\/browser\/)/.test(path)));
   fail(runtime.size > 0 && [...runtime.keys()].every(isPublicFile) && runtime.has('web/index.html'), 'UI_PUBLIC_FILES_REFUSED');
   assert.deepEqual(hashes(runtime), release.runtimeFiles, 'DAPP_DELIVERY_UI_RUNTIME_MISMATCH');
+  for (const path of ['web/tenant-password-routing.mjs', 'web/tenant-password-ui.mjs', 'web/tenant-password-routing.json'])
+    fail(runtime.has(path), 'PASSWORD_ROUTING_RUNTIME_MISSING');
+  const passwordRoutes = validatePasswordRoutes(parsed(get(entries, 'web/tenant-password-routing.json')));
+  fail(passwordRoutes.every(entry => entry.passwordManagementReady === false), 'PASSWORD_ROUTING_DEFAULT_NOT_READY_REQUIRED');
   assert.deepEqual(release.source.files, source.files, 'DAPP_DELIVERY_SOURCE_INVENTORY_MISMATCH');
   return { release, runtime };
 }
