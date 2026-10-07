@@ -1,13 +1,13 @@
 /** Synthetic files and injected host commands only; no production credentials or host changes. */
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, writeFile, rm, chmod, symlink, lstat, readlink, unlink, cp } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile, rm, chmod, symlink, lstat, readlink, unlink, cp, link, chown } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { paths, inspect, rollback, rollbackCode } from '../deploy/auth-xiongan/install.mjs';
-import { LEGACY_COMMIT, inspectLegacy, migrateLegacy, resumeLegacy, cli } from '../deploy/auth-xiongan/migrate-legacy.mjs';
+import { LEGACY_COMMIT, inspectLegacy, migrateLegacy, resumeLegacy, cli, observeLegacyAlias } from '../deploy/auth-xiongan/migrate-legacy.mjs';
 import { hotp } from '../server/crypto.mjs';
 import { openEncryptedStore } from '../server/store.mjs';
 import { syntheticPackage } from './helpers/auth-legacy-fixture.mjs';
@@ -21,6 +21,214 @@ test('PR58 inspection is read-only and never exposes private identities, key or 
   assert.equal(r.summary.status, 'supported-legacy-awaiting-operator-confirmation'); assert.deepEqual(await snapshot(f), before);
   const out = JSON.stringify(r.summary); for (const secret of ['fixture-user', 'fixture@example.invalid', key.toString('hex'), r.credentialHashes.keySha256, r.credentialHashes.stateSha256]) assert.ok(!out.includes(secret));
   assert.equal(f.calls.some(c => c.includes('stop')), false);
+});
+test('legacy and candidate executables are independently bound without editing the old unit', async t => {
+  const f = await fixture(t), candidate = await independentNode(); t.after(candidate.cleanup);
+  const originalUnit = await readFile(f.target.unit);
+  f.options.legacyNode = f.options.node; f.options.node = candidate.node;
+  const inspected = await inspectLegacy(f.options);
+  assert.equal(inspected.legacyNode.path, node.node);
+  assert.notEqual(inspected.legacyNode.identity.ino, inspected.nodeIdentity.ino);
+  assert.deepEqual(await readFile(f.target.unit), originalUnit);
+  await migrateLegacy(f.options);
+  const installed = await inspect({ target: f.target, uid });
+  assert.equal(installed.receipt.node, candidate.node);
+  assert.ok((await readFile(f.target.unit, 'utf8')).includes(`ExecStart=${candidate.node} `));
+  const journal = JSON.parse(await readFile(join(f.target.root, 'legacy-migration.json')));
+  assert.equal(journal.legacyNode.path, node.node);
+  assert.equal(journal.legacyNode.identity.sha256, node.sha256);
+});
+test('an independently protected but incorrect legacy executable does not authenticate the old unit', async t => {
+  const f = await fixture(t), wrong = await independentNode(); t.after(wrong.cleanup);
+  await assert.rejects(inspectLegacy({ ...f.options, legacyNode: wrong.node }), /AUTH_LEGACY_UNIT_UNSUPPORTED/);
+  assert.equal(f.calls.some(c => c.includes('stop')), false);
+});
+test('legacy executable aliases remain refused rather than silently rewriting the original unit', async t => {
+  const f = await fixture(t), alias = join(f.root, 'legacy-node');
+  await symlink(node.node, alias);
+  await assert.rejects(inspectLegacy({ ...f.options, legacyNode: alias }), /AUTH_LEGACY_NODE_PROTECTION_REQUIRED/);
+  assert.equal(f.calls.some(c => c.includes('stop')), false);
+});
+test('separate legacy-node does not weaken candidate executable protection', async t => {
+  const f = await fixture(t), candidate = await independentNode(); t.after(candidate.cleanup);
+  await chmod(candidate.node, 0o777);
+  await assert.rejects(inspectLegacy({ ...f.options, legacyNode: node.node, node: candidate.node }), /AUTH_INSTALL_UNSAFE_PATH/);
+  assert.equal(f.calls.some(c => c.includes('stop')), false);
+});
+test('new pre-start recovery refuses a changed separately bound legacy executable', async t => {
+  const f = await fixture(t), legacy = await independentNode(); t.after(legacy.cleanup);
+  await writeFile(f.target.unit, (await readFile(f.target.unit, 'utf8')).replace(`ExecStart=${node.node} `, `ExecStart=${legacy.node} `));
+  f.options.legacyNode = legacy.node;
+  f.options.checkpoint = async phase => {
+    if (phase === 'receipt-written') {
+      await writeFile(legacy.node, 'not the pinned executable');
+      throw Error('SYNTHETIC_PRESTART_FAILURE');
+    }
+  };
+  await assert.rejects(migrateLegacy(f.options), /AUTH_LEGACY_PRESTART_RECOVERY_REQUIRED/);
+  const starts = f.calls.filter(c => c.includes('start')).length;
+  await assert.rejects(resumeLegacy(f.options), /AUTH_LEGACY_NODE_CHANGED/);
+  assert.equal(f.calls.filter(c => c.includes('start')).length, starts);
+});
+
+async function aliasFixture(t, settings = {}) {
+  const f = await fixture(t, settings), legacy = await independentNode(); t.after(legacy.cleanup);
+  const alias = join(f.root, 'legacy-alias'); await symlink(legacy.node, alias);
+  await writeFile(f.target.unit, (await readFile(f.target.unit, 'utf8')).replace(`ExecStart=${node.node} `, `ExecStart=${alias} `));
+  const stat = await lstat(legacy.node), baselinePath = join(f.root, 'independent-image-baseline.json');
+  const baseline = { schema: '8415wallet-legacy-image-baseline/1', sourceCommit: LEGACY_COMMIT, aliasPath: alias, resolvedPath: legacy.node,
+    sha256: legacy.sha256, uid: stat.uid, gid: stat.gid, mode: stat.mode & 0o7777, size: stat.size, publisherEvidenceSha256: '1'.repeat(64) };
+  await writeFile(baselinePath, JSON.stringify(baseline), { mode: 0o600 });
+  Object.assign(f.options, { legacyNode: alias, legacyNodePolicy: 'observed-alias-forward-only', legacyImageBaseline: baselinePath, legacyImageBaselineSha256: hash(await readFile(baselinePath)) });
+  f.options.observeProcess = async pid => ({ pid: String(pid), startTime: '123', uids: [uid, uid, uid, uid], image: (await observeLegacyAlias({ path: alias, baselinePath, baselineSha256: f.options.legacyImageBaselineSha256 }, uid)).image });
+  const originalRun = f.options.run;
+  f.options.run = async (file, args) => {
+    const out = await originalRun(file, args);
+    if (file === 'systemctl' && args[0] === 'show') {
+      let dropIn = ''; try { await lstat(join(`${f.target.unit}.d`, '90-legacy-alias-migration.conf')); dropIn = join(`${f.target.unit}.d`, '90-legacy-alias-migration.conf'); } catch (e) { if (e.code !== 'ENOENT') throw e; }
+      return out.replace('DropInPaths=\n', `DropInPaths=${dropIn}\n`);
+    }
+    return out;
+  };
+  return Object.assign(f, { alias, legacy, baseline, baselinePath });
+}
+async function emptyAliasEvidence(f) {
+  const scope = { tenant: f.options.tenant, origin: f.options.origin, sourceCommit: f.options.sourceCommit, statePath: f.options.legacyState };
+  const scopeSha256 = hash(Buffer.from(JSON.stringify(scope))), activation = join(f.root, 'original-activation-evidence.json');
+  await writeFile(activation, JSON.stringify({ schema: '8415wallet-original-activation-evidence/1', scopeSha256, initializationOutcome: 'complete', passwordProvisioned: false, credentialWrites: 0, enrollmentEvents: 0, unknownOutcomes: 0 }), { mode: 0o600 });
+  const confirmation = join(f.root, 'personal-confirmation.json');
+  const value = { schema: '8415wallet-never-enrolled-confirmation/1', scopeSha256, activationEvidenceSha256: hash(await readFile(activation)), confirmedAt: 1, userConfirmed: true,
+    answers: Object.fromEntries(['password', 'totp', 'recoveryCodes', 'emailOrOtherAccount', 'deletedResetRestoredOrMoved'].map(k => [k, 'NO'])) };
+  await writeFile(confirmation, JSON.stringify(value), { mode: 0o600 });
+  Object.assign(f.options, { activationEvidence: activation, emptyStateEvidence: confirmation, emptyStateEvidenceSha256: hash(await readFile(confirmation)) });
+  return value;
+}
+test('observed alias migration preserves shared alias/image and installs only the protected candidate', async t => {
+  const f = await aliasFixture(t), oldUnit = await readFile(f.target.unit), aliasStat = await lstat(f.alias), oldImage = hash(await readFile(f.legacy.node));
+  const preflight = await inspectLegacy(f.options);
+  assert.equal(preflight.summary.legacyExecutionTrusted, false); assert.equal(preflight.summary.metadataOnly, true);
+  assert.equal(preflight.summary.credentialsAuthenticated, false); assert.equal(preflight.credentialHashes, null);
+  const state = await readFile(f.options.legacyState), keyBytes = await readFile(f.options.legacyKey);
+  await migrateLegacy(f.options);
+  assert.equal((await lstat(f.alias)).ino, aliasStat.ino); assert.equal(await readlink(f.alias), f.legacy.node); assert.equal(hash(await readFile(f.legacy.node)), oldImage);
+  const j = JSON.parse(await readFile(join(f.target.root, 'legacy-alias-migration.json')));
+  assert.equal(j.schema, '8415wallet-legacy-alias-migration/1'); assert.equal(j.phase, 'complete'); assert.equal(j.candidateStartAttempted, true);
+  assert.deepEqual(await readFile(join(j.backup, 'unit')), oldUnit);
+  assert.equal((await inspect({ target: f.target, uid })).receipt.node, node.node);
+  assert.deepEqual(await readFile(f.options.legacyState), state); assert.deepEqual(await readFile(f.options.legacyKey), keyBytes);
+  await assert.rejects(lstat(join(f.target.config, 'legacy-alias-migration.fence')), { code: 'ENOENT' });
+  assert.equal((await resumeLegacy(f.options)).status, 'already-imported');
+});
+test('non-root-owned legacy image remains observational and never becomes candidate authorization', async t => {
+  if (uid !== 0) { t.skip('requires isolated root-owned Linux fixture to assign a synthetic legacy owner'); return; }
+  const f = await aliasFixture(t);
+  await chown(f.legacy.node, 1001, 1001); f.baseline.uid = 1001; f.baseline.gid = 1001;
+  await writeFile(f.baselinePath, JSON.stringify(f.baseline)); f.options.legacyImageBaselineSha256 = hash(await readFile(f.baselinePath));
+  await migrateLegacy(f.options);
+  assert.equal((await lstat(f.legacy.node)).uid, 1001);
+  const receipt = (await inspect({ target: f.target, uid })).receipt;
+  assert.equal(receipt.nodeUid, 0); assert.equal(receipt.node, node.node);
+});
+test('alias check does not read/authenticate credential values before confirmed stop', async t => {
+  const f = await aliasFixture(t);
+  // Invalid same-size bytes prove the metadata check does not parse/decrypt them.
+  await writeFile(f.options.legacyKey, 'Z'.repeat(64));
+  const before = await snapshot(f), result = await inspectLegacy(f.options);
+  assert.equal(result.summary.metadataOnly, true); assert.equal(result.summary.credentialsAuthenticated, false);
+  assert.equal(result.credentialHashes, null); assert.deepEqual(await snapshot(f), before);
+  assert.equal(f.calls.some(c => c.includes('stop')), false);
+  await assert.rejects(migrateLegacy(f.options), /AUTH_LEGACY_ALIAS_FORWARD_RECOVERY_REQUIRED/);
+  const j = JSON.parse(await readFile(join(f.target.root, 'legacy-alias-migration.json')));
+  assert.equal(j.lastFailure.stableCode, 'AUTH_LEGACY_KEY_FORMAT_REFUSED');
+  assert.equal(f.calls.some(c => c.includes('start')), false);
+});
+for (const [name, mutate, expected] of [
+  ['missing independent image baseline', async f => { delete f.options.legacyImageBaseline; }, /INDEPENDENT_EVIDENCE_REQUIRED/],
+  ['wrong baseline pin', async f => { f.options.legacyImageBaselineSha256 = '0'.repeat(64); }, /EVIDENCE_PIN_REFUSED/],
+  ['changed target bytes', async f => writeFile(f.legacy.node, 'changed'), /BASELINE_MISMATCH/],
+  ['target hardlink', async f => link(f.legacy.node, join(f.root, 'extra-image-link')), /IMAGE_REFUSED/],
+  ['wrong live image', async f => { f.options.observeProcess = async pid => ({ pid: String(pid), startTime: '123', image: { identity: { dev: 0, ino: 0 }, sha256: '0'.repeat(64) } }); }, /PROCESS_REFUSED/],
+  ['insecure candidate', async f => { f.options.node = f.alias; }, /AUTH_INSTALL_UNSAFE_PATH/]
+]) test(`alias migration refuses ${name} before stopping`, async t => {
+  const f = await aliasFixture(t); await mutate(f);
+  await assert.rejects(migrateLegacy(f.options), expected);
+  assert.equal(f.calls.some(c => c.includes('stop')), false);
+});
+test('failure after persistent alias fence never restarts legacy and retains explicit recovery state', async t => {
+  const f = await aliasFixture(t);
+  f.options.checkpoint = async phase => { if (phase === 'alias-stopped') throw Error('SYNTHETIC_STOPPED_FAILURE'); };
+  const keyBytes = await readFile(f.options.legacyKey), state = await readFile(f.options.legacyState);
+  await assert.rejects(migrateLegacy(f.options), /AUTH_LEGACY_ALIAS_FORWARD_RECOVERY_REQUIRED/);
+  assert.equal(f.calls.some(c => c.includes('start')), false);
+  await lstat(join(f.target.config, 'legacy-alias-migration.fence'));
+  assert.match(await readFile(join(`${f.target.unit}.d`, '90-legacy-alias-migration.conf'), 'utf8'), /ConditionPathExists=!/);
+  await assert.rejects(resumeLegacy(f.options), /AUTH_LEGACY_ALIAS_PRESTART_REVIEW_REQUIRED/);
+  assert.deepEqual(await readFile(f.options.legacyKey), keyBytes); assert.deepEqual(await readFile(f.options.legacyState), state);
+});
+test('alias probe failure resumes candidate forward without restoring consumed counters', async t => {
+  const f = await aliasFixture(t); f.options.probe = async () => { throw Error('SYNTHETIC_PROBE_FAILURE'); };
+  await assert.rejects(migrateLegacy(f.options), /AUTH_LEGACY_ALIAS_FORWARD_RECOVERY_REQUIRED/);
+  const advanced = { ...record, lastStep: 92346, recoveryHashes: [] }, store = await openEncryptedStore(f.options.legacyState, key);
+  await store.transaction('xiongan:fixture-user', () => advanced); await store.close();
+  const bytes = await readFile(f.options.legacyState);
+  assert.equal((await resumeLegacy({ ...f.options, probe: async () => {} })).status, 'legacy-imported-proxy-enabled');
+  assert.deepEqual(await readFile(f.options.legacyState), bytes);
+});
+test('changed alias fence refuses candidate start and retains original credential bytes', async t => {
+  const f = await aliasFixture(t), state = await readFile(f.options.legacyState), keyBytes = await readFile(f.options.legacyKey);
+  f.options.checkpoint = async phase => {
+    if (phase === 'receipt-written') await writeFile(join(f.target.config, 'legacy-alias-migration.fence'), '{"changed":true}');
+  };
+  await assert.rejects(migrateLegacy(f.options), /AUTH_LEGACY_ALIAS_FORWARD_RECOVERY_REQUIRED/);
+  const j = JSON.parse(await readFile(join(f.target.root, 'legacy-alias-migration.json')));
+  assert.equal(j.lastFailure.stableCode, 'AUTH_LEGACY_ALIAS_FENCE_CHANGED');
+  assert.equal(f.calls.some(c => c.includes('start')), false);
+  assert.deepEqual(await readFile(f.options.legacyState), state); assert.deepEqual(await readFile(f.options.legacyKey), keyBytes);
+});
+test('an extra task-owned-directory drop-in is never accepted as part of the alias fence', async t => {
+  const f = await aliasFixture(t);
+  f.options.checkpoint = async phase => {
+    if (phase === 'receipt-written') await writeFile(join(`${f.target.unit}.d`, 'extra.conf'), '[Service]\nEnvironment=UNREVIEWED=yes\n');
+  };
+  await assert.rejects(migrateLegacy(f.options), /AUTH_LEGACY_ALIAS_FORWARD_RECOVERY_REQUIRED/);
+  const j = JSON.parse(await readFile(join(f.target.root, 'legacy-alias-migration.json')));
+  assert.equal(j.lastFailure.stableCode, 'AUTH_LEGACY_ALIAS_FENCE_CHANGED');
+  assert.equal(f.calls.some(c => c.includes('start')), false);
+});
+test('absent state without corroborated personal evidence refuses before stop', async t => {
+  const f = await aliasFixture(t, { empty: true });
+  await assert.rejects(migrateLegacy(f.options), /EMPTY_STATE_REVIEW_REQUIRED/);
+  assert.equal(f.calls.some(c => c.includes('stop')), false);
+});
+for (const answer of ['YES', 'UNKNOWN']) test(`empty alias state refuses personal ${answer} even with pinned records`, async t => {
+  const f = await aliasFixture(t, { empty: true }), proof = await emptyAliasEvidence(f);
+  proof.answers.totp = answer;
+  await writeFile(f.options.emptyStateEvidence, JSON.stringify(proof)); f.options.emptyStateEvidenceSha256 = hash(await readFile(f.options.emptyStateEvidence));
+  await assert.rejects(migrateLegacy(f.options), /EMPTY_STATE_REVIEW_REQUIRED/);
+  assert.equal(f.calls.some(c => c.includes('stop')), false);
+});
+test('corroborated synthetic empty-state migration preserves original key and creates no ciphertext', async t => {
+  const f = await aliasFixture(t, { empty: true }); await emptyAliasEvidence(f);
+  const keyBytes = await readFile(f.options.legacyKey); await migrateLegacy(f.options);
+  assert.deepEqual(await readFile(f.options.legacyKey), keyBytes); await assert.rejects(lstat(f.options.legacyState), { code: 'ENOENT' });
+});
+test('empty-state declaration without original activation corroboration is not sufficient', async t => {
+  const f = await aliasFixture(t, { empty: true }); await emptyAliasEvidence(f);
+  await unlink(f.options.activationEvidence);
+  await assert.rejects(migrateLegacy(f.options)); assert.equal(f.calls.some(c => c.includes('stop')), false);
+});
+test('late nonempty state is preserved and validated, never replaced with empty state', async t => {
+  const f = await aliasFixture(t, { empty: true }); await emptyAliasEvidence(f);
+  let late;
+  f.options.checkpoint = async phase => {
+    if (phase === 'alias-stopped') {
+      const store = await openEncryptedStore(f.options.legacyState, key);
+      await store.transaction('xiongan:fixture-user', () => record);
+      await store.transaction('@registration:xiongan', () => ({ version: 1, records: [{ username: 'fixture-user', email: 'fixture@example.invalid', verifiedAt: 42 }] })); await store.close();
+      late = await readFile(f.options.legacyState);
+    }
+  };
+  await migrateLegacy(f.options); assert.deepEqual(await readFile(f.options.legacyState), late);
 });
 test('migration preserves every credential byte and backup; creates a genuine generation-2 receipt without initialization', async t => {
   const f = await fixture(t), before = await snapshot(f), state = await readFile(f.options.legacyState), keyBytes = await readFile(f.options.legacyKey);
