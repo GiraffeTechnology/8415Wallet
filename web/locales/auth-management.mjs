@@ -1,6 +1,15 @@
 /** Fixed account-management presentation; no account facts or secrets. */
 export default {
   "en": {
+    "account.tenantPasswordTitle": "Set or change a tenant password",
+    "account.tenantPasswordHelp": "Choose your tenant. Continue at its original address; passwords stay on that tenant.",
+    "account.tenantPasswordTenant": "Tenant",
+    "account.tenantPasswordAction": "Action",
+    "account.tenantPasswordInitial": "Set password",
+    "account.tenantPasswordManage": "Change password",
+    "account.tenantPasswordContinue": "Continue to tenant",
+    "account.tenantPasswordReady": "Continue to the tenant and verify your identity there. Account state determines whether you set or change a password.",
+    "account.tenantPasswordPending": "Password management is not verified as deployed. No password request will be sent.",
     "account.initial": "Initial setup",
     "account.manage": "Manage / reset sign-in methods",
     "account.title": "Account authentication settings",
@@ -109,6 +118,15 @@ export default {
     "account.passwordSubmitted": "Password save may already have been submitted. Sign in again to check the account before trying another change."
   },
   "zh-Hans": {
+    "account.tenantPasswordTitle": "设置或更改租户密码",
+    "account.tenantPasswordHelp": "选择租户后进入其原地址；密码仅在该租户中处理。",
+    "account.tenantPasswordTenant": "租户",
+    "account.tenantPasswordAction": "操作",
+    "account.tenantPasswordInitial": "首次设密",
+    "account.tenantPasswordManage": "更改密码",
+    "account.tenantPasswordContinue": "进入租户",
+    "account.tenantPasswordReady": "进入租户并在那里验证身份。账户状态决定首次设密或更改密码。",
+    "account.tenantPasswordPending": "密码管理尚未核验部署；不会发送密码请求。",
     "account.initial": "初始化设置",
     "account.manage": "管理／重置登录方式",
     "account.title": "账户认证设置",
@@ -217,6 +235,15 @@ export default {
     "account.passwordSubmitted": "密码保存请求可能已提交。再次更改前，请重新登录并检查账户。"
   },
   "zh-Hant": {
+    "account.tenantPasswordTitle": "設定或更改租戶密碼",
+    "account.tenantPasswordHelp": "選擇租戶後進入其原地址；密碼僅在該租戶中處理。",
+    "account.tenantPasswordTenant": "租戶",
+    "account.tenantPasswordAction": "操作",
+    "account.tenantPasswordInitial": "首次設密",
+    "account.tenantPasswordManage": "更改密碼",
+    "account.tenantPasswordContinue": "進入租戶",
+    "account.tenantPasswordReady": "進入租戶並在那裡驗證身分。帳戶狀態決定首次設密或更改密碼。",
+    "account.tenantPasswordPending": "密碼管理尚未核驗部署；不會傳送密碼請求。",
     "account.initial": "初始化設定",
     "account.manage": "管理／重設登入方式",
     "account.title": "帳戶認證設定",
@@ -325,6 +352,15 @@ export default {
     "account.passwordSubmitted": "密碼儲存請求可能已提交。再次變更前，請重新登入並檢查帳戶。"
   },
   "fr": {
+    "account.tenantPasswordTitle": "Définir ou modifier le mot de passe d’un locataire",
+    "account.tenantPasswordHelp": "Choisissez le locataire. Continuez à son adresse d’origine ; le mot de passe y reste.",
+    "account.tenantPasswordTenant": "Locataire",
+    "account.tenantPasswordAction": "Action",
+    "account.tenantPasswordInitial": "Définir le mot de passe",
+    "account.tenantPasswordManage": "Modifier le mot de passe",
+    "account.tenantPasswordContinue": "Continuer chez le locataire",
+    "account.tenantPasswordReady": "Vérifiez votre identité chez le locataire. L’état du compte détermine la création ou la modification.",
+    "account.tenantPasswordPending": "Le déploiement de la gestion des mots de passe n’est pas vérifié. Aucune demande ne sera envoyée.",
     "account.initial": "Configuration initiale",
     "account.manage": "Gérer / réinitialiser les connexions",
     "account.title": "Paramètres d’authentification du compte",
@@ -433,6 +469,15 @@ export default {
     "account.passwordSubmitted": "L’enregistrement du mot de passe a peut-être déjà été soumis. Reconnectez-vous pour vérifier le compte avant toute nouvelle modification."
   },
   "es": {
+    "account.tenantPasswordTitle": "Establecer o cambiar la contraseña de un tenant",
+    "account.tenantPasswordHelp": "Elija el tenant. Continúe en su dirección original; la contraseña permanece allí.",
+    "account.tenantPasswordTenant": "Tenant",
+    "account.tenantPasswordAction": "Acción",
+    "account.tenantPasswordInitial": "Establecer contraseña",
+    "account.tenantPasswordManage": "Cambiar contraseña",
+    "account.tenantPasswordContinue": "Continuar al tenant",
+    "account.tenantPasswordReady": "Verifique su identidad en el tenant. El estado de la cuenta determina si establece o cambia la contraseña.",
+    "account.tenantPasswordPending": "No se ha verificado el despliegue de la gestión de contraseñas. No se enviará ninguna solicitud.",
     "account.initial": "Configuración inicial",
     "account.manage": "Gestionar / restablecer accesos",
     "account.title": "Ajustes de autenticación de la cuenta",
@@ -541,6 +586,15 @@ export default {
     "account.passwordSubmitted": "Puede que la solicitud de guardar ya se haya enviado. Accede de nuevo para comprobar la cuenta antes de realizar otro cambio."
   },
   "ja": {
+    "account.tenantPasswordTitle": "テナントのパスワードを設定・変更",
+    "account.tenantPasswordHelp": "テナントを選択し、元のアドレスへ進みます。パスワードはそのテナント内で扱います。",
+    "account.tenantPasswordTenant": "テナント",
+    "account.tenantPasswordAction": "操作",
+    "account.tenantPasswordInitial": "初回設定",
+    "account.tenantPasswordManage": "パスワード変更",
+    "account.tenantPasswordContinue": "テナントへ進む",
+    "account.tenantPasswordReady": "移動先で本人確認してください。初回設定か変更かはアカウントの状態で決まります。",
+    "account.tenantPasswordPending": "パスワード管理の配備は未確認です。パスワード要求は送信しません。",
     "account.initial": "初期設定",
     "account.manage": "ログイン方法の管理・再設定",
     "account.title": "アカウント認証設定",

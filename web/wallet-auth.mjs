@@ -1,3 +1,4 @@
+import { passwordPanelAction } from './tenant-password-routing.mjs';
 import { msg, paint } from './i18n.mjs';
 import { WalletLogin, WalletLoginError } from './login-core.mjs';
 import { AccountAuthClient } from './account-auth.mjs';
@@ -549,3 +550,11 @@ el('auth-enroll-confirm').addEventListener('click', () => enroll('confirm'));
 el('auth-enroll-cancel').addEventListener('click', () => cancelSetup());
 el('auth-recovery-dismiss').addEventListener('click', () => { paint(el('auth-recovery-codes'), ''); el('auth-recovery-output').hidden = true; });
 renderLoginMethod(); renderManagement();
+
+/** Fixed fragment opens a local panel only; it is not login or change authority. */
+getReleaseProfile().then(profile => {
+  const action = passwordPanelAction(profile, globalThis.location);
+  if (!action) return;
+  globalThis.history.replaceState(globalThis.history.state, '', profile.deployment.url);
+  return openManagement({ initial: action === 'initial' });
+}).catch(() => { /* Invalid location/config stays closed. */ });
