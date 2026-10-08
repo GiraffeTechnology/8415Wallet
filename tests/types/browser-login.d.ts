@@ -15,3 +15,8 @@ declare module '*login-core.mjs' {
     subscribe(listener: (session: any, reason: string) => void): () => void;
   }
 }
+
+declare module '*tenant-password-routing.mjs' {
+  export function isPlatformPasswordProfile(profile: any): boolean;
+  export function passwordPanelAction(profile: any, location: any): string | null;
+}

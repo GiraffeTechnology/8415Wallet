@@ -1,6 +1,6 @@
 /** Platform-only public tenant selection. No cross-origin capability/login requests. */
 import { getReleaseProfile } from './release-profile.mjs';
-import { loadPasswordRoutes, passwordTenantDestination } from './tenant-password-routing.mjs';
+import { isPlatformPasswordProfile, loadPasswordRoutes, passwordTenantDestination } from './tenant-password-routing.mjs';
 import { msg, paint } from './i18n.mjs';
 import { walletUiBusy } from './ui-lock.mjs';
 const el = id => document.getElementById(id);
@@ -23,11 +23,7 @@ el('password-tenant-continue').addEventListener('click', event => {
   if (walletUiBusy() || !el('password-tenant-continue').hasAttribute('href')) event.preventDefault();
 });
 getReleaseProfile().then(async profile => {
-  if (profile.tenant.id !== 'default' || !profile.deployment.url ||
-      new URL(profile.deployment.url).hostname !== '8415wallet.com') return;
-  for (const id of ['auth-initial-open', 'auth-manage-open']) {
-    el(id).hidden = true; el(id).disabled = true;
-  }
+  if (!isPlatformPasswordProfile(profile)) return;
   el('platform-password-tenants').hidden = false; render();
   try { routes = await loadPasswordRoutes(); } catch { routes = null; }
   render();

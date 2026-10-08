@@ -1,4 +1,4 @@
-import { passwordPanelAction } from './tenant-password-routing.mjs';
+import { isPlatformPasswordProfile, passwordPanelAction } from './tenant-password-routing.mjs';
 import { msg, paint } from './i18n.mjs';
 import { WalletLogin, WalletLoginError } from './login-core.mjs';
 import { AccountAuthClient } from './account-auth.mjs';
@@ -11,6 +11,7 @@ export { WalletLoginError };
 export const walletLogin = new WalletLogin({ crypto: { verifyMessage, getAddress, hashMessage, Interface }, origin: () => globalThis.location.origin });
 const el = id => document.getElementById(id);
 let timer = null, signing = false, attemptRevision = 0, accountClient = null, enrollmentTimer = null;
+let managementProfile = null;
 let moduleOpen = false, accountState = null, managementTimer = null, enrollmentId = null, enrollmentRevision = 0;
 let recoveryStep = null, resetProof = null, recoveryTimer = null, recoveryRevision = 0;
 let registrationOpen = false, registrationStep = null, registrationProof = null, registrationTimer = null, registrationRevision = 0, signupClient = null, signupAuthenticating = false;
@@ -54,7 +55,11 @@ function clearEnrollment() {
 }
 function renderManagement() {
   el('auth-management').hidden = !moduleOpen;
-  for (const id of ['auth-initial-open', 'auth-manage-open']) el(id).setAttribute?.('aria-expanded', String(moduleOpen));
+  for (const id of ['auth-initial-open', 'auth-manage-open']) {
+    el(id).disabled = managementProfile !== 'local';
+    el(id).hidden = managementProfile === 'platform';
+    el(id).setAttribute?.('aria-expanded', String(moduleOpen));
+  }
   const session = currentSession(), verified = !!session?.serverId && !!accountState, fresh = verified && freshManagement();
   el('auth-method-states').hidden = !verified;
   el('auth-enrollment').hidden = !verified || !fresh;
@@ -187,6 +192,8 @@ async function loadManagementCapabilities() {
   passwordControls();
 }
 async function openManagement({ initial = false } = {}) {
+  // Ignore pre-profile clicks rather than queueing a panel that opens later.
+  if (managementProfile !== 'local') return;
   if (registrationOpen) closeRegistration();
   moduleOpen = true; renderManagement();
   const session = currentSession(), needsIndependentLogin = !session?.serverId || !['password', 'wallet', 'ca'].includes(session.kind);
@@ -553,6 +560,9 @@ renderLoginMethod(); renderManagement();
 
 /** Fixed fragment opens a local panel only; it is not login or change authority. */
 getReleaseProfile().then(profile => {
+  managementProfile = isPlatformPasswordProfile(profile) ? 'platform' : 'local';
+  renderManagement();
+  if (managementProfile !== 'local') return;
   const action = passwordPanelAction(profile, globalThis.location);
   if (!action) return;
   globalThis.history.replaceState(globalThis.history.state, '', profile.deployment.url);

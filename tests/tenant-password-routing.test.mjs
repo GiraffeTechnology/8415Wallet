@@ -5,12 +5,12 @@ import { PASSWORD_TENANTS, validatePasswordRoutes, passwordTenantDestination, pa
 import { resolveReleaseProfile, verifyReleaseLocation } from '../web/release-profile.mjs';
 const file = path => readFileSync(new URL('../' + path, import.meta.url), 'utf8');
 const defaults = () => JSON.parse(file('web/tenant-password-routing.json'));
-const enabled = () => { const v = defaults(); v.entries.forEach(e => { e.passwordManagementReady = true; }); return v; };
+const enabled = () => { const v = defaults(); v.entries.forEach(e => { e.url = `https://${e.tenant}.8415wallet.com:18443/wallet/web/index.html`; e.passwordManagementReady = true; }); return v; };
 const profile = (tenant = 'xiongan') => resolveReleaseProfile({
   schema: '8415wallet-release/1', product: '8415wallet', platform: '8415wallet.com',
   profile: tenant === 'xiongan' ? 'v2' : 'v3', tenant: { id: tenant, label: tenant },
-  deployment: { environment: 'sin', url: tenant === 'default' ? 'https://8415wallet.com:9446/v3/web/index.html' :
-    `https://${tenant}.8415wallet.com:9446/web/index.html` }
+  deployment: { environment: 'sin', url: tenant === 'default' ? 'https://8415wallet.com/platform/web/index.html' :
+    `https://${tenant}.8415wallet.com:18443/wallet/web/index.html` }
 });
 test('packaged defaults never announce existing or new tenants as ready', () => {
   const routes = validatePasswordRoutes(defaults());
@@ -23,8 +23,8 @@ for (const tenant of PASSWORD_TENANTS) test(`fixed ${tenant} navigation preserve
   const routes = validatePasswordRoutes(enabled());
   for (const action of ['initial', 'manage']) {
     const target = passwordTenantDestination(routes, tenant, action), url = new URL(target);
-    assert.equal(url.origin, `https://${tenant}.8415wallet.com:9446`);
-    assert.equal(url.pathname, '/web/index.html'); assert.equal(url.search, '');
+    assert.equal(url.origin, `https://${tenant}.8415wallet.com:18443`);
+    assert.equal(url.pathname, '/wallet/web/index.html'); assert.equal(url.search, '');
     assert.equal(url.username + url.password, '');
     assert.equal(passwordPanelAction(profile(tenant), url), action);
     assert.equal(verifyReleaseLocation(profile(tenant), url).tenant.id, tenant);
@@ -34,7 +34,7 @@ test('unknown action/tenant and caller-injected destination are refused', () => 
   const routes = validatePasswordRoutes(enabled());
   for (const action of ['constructor', 'login', 'initial?secret=x']) assert.throws(() => passwordTenantDestination(routes, 'xiongan', action));
   assert.throws(() => passwordTenantDestination(routes, 'default', 'initial'));
-  const v = enabled(); v.entries[0].url = 'https://attacker.invalid:9446/web/index.html';
+  const v = enabled(); v.entries[0].url = 'https://attacker.invalid:18443/web/index.html';
   assert.throws(() => passwordTenantDestination(v.entries, 'xiongan', 'initial'));
 });
 test('readiness requires complete unique exact-schema tenant/profile/url evidence', () => {
@@ -44,10 +44,12 @@ test('readiness requires complete unique exact-schema tenant/profile/url evidenc
     const v = enabled(); damage(v); assert.throws(() => validatePasswordRoutes(v));
   }
 });
-for (const bad of ['https://giraffe.8415wallet.com/web/index.html', 'https://giraffe.8415wallet.com:9445/web/index.html',
-  'https://giraffe.8415wallet.com:9446/v3/web/index.html', 'http://giraffe.8415wallet.com:9446/web/index.html',
-  'https://u:p@giraffe.8415wallet.com:9446/web/index.html', 'https://giraffe.8415wallet.com:9446/web/index.html?tenant=xiongan',
-  'https://giraffe.8415wallet.com:9446/web/index.html#auth-initial']) test(`routing refuses changed endpoint ${bad}`, () => {
+for (const bad of ['https://lala.8415wallet.com/web/index.html', 'https://giraffe.8415wallet.com:65536/web/index.html',
+  'https://giraffe.8415wallet.com:0/web/index.html', 'https://giraffe.8415wallet.com:0443/web/index.html',
+  'https://giraffe.8415wallet.com/../web/index.html', 'https://giraffe.8415wallet.com/%61/web/index.html',
+  'https://giraffe.8415wallet.com//web/index.html', 'https://giraffe.8415wallet.com.evil.invalid/web/index.html', 'http://giraffe.8415wallet.com:18443/web/index.html',
+  'https://u:p@giraffe.8415wallet.com:18443/web/index.html', 'https://giraffe.8415wallet.com:18443/web/index.html?tenant=xiongan',
+  'https://giraffe.8415wallet.com:18443/web/index.html#auth-initial']) test(`routing refuses changed endpoint ${bad}`, () => {
   const v = enabled(); v.entries[1].url = bad; assert.throws(() => validatePasswordRoutes(v));
 });
 test('fixed panel hints do not relax origin/path/query or default-tenant location gates', () => {
@@ -82,4 +84,31 @@ test('platform markup and local receiver keep secrets and authentication on the 
   assert.doesNotMatch(ui, /postMessage|localStorage|sessionStorage|setPassword|signIn|credentials:\s*'include'/);
   assert.match(receiver, /return openManagement\(\{ initial: action === 'initial' \}\)/);
   assert.match(receiver, /history\.replaceState/);
+});
+
+for (const endpoint of ['https://giraffe.8415wallet.com/web/index.html',
+  'https://giraffe.8415wallet.com:443/release/web/index.html',
+  'https://giraffe.8415wallet.com:28443/nested/v3/web/index.html']) {
+  test(`operator-configured complete endpoint round-trips: ${endpoint}`, () => {
+    const config = enabled(); config.entries[1].url = endpoint;
+    const routes = validatePasswordRoutes(config);
+    const receiver = { ...profile('giraffe'), deployment: { environment: 'other', url: endpoint } };
+    for (const action of ['initial', 'manage']) {
+      const target = passwordTenantDestination(routes, 'giraffe', action);
+      assert.equal(target, endpoint + '#auth-' + action);
+      assert.equal(passwordPanelAction(receiver, new URL(target)), action);
+      assert.equal(verifyReleaseLocation(receiver, new URL(target)), receiver);
+      const wrongPort = new URL(target); wrongPort.port = '38443';
+      const wrongPath = new URL(target); wrongPath.pathname = '/wrong/web/index.html';
+      for (const mismatch of [wrongPort, wrongPath]) {
+        assert.equal(passwordPanelAction(receiver, mismatch), null);
+        assert.throws(() => verifyReleaseLocation(receiver, mismatch), /MISMATCH/);
+      }
+    }
+  });
+}
+test('packaged routes contain no deployment endpoints and initial controls are disabled in markup', () => {
+  assert.ok(defaults().entries.every(row => row.url === null && row.passwordManagementReady === false));
+  for (const id of ['auth-initial-open', 'auth-manage-open'])
+    assert.match(file('web/index.html'), new RegExp(`id="${id}" disabled`));
 });

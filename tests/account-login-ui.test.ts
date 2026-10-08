@@ -1,3 +1,4 @@
+import { isPlatformPasswordProfile, passwordPanelAction } from '../web/tenant-password-routing.mjs';
 import * as uiI18n from '../web/i18n.mjs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -8,7 +9,7 @@ import { AccountAuthClient } from '../web/account-auth.mjs';
 import { clearEnrollmentQr, renderEnrollmentQr } from '../web/enrollment-qr.mjs';
 const source = readFileSync(new URL('../web/wallet-auth.mjs', import.meta.url), 'utf8')
   .replace(/^import[^\n]*\n/gm, '').replace(/^export \{[^\n]*\n/gm, '').replace('export const walletLogin', 'const walletLogin');
-function fixture(method: string) {
+function fixture(method: string, profile = Promise.resolve<any>({ tenant: { id: 'xiongan' } })) {
   const signer = Wallet.createRandom(), origin = 'https://wallet.example.invalid:18443', elements = new Map<string, any>(), requests: any[] = [], calls: string[] = [];
   const state = { hold: null as null | Promise<void>, accountHold: null as null | Promise<void>, fail: false, revoked: false, enrolled: false, cancelled: false, badAccount: false, mailAvailable: false, reserved: false, rejectPath: '', rejectCode: 'AUTH_REFUSED', recoveryHold: null as null | Promise<void>, registrationHold: null as null | Promise<void>, registrationConfirmHold: null as null | Promise<void>, registeredEmail: null as string | null, registrationCancelled: false, signatureHold: null as null | Promise<void>, passwordManagement: true, passwordBound: true, passwordEnabled: true, stale: false, passwordHold: null as null | Promise<void>, capabilitiesHold: null as null | Promise<void>, sessionHold: null as null | Promise<void>, passwordBadResponse: false, passwordNetworkFailure: false };
   const timers = new Map<number, () => void>(), windowEvents = new Map<string, (event?: any) => unknown>();
@@ -62,11 +63,11 @@ function fixture(method: string) {
   class BoundClient extends AccountAuthClient { constructor({ tenant }: any) { super({ tenant, origin, fetcher }); } }
   const sdk = { ...uiI18n, WalletLogin, WalletLoginError, AccountAuthClient: BoundClient, verifyMessage, getAddress, hashMessage, Interface,
     clearEnrollmentQr, renderEnrollmentQr,
-    getReleaseProfile: async () => ({ tenant: { id: 'xiongan' } }), acquireWalletUi: () => Symbol(), releaseWalletUi() {} };
+    isPlatformPasswordProfile, passwordPanelAction, getReleaseProfile: () => profile, acquireWalletUi: () => Symbol(), releaseWalletUi() {} };
   const login = new Function('document', 'globalThis', 'setTimeout', 'clearTimeout', ...Object.keys(sdk), `${source}\nreturn walletLogin;`)(
     { getElementById: element, addEventListener() {} }, { ethereum: provider, location: { origin }, addEventListener(event: string, handler: (event?: any) => unknown) { windowEvents.set(event, handler); } },
     (handler: () => void) => { timers.set(++timerId, handler); return timerId; }, (id: number) => timers.delete(id), ...Object.values(sdk));
-  return { element, state, session, login, requests, calls, timers, windowEvents, emit: (event: string) => { for (const fn of providerEvents.get(event) ?? []) fn(); }, click: (id: string) => element(id).handlers.get('click')(), change: () => element('wallet-login-method').handlers.get('change')() };
+  return { ready: profile, element, state, session, login, requests, calls, timers, windowEvents, emit: (event: string) => { for (const fn of providerEvents.get(event) ?? []) fn(); }, click: (id: string) => element(id).handlers.get('click')(), change: () => element('wallet-login-method').handlers.get('change')() };
 }
 for (const method of ['password', 'totp']) test(`actual ${method} UI handler clears credentials, requests only account access and unlocks verified identity`, async () => {
   const f = fixture(method); await f.click('wallet-login'); assert.equal(f.element('wallet-private').hidden, false, f.element('wallet-login-status').textContent);
@@ -134,12 +135,12 @@ for (const { id } of uiI18n.LOCALES) test(`locale ${id} cannot unlock login or r
 
 
 test('public entry is request-free and explicit setup checks capabilities without requesting provider access', async () => {
-  const f = fixture('totp'); assert.deepEqual(f.calls, []); assert.equal(f.requests.length, 0); await f.click('auth-initial-open');
+  const f = fixture('totp'); assert.deepEqual(f.calls, []); assert.equal(f.requests.length, 0); await f.ready; await f.click('auth-initial-open');
   assert.equal(f.element('auth-management').hidden, false); assert.equal(f.element('auth-enrollment').hidden, true);
   assert.equal(f.element('wallet-login-method').value, 'wallet'); assert.equal(f.element('auth-existing-fields').hidden, true);
   assert.deepEqual(f.calls, []); assert.deepEqual(f.requests.map(r => r.path), ['capabilities']);
   f.click('auth-management-close'); assert.equal(f.element('auth-management').hidden, true);
-  await f.click('auth-manage-open'); assert.equal(f.element('auth-management').hidden, false);
+  await f.ready; await f.click('auth-manage-open'); assert.equal(f.element('auth-management').hidden, false);
   assert.deepEqual(f.calls, []); assert.deepEqual(f.requests.map(r => r.path), ['capabilities', 'capabilities']);
 });
 for (const { id } of uiI18n.LOCALES) test(`login action follows method and ${id} without extra provider or network requests`, () => {
@@ -400,7 +401,7 @@ test('mismatched passwords are cleared without submitting or retaining them in l
   uiI18n.setLocale('en', { persist: false });
 });
 for (const method of ['wallet-local', 'totp', 'recovery']) test(`initial setup from ${method} chooses registered wallet without an automatic connection or signature`, async () => {
-  const f = fixture(method === 'recovery' ? 'totp' : method);
+  const f = fixture(method === 'recovery' ? 'totp' : method); await f.ready;
   if (method === 'recovery') { f.session.kind = 'recovery'; f.element('auth-recovery').checked = true; }
   if (method !== 'wallet-local') await f.click('wallet-login');
   const calls = f.calls.length; await f.click('auth-initial-open');
@@ -408,7 +409,7 @@ for (const method of ['wallet-local', 'totp', 'recovery']) test(`initial setup f
   assert.equal(f.element('auth-password-fields').hidden, true); assert.equal(f.element('auth-password-save').disabled, true);
 });
 test('initial setup overrides an unauthenticated Password selection without asking for a nonexistent password', async () => {
-  const f = fixture('password'); await f.click('auth-initial-open');
+  const f = fixture('password'); await f.ready; await f.click('auth-initial-open');
   assert.equal(f.element('wallet-login-method').value, 'wallet'); assert.equal(f.element('auth-password-label').hidden, true);
   assert.equal(f.element('auth-password').value, ''); assert.equal(f.element('auth-new-password').disabled, true);
   assert.deepEqual(f.calls, []); assert.deepEqual(f.requests.map(r => r.path), ['capabilities']);
@@ -420,7 +421,7 @@ test('initial setup preserves an already authenticated fresh independent passwor
   assert.equal(f.calls.length, calls); assert.equal(f.requests.some(r => r.path === 'logout'), false);
 });
 for (const fresh of [false, true]) test(`unsupported password-management capability explains the same-origin upgrade with ${fresh ? 'fresh login' : 'public settings'}`, async () => {
-  const f = fixture('password'); f.state.passwordManagement = false;
+  const f = fixture('password'); await f.ready; f.state.passwordManagement = false;
   if (fresh) await f.click('wallet-login'); await f.click('auth-manage-open');
   assert.equal(f.element('auth-password-state').textContent, uiI18n.t('account.passwordUpgrade'));
   assert.equal(f.element('auth-password-fields').hidden, true); assert.equal(f.element('auth-new-password').disabled, true);
@@ -520,4 +521,33 @@ for (const action of ['cancel', 'expire']) test(`reset proof ${action} clears pa
   assert.equal(f.element('auth-new-password').value, ''); assert.equal(f.element('auth-new-password-confirm').value, '');
   assert.equal(f.element('auth-password-save').disabled, true); await f.click('auth-password-save');
   assert.equal(f.requests.some(r => r.path === 'account/password'), false);
+});
+
+for (const button of ['auth-initial-open', 'auth-manage-open']) {
+  for (const tenant of ['default', 'xiongan']) test(`delayed ${tenant} profile ignores premature ${button} events`, async () => {
+    let resolve!: (profile: any) => void;
+    const pending = new Promise<any>(r => { resolve = r; });
+    const f = fixture('password', pending);
+    assert.equal(f.element(button).disabled, true);
+    await f.click(button); await f.click(button);
+    assert.equal(f.element('auth-management').hidden, true);
+    assert.equal(f.requests.length, 0);
+    resolve({ tenant: { id: tenant }, deployment: { url: `https://${tenant === 'default' ? '' : 'xiongan.'}8415wallet.com/web/index.html` } });
+    await f.ready; await Promise.resolve();
+    assert.equal(f.element('auth-management').hidden, true);
+    assert.equal(f.requests.length, 0);
+    assert.equal(f.element(button).disabled, tenant === 'default');
+    assert.equal(f.element(button).hidden, tenant === 'default');
+    await f.click(button);
+    assert.equal(f.element('auth-management').hidden, tenant === 'default');
+    assert.equal(f.requests.some(r => r.path === 'capabilities'), tenant !== 'default');
+  });
+}
+for (const button of ['auth-initial-open', 'auth-manage-open']) test(`refused profile keeps ${button} disabled and request-free`, async () => {
+  const f = fixture('password', Promise.reject(Error('RELEASE_LOCATION_MISMATCH')));
+  await f.ready.catch(() => {}); await Promise.resolve();
+  await f.click(button);
+  assert.equal(f.element(button).disabled, true);
+  assert.equal(f.element('auth-management').hidden, true);
+  assert.equal(f.requests.length, 0);
 });
