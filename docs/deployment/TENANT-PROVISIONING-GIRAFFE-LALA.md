@@ -101,7 +101,10 @@ node deploy/dapp/install.mjs install \
 Notes:
 
 - use the exact approved HTTPS entry URL from the private deployment preset,
-  including its existing port and path; do not substitute port 443, `/web/`,
+  once completed by the deployment owner. The private preset is currently
+  unconfigured for origin, entry URL and reserved ports: first confirm the existing
+  TLS virtual host, actual listeners and approved entry path. Preserve these,
+  including the existing port and path; do not substitute port 443, `/web/`,
   `/v3/web/`, or another origin. The auth `--origin` is only that URL's scheme,
   host and port, without its path. Repeat with lala's own approved URL;
 - `--reserved-ports` takes the host's reserved ports, or the literal `none`.
