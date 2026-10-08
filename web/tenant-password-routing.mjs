@@ -4,16 +4,31 @@ const exact = (v, fields) => v && typeof v === 'object' && !Array.isArray(v) &&
   Object.keys(v).sort().join(',') === fields.split(',').sort().join(',');
 export const PASSWORD_TENANTS = Object.freeze(['xiongan', 'giraffe', 'lala']);
 export const PASSWORD_PANELS = Object.freeze({ initial: '#auth-initial', manage: '#auth-manage' });
-const tenantUrls = Object.freeze({
-  xiongan: 'https://xiongan.8415wallet.com:9446/web/index.html',
-  giraffe: 'https://giraffe.8415wallet.com:9446/web/index.html',
-  lala: 'https://lala.8415wallet.com:9446/web/index.html'
-});
+// Only operator-owned same-origin deployment status supplies destinations.
+// Host/tenant binding is fixed; the complete HTTPS endpoint is deployment data.
+function tenantEndpoint(tenant, value) {
+  if (typeof value !== 'string' || value.length > 2048) fail('PASSWORD_ROUTING_URL_REFUSED');
+  let url; try { url = new URL(value); } catch { fail('PASSWORD_ROUTING_URL_REFUSED'); }
+  const authority = value.match(/^https:\/\/([^/:?#]+)(?::([1-9][0-9]{0,4}))?(\/[^?#]*)$/);
+  if (!authority || authority[1] !== tenant + '.8415wallet.com' ||
+      (authority[2] && Number(authority[2]) > 65535) ||
+      url.protocol !== 'https:' || url.hostname !== tenant + '.8415wallet.com' ||
+      url.username || url.password || url.search || url.hash || /[\\\s%]/.test(value) ||
+      authority[3] !== url.pathname || !url.pathname.endsWith('/web/index.html') ||
+      url.pathname.includes('//')) fail('PASSWORD_ROUTING_URL_REFUSED');
+  return url;
+}
+export function isPlatformPasswordProfile(profile) {
+  return profile.tenant.id === 'default' && !!profile.deployment.url &&
+    new URL(profile.deployment.url).hostname === '8415wallet.com';
+}
 export function passwordPanelAction(profile, location) {
   const action = Object.keys(PASSWORD_PANELS).find(key => PASSWORD_PANELS[key] === location.hash);
-  if (!action || !PASSWORD_TENANTS.includes(profile.tenant.id) || profile.deployment.url !== tenantUrls[profile.tenant.id] ||
+  if (!action || !PASSWORD_TENANTS.includes(profile.tenant.id) ||
       profile.id !== (profile.tenant.id === 'xiongan' ? 'v2' : 'v3')) return null;
-  const actual = new URL(location.href), expected = new URL(profile.deployment.url);
+  let actual, expected;
+  try { actual = new URL(location.href); expected = tenantEndpoint(profile.tenant.id, profile.deployment.url); }
+  catch { return null; }
   if (actual.origin !== expected.origin || actual.pathname !== expected.pathname || actual.search) return null;
   return action;
 }
@@ -30,13 +45,7 @@ export function validatePasswordRoutes(value) {
     if (entry.url === null) {
       if (entry.passwordManagementReady) fail('PASSWORD_ROUTING_NOT_DEPLOYED');
     } else {
-      if (typeof entry.url !== 'string' || entry.url.length > 2048) fail('PASSWORD_ROUTING_URL_REFUSED');
-      let url; try { url = new URL(entry.url); } catch { fail('PASSWORD_ROUTING_URL_REFUSED'); }
-      if (url.protocol !== 'https:' || url.hostname !== entry.tenant + '.8415wallet.com' ||
-          url.username || url.password || url.search || url.hash || /[\\\s%]/.test(entry.url) ||
-          url.href !== entry.url || !url.pathname.endsWith('/web/index.html') ||
-          url.pathname.includes('//') || !/^https:\/\/[^/]+:[1-9][0-9]{0,4}\//.test(entry.url)) fail('PASSWORD_ROUTING_URL_REFUSED');
-      if (entry.url !== tenantUrls[entry.tenant]) fail('PASSWORD_ROUTING_ORIGIN_REFUSED');
+      tenantEndpoint(entry.tenant, entry.url);
     }
     return Object.freeze({ ...entry });
   });

@@ -416,3 +416,33 @@ an established email additionally requires the existing reserved recovery proof;
 new email ownership is verified before the identity and recovery recipient change
 atomically. Email/wallet uniqueness and ordinary account creation are persisted
 in the existing encrypted store, with no key regeneration.
+
+## Platform password navigation deployment
+
+The verified apex/default platform profile offers a public tenant/action selector.
+The packaged `web/tenant-password-routing.json` contains no endpoint and marks all
+three tenants unavailable. To enable navigation, the operator serves the exact
+`8415wallet-password-routing/1` schema at the platform's same-origin
+`/.well-known/8415wallet-password-routing.json`. Each entry contains `tenant`,
+`profile`, the tenant's complete deployment `url`, and boolean
+`passwordManagementReady`. Copy the URL from that tenant's verified
+`release-config.json`; do not infer, replace or migrate its scheme, host, port or
+path. Enable readiness only after matching UI/runtime capability validation.
+Xiongan maps to V2, Giraffe and Lala to V3. HTTPS hosts remain bound to
+`<tenant>.8415wallet.com`; deployment selects the port (including default HTTPS)
+and any canonical path ending in `/web/index.html`. Userinfo, query, fragments,
+encoded/noncanonical paths, unknown tenants and cross-tenant hosts are rejected.
+
+The public status is operator-controlled deployment configuration, not a tenant
+probe or an authentication grant. Loading it omits credentials and refuses
+redirects. A missing status falls back to the packaged unavailable entries;
+invalid or failed status stays unavailable. The destination accepts only the two
+fixed panel fragments on its own exact release-configured origin and path, then
+removes the fragment without retaining credentials or copying browser state.
+
+Initial setup and Manage are disabled in initial markup and their handlers ignore
+clicks until the shared release-profile verification completes. The verified
+platform keeps these local management entry buttons disabled/hidden; tenant and standalone profiles
+then enable their existing local flow. A slow or failed profile must not queue a
+local panel or trigger an authentication capability request. These UI gates do
+not replace independent server authorization or fresh identity verification.

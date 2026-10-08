@@ -203,6 +203,7 @@ for (const missing of passwordRoutingPaths) {
 }
 test('self-consistent synthetic kit refuses enabled packaged password readiness', t => {
   const routes = JSON.parse(readFileSync(new URL('../web/tenant-password-routing.json', import.meta.url), 'utf8'));
+  routes.entries[0].url = 'https://xiongan.8415wallet.com/deployed/web/index.html';
   routes.entries[0].passwordManagementReady = true;
   const f = fixture(t, 'ready-routing', { config: routes });
   assert.throws(() => verifyDeliveryArchive(f.archive, f.pins), /PASSWORD_ROUTING_DEFAULT_NOT_READY_REQUIRED/);

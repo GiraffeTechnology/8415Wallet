@@ -1,3 +1,4 @@
+import { isPlatformPasswordProfile } from '../web/tenant-password-routing.mjs';
 import { clearEnrollmentQr, renderEnrollmentQr } from '../web/enrollment-qr.mjs';
 import * as uiI18n from '../web/i18n.mjs';
 import test from 'node:test';
@@ -25,7 +26,7 @@ function fixture() {
     throw new Error('Unexpected provider method');
   } };
   const sdk = { ...uiI18n, clearEnrollmentQr, renderEnrollmentQr, WalletLogin, WalletLoginError, verifyMessage, getAddress, hashMessage, Interface,
-    getReleaseProfile: () => config.promise, acquireWalletUi: () => Symbol(), releaseWalletUi() {} };
+    isPlatformPasswordProfile, getReleaseProfile: () => config.promise, acquireWalletUi: () => Symbol(), releaseWalletUi() {} };
   const login = new Function('document', 'globalThis', 'setTimeout', 'clearTimeout', ...Object.keys(sdk), `${source}\nreturn walletLogin;`)(
     { getElementById: element, addEventListener: (event: string, callback: any) => lifecycle.set(event, callback) },
     { ethereum: provider, location: { origin: 'https://wallet.example.invalid:18443' }, addEventListener: (event: string, callback: any) => lifecycle.set(event, callback) },
