@@ -79,9 +79,17 @@ test('synthetic desktop and mobile real-page task approval, app switch, reload, 
       await page.evaluate(() => { Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' }); document.dispatchEvent(new Event('visibilitychange')); });
       assert.equal(requests.filter(path => path === 'tasks/prepare').length, prepareCount);
       assert.equal(await page.locator('#task-authorize-fields').isVisible(), true);
+      const canonicalPolicy = page.locator('#task-canonical');
+      // The policy is an intentionally collapsed disclosure. Inspect its exact
+      // stored text, then open it through the user control before testing layout.
+      assert.equal(await canonicalPolicy.textContent(), JSON.stringify(task.policy, null, 2));
+      await canonicalPolicy.locator('..').locator('summary').click();
+      await canonicalPolicy.waitFor({ state: 'visible' });
+      assert.equal(await canonicalPolicy.innerText(), JSON.stringify(task.policy, null, 2));
       for (const locale of ['zh-Hans', 'zh-Hant', 'fr', 'es', 'ja', 'en']) {
         await page.locator('#ui-locale').selectOption(locale);
-        assert.equal(await page.locator('#task-canonical').innerText(), JSON.stringify(task.policy, null, 2));
+        assert.equal(await canonicalPolicy.isVisible(), true, `${locale}: canonical policy remains visible`);
+        assert.equal(await canonicalPolicy.innerText(), JSON.stringify(task.policy, null, 2));
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, `${viewport.width}:${locale}: no horizontal overflow`);
       }
       assert.equal(requests.filter(path => path === 'tasks/prepare').length, prepareCount);
