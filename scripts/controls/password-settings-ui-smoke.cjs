@@ -1,3 +1,4 @@
+const change = require('./method-change-test-ui.cjs');
 // Real Chromium + real HTTP authentication; all identities and credentials are synthetic.
 // No production site, mailbox, transaction, hardware or real credential is used.
 const assert = require('node:assert/strict');
@@ -41,8 +42,8 @@ async function run() {
     fs.mkdirSync(out, { recursive: true });
     browser = await chromium.launch({ executablePath: process.env.WALLET_BROWSER_CHROMIUM || '/usr/bin/chromium', args: ['--no-sandbox', '--disable-dev-shm-usage'] });
     for (profile of ['v2', 'v3']) for (const width of [1440, 390]) {
-      time = Date.now(); const store = new MemoryCredentialStore();
-      auth = createAuthService({ origin, tenant: config.tenant.id, accounts: [{ username: 'tester', wallets: [{ account: actor, chainId: '1' }] }], store, now: () => time });
+      time = Date.now(); const mail = [], store = new MemoryCredentialStore(change.registeredState(config.tenant.id, 'tester', 'tester@example.invalid', time));
+      auth = createAuthService({ origin, tenant: config.tenant.id, accounts: [{ username: 'tester', wallets: [{ account: actor, chainId: '1' }] }], store, now: () => time, sendOtp: async message => { mail.push(message); } });
       const context = await browser.newContext({ viewport: { width, height: width === 390 ? 844 : 1000 }, isMobile: width === 390 });
       const requests = [], errors = [], offOrigin = [];
       context.on('request', request => { if (!request.url().startsWith(`${origin}/`)) offOrigin.push(request.url()); if (request.url().includes('/auth/')) requests.push(new URL(request.url()).pathname); });
@@ -70,11 +71,7 @@ async function run() {
         await page.click('#wallet-login'); await page.waitForFunction(() => !document.getElementById('wallet-private').hidden); await idle(); await settings();
       };
       const fillPassword = async (value, confirm = value) => { await page.fill('#auth-new-password', value); await page.fill('#auth-new-password-confirm', confirm); };
-      const save = async () => {
-        const response = page.waitForResponse(r => r.url().endsWith('/auth/account/password'));
-        await page.click('#auth-password-save'); const result = await response;
-        return { status: result.status(), body: await result.json() };
-      };
+      const save = options => change.commit(page, '#auth-password-save', options, () => mail.at(-1));
       await page.goto(`${origin}/web/index.html`); await page.waitForFunction(() => document.getElementById('release-profile').textContent.includes('8415wallet'));
       assert.deepEqual(requests, []); assert.deepEqual(await page.evaluate(() => globalThis.__passwordCalls), []);
       await page.selectOption('#wallet-login-method', 'password');
@@ -85,9 +82,9 @@ async function run() {
       assert.equal(await page.locator('#auth-existing-fields').isVisible(), false);
       assert.equal(await page.isChecked('#auth-enable-wallet'), true);
       assert.equal(await page.isDisabled('#auth-enable-password'), true);
-      const beforeMismatch = requests.filter(p => p === '/auth/account/password').length;
+      const beforeMismatch = requests.filter(p => p === '/auth/account/change/start').length;
       await fillPassword(password, 'different-synthetic-password'); await page.click('#auth-password-save');
-      assert.equal(requests.filter(p => p === '/auth/account/password').length, beforeMismatch);
+      assert.equal(requests.filter(p => p === '/auth/account/change/start').length, beforeMismatch);
       assert.equal(await page.inputValue('#auth-new-password'), ''); assert.equal(await page.inputValue('#auth-new-password-confirm'), '');
       await fillPassword(password); const first = await save(); assert.equal(first.status, 200); assert.equal(first.body.loggedOut, true); await signedOut(); await idle();
       assert.equal(await page.inputValue('#auth-new-password'), ''); assert.equal(await page.inputValue('#auth-new-password-confirm'), '');
@@ -96,25 +93,26 @@ async function run() {
       await page.locator('#auth-password-settings').screenshot({ path: path.join(out, `${profile}-${width}-password-settings.png`) });
       // An existing authenticator remains required for password changes.
       await page.click('#auth-enroll-start');
+      await change.authorize(page, { password }, () => mail.at(-1));
       await page.waitForFunction(() => document.getElementById('auth-enroll-secret').textContent.includes('otpauth://'));
       const secret = (await page.textContent('#auth-enroll-secret')).match(/\n([A-Z2-7]{32})\n/)[1];
       await page.fill('#auth-enroll-code', hotp(secret, Math.floor(time / 30000))); await page.click('#auth-enroll-confirm');
       await page.waitForFunction(() => !document.getElementById('auth-recovery-output').hidden);
       const recovery = (await page.textContent('#auth-recovery-codes')).split('\n'); await page.click('#auth-recovery-dismiss'); await login();
-      await fillPassword(replacement); const refused = await save(); assert.equal(refused.status, 401);
+      await fillPassword(replacement); await page.click('#auth-password-save'); const refused = await change.identity(page, { password }); assert.equal(refused.status, 401);
       assert.equal(await page.inputValue('#auth-new-password'), ''); assert.equal(await page.inputValue('#auth-new-password-confirm'), '');
-      await fillPassword(replacement); await page.fill('#auth-existing-code', recovery[0]); await page.check('#auth-existing-recovery');
-      const changed = await save(); assert.equal(changed.status, 200); await signedOut(); await idle();
+      await fillPassword(replacement);
+      const changed = await save({ password, existingCode: recovery[0], recovery: true }); assert.equal(changed.status, 200); await signedOut(); await idle();
       await login(replacement); assert.equal(await page.isChecked('#auth-enable-wallet'), true); assert.equal(await page.isChecked('#auth-enable-totp'), true);
       // Cancel a pending request before it reaches the HTTP service. It cannot alter the credential.
       let release, entered;
       const gate = new Promise(resolve => { release = resolve; }), held = new Promise(resolve => { entered = resolve; });
-      await page.route('**/auth/account/password', async route => { entered(); await gate; await route.continue(); });
-      await fillPassword('synthetic-cancelled-password'); await page.fill('#auth-existing-code', recovery[1]); await page.check('#auth-existing-recovery');
-      await page.click('#auth-password-save'); await held;
+      await page.route('**/auth/account/change/commit', async route => { entered(); await gate; await route.continue(); });
+      await fillPassword('synthetic-cancelled-password'); await page.click('#auth-password-save');
+      await change.authorize(page, { password: replacement, existingCode: recovery[1], recovery: true }, () => mail.at(-1)); await held;
       const logout = page.waitForResponse(r => r.url().endsWith('/auth/logout'));
       await page.click('#auth-management-close'); await logout; release(); await page.waitForLoadState('networkidle');
-      await page.unroute('**/auth/account/password');
+      await page.unroute('**/auth/account/change/commit');
       assert.equal(await page.locator('#auth-management').isVisible(), false); assert.equal(await page.inputValue('#auth-new-password'), '');
       await login(replacement); await page.click('#auth-management-close'); await page.click('#wallet-logout'); await signedOut();
       // The old-service capability must provide an actionable version mismatch, without offering a broken form.
@@ -138,4 +136,4 @@ async function run() {
   } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }
 }
 module.exports = { run };
-if (require.main === module) run().catch(error => { console.error(error); process.exitCode = 1; });
+if (require.main === module) run().catch(error => { change.failure(error); });

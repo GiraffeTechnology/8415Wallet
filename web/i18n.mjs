@@ -2,6 +2,7 @@
 import en from './locales/en.mjs';
 import design from './locales/design.mjs';
 import account from './locales/auth-management.mjs';
+import task from './locales/task-authorization.mjs';
 import hans from './locales/zh-Hans.mjs';
 import hant from './locales/zh-Hant.mjs';
 import fr from './locales/fr.mjs';
@@ -15,7 +16,7 @@ import native3 from './locales/native-fr.mjs';
 import native4 from './locales/native-es.mjs';
 import native5 from './locales/native-ja.mjs';
 
-export const CATALOGS = Object.freeze({ en: Object.freeze({ ...en, ...native0, ...nativeFragments['en'], ...design['en'], ...account['en'] }), 'zh-Hans': Object.freeze({ ...hans, ...native1, ...nativeFragments['zh-Hans'], ...design['zh-Hans'], ...account['zh-Hans'] }), 'zh-Hant': Object.freeze({ ...hant, ...native2, ...nativeFragments['zh-Hant'], ...design['zh-Hant'], ...account['zh-Hant'] }), fr: Object.freeze({ ...fr, ...native3, ...nativeFragments['fr'], ...design['fr'], ...account['fr'] }), es: Object.freeze({ ...es, ...native4, ...nativeFragments['es'], ...design['es'], ...account['es'] }), ja: Object.freeze({ ...ja, ...native5, ...nativeFragments['ja'], ...design['ja'], ...account['ja'] }) });
+export const CATALOGS = Object.freeze({ en: Object.freeze({ ...en, ...native0, ...nativeFragments['en'], ...design['en'], ...account['en'], ...task['en'] }), 'zh-Hans': Object.freeze({ ...hans, ...native1, ...nativeFragments['zh-Hans'], ...design['zh-Hans'], ...account['zh-Hans'], ...task['zh-Hans'] }), 'zh-Hant': Object.freeze({ ...hant, ...native2, ...nativeFragments['zh-Hant'], ...design['zh-Hant'], ...account['zh-Hant'], ...task['zh-Hant'] }), fr: Object.freeze({ ...fr, ...native3, ...nativeFragments['fr'], ...design['fr'], ...account['fr'], ...task['fr'] }), es: Object.freeze({ ...es, ...native4, ...nativeFragments['es'], ...design['es'], ...account['es'], ...task['es'] }), ja: Object.freeze({ ...ja, ...native5, ...nativeFragments['ja'], ...design['ja'], ...account['ja'], ...task['ja'] }) });
 export const LOCALES = Object.freeze([
   Object.freeze({ id: 'en', label: 'EN', name: 'English' }),
   Object.freeze({ id: 'zh-Hans', label: '简', name: '简体中文' }),

@@ -12,6 +12,15 @@ export class MemoryCredentialStore {
   #data; #queue = Promise.resolve(); #failed = false;
   constructor(data = {}) { this.#data = structuredClone(data); }
   async read(username) { if (this.#failed) throw new Error('AUTH_STORE_UNHEALTHY'); return structuredClone(Object.hasOwn(this.#data, username) ? this.#data[username] : null); }
+  async readMany(keys) {
+    if (!Array.isArray(keys) || !keys.length || keys.some(key => typeof key !== 'string' || !key ||
+      ['__proto__', 'constructor', 'prototype'].includes(key)) || new Set(keys).size !== keys.length) throw new Error('AUTH_STORE_KEYS_REFUSED');
+    const run = this.#queue.then(() => {
+      if (this.#failed) throw new Error('AUTH_STORE_UNHEALTHY');
+      return structuredClone(Object.fromEntries(keys.map(key => [key, Object.hasOwn(this.#data, key) ? this.#data[key] : null])));
+    });
+    this.#queue = run.catch(() => {}); return run;
+  }
   async transaction(username, update) {
     const result = await this.transactionMany([username], async values => ({ [username]: await update(values[username]) }));
     return result[username];

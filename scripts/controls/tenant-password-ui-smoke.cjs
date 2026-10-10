@@ -73,7 +73,7 @@ async function run() {
         if (actual.pathname === '/auth/capabilities') {
           capabilitiesSeen.resolve(); await capabilitiesGate.promise;
           return finish({ status: 200, contentType: 'application/json', body: JSON.stringify({ schema: '8415wallet-auth/1',
-            tenant: config.tenant.id, origin: actual.origin, methods: ['password', 'wallet'], passwordManagement: true }) });
+            tenant: config.tenant.id, origin: actual.origin, methods: ['password', 'wallet'], passwordManagement: true, methodManagement: 'combined-v1' }) });
         }
         unexpected.push(request.url()); return route.abort();
       }
@@ -263,4 +263,4 @@ async function run() {
   assert.equal(failures.length, 0, `${failures.length} tenant-password browser regressions failed`);
 }
 module.exports = { run };
-if (require.main === module) run().catch(error => { console.error(error); process.exitCode = 1; });
+if (require.main === module) run().catch(error => { require('./method-change-test-ui.cjs').failure(error); });

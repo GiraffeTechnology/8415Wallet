@@ -5,8 +5,8 @@ import { getReleaseProfile } from './release-profile.mjs';
 import { walletUiBusy } from './ui-lock.mjs';
 import { TenantAvatarController } from './tenant-avatar.mjs';
 const el = id => document.getElementById(id);
-const pages = new Set(['overview', 'native', 'settlement', 'account', 'transfer', 'review', 'receive', 'activity', 'nft', 'linked', 'advanced', 'settings']);
-const titles = { overview: 'overview', native: 'native', settlement: 'settlement', account: 'standalone', transfer: 'send', review: 'review', receive: 'receive', activity: 'activity', nft: 'nftDetails', linked: 'responsibilities', advanced: 'advanced', settings: 'settings' };
+const pages = new Set(['overview', 'native', 'settlement', 'account', 'transfer', 'review', 'receive', 'activity', 'nft', 'linked', 'advanced', 'settings', 'tasks']);
+const titles = { overview: 'overview', native: 'native', settlement: 'settlement', account: 'standalone', transfer: 'send', review: 'review', receive: 'receive', activity: 'activity', nft: 'nftDetails', linked: 'responsibilities', advanced: 'advanced', settings: 'settings', tasks: 'tasks' };
 let page = 'overview', authenticated = false, profile = null, avatarGeneration = 0, navigationDismiss = false;
 let avatar = new TenantAvatarController();
 function resetNative(state = 'notRead') {
@@ -32,14 +32,15 @@ function route(next, { history = true, focus = true } = {}) {
   }
   paint(el('page-title'), msg(authenticated ? `design.${titles[page]}` : 'ui.005'));
   paint(el('page-description'), authenticated && page === 'overview' ? msg('design.overviewNote') : '');
-  if (history) globalThis.history.replaceState({ walletPage: page }, '');
+  if (history) globalThis.history.replaceState({ ...(globalThis.history.state ?? {}), walletPage: page }, '');
   if (focus) el('page-title').focus({ preventScroll: true });
+  document.dispatchEvent?.(new CustomEvent('wallet:page', { detail: page }));
 }
 for (const button of document.querySelectorAll('[data-route]')) button.addEventListener('click', () => {
   if (walletUiBusy()) return;
   const next = button.dataset.route;
   if (page === 'settings' && page !== next) document.dispatchEvent(new CustomEvent('wallet:authentication-leaving'));
-  if (authenticated && next !== page) globalThis.history.pushState({ walletPage: next }, '');
+  if (authenticated && next !== page) globalThis.history.pushState({ ...(globalThis.history.state ?? {}), walletPage: next }, '');
   if (button.dataset.settlement) {
     el('settlement-kind').value = button.dataset.settlement;
     el('settlement-kind').dispatchEvent(new Event('change', { bubbles: true }));
@@ -53,7 +54,7 @@ for (const button of document.querySelectorAll('[data-route]')) button.addEventL
 });
 el('skip-content').addEventListener('click', () => el('page-title').focus());
 globalThis.addEventListener('keydown', event => { if (event.key !== 'Escape' || walletUiBusy()) return; if (page === 'review') el('asset-dismiss').click(); else if (page === 'settings') { avatarGeneration++; avatar.cancel(); el('tenant-avatar-file').value = ''; renderAvatar(); } });
-globalThis.addEventListener('popstate', event => { if (walletUiBusy()) { globalThis.history.replaceState({ walletPage: page }, ''); return; } route(event.state?.walletPage, { history: false }); });
+globalThis.addEventListener('popstate', event => { if (walletUiBusy()) { globalThis.history.replaceState({ ...(globalThis.history.state ?? {}), walletPage: page }, ''); return; } route(event.state?.walletPage, { history: false }); });
 el('asset-dismiss').addEventListener('click', () => { if (page === 'review' && !navigationDismiss) { page = 'transfer'; route('transfer'); } });
 document.addEventListener('wallet:asset-review', event => {
   if (!authenticated) return;
@@ -104,7 +105,7 @@ walletLogin.subscribe(session => {
   paint(el('shell-account'), session ? session.account : msg('design.signedOut'));
   paint(el('shell-chain'), session ? `Chain ${session.chainId}` : '');
   if (!session) { resetNative(); paint(el('shell-balance'), msg('design.balanceUnread')); paint(el('native-read-result'), ''); }
-  route(session ? 'overview' : 'settings', { focus: false });
+  route(session ? (/^0x[0-9a-f]{64}$/.test(globalThis.history.state?.walletTaskDigest ?? '') ? 'tasks' : 'overview') : 'settings', { focus: false });
 });
 function avatarImage(target, url) {
   target.replaceChildren();

@@ -51,6 +51,16 @@ async function fixture(options: any = {}) {
   return { client, signer, state, store, messages, begin, origin, accounts, restart, close: () => new Promise<void>(resolve => server.close(() => resolve())) };
 }
 
+// Prepare an exact management change, including explicit independent proof and fresh email OTP.
+async function prepareChange(f: any, c: any, intent: any, factors: any = {}, wallet = f.signer) {
+  const start = await c.call('account/change/start', intent); assert.equal(start.status, 200, JSON.stringify(start));
+  const independent = start.data.factor === 'wallet' ? { signature: await wallet.signMessage(start.data.message) } : { originalPassword: password };
+  const verified = await c.call('account/change/verify', { changeId: start.data.changeId, ...independent, ...factors }); assert.equal(verified.status, 200, JSON.stringify(verified));
+  const proof = await c.call('account/change/confirm', { changeId: start.data.changeId, code: f.messages.at(-1).code }); assert.equal(proof.status, 200, JSON.stringify(proof));
+  return { ...proof.data, ...(proof.data.newEmailRequired ? { newEmailCode: f.messages.at(-1).code } : {}) };
+}
+const applyChange = (c: any, proof: any) => c.call('account/change/commit', { changeProof: proof.changeProof, ...(proof.newEmailRequired ? { newEmailCode: proof.newEmailCode } : {}) });
+
 test('signup requires verified email and purpose-bound EOA proof and creates only an ordinary account', async t => {
   const f = await fixture(); t.after(f.close); const c = f.client();
   assert.deepEqual((await c.call('capabilities')).data.registration, { available: true, emailRequired: true });
@@ -155,46 +165,40 @@ test('legacy migration preserves wallet/password/CA/TOTP/recovery/method state a
   const f = await fixture({ initial: { 'xiongan:legacy-user': initial } }); t.after(f.close);
   const c = f.client(), other = f.client(); await c.call('bootstrap'); await c.login(); await other.call('bootstrap'); await other.login();
   assert.equal((await c.call('account')).data.registration.required, true);
-  assert.equal((await c.call('registration/email/start', { email: 'migrated@example.invalid' })).status, 401);
-  f.state.now += 60000;
-  const reset = await c.call('recovery/reset/start', { answer }); assert.equal(reset.status, 200);
-  const proof = await c.call('recovery/reset/confirm', { challengeId: reset.data.challengeId, code: f.messages.at(-1).code });
-  const start = await c.call('registration/email/start', { email: 'migrated@example.invalid', existingCode: savedCode, recovery: true, resetProof: proof.data.resetProof });
-  assert.equal(start.status, 200, JSON.stringify(start));
-  const done = await c.call('registration/email/confirm', { challengeId: start.data.challengeId, code: f.messages.at(-1).code });
-  assert.deepEqual(done.data, { registered: true, loggedOut: true });
+  assert.equal((await c.call('registration/email/start', { email: 'migrated@example.invalid' })).data.error, 'AUTH_CHANGE_FLOW_REQUIRED');
+  const proof = await prepareChange(f, c, { action: 'email.initial', email: 'migrated@example.invalid' }, { existingCode: savedCode, recovery: true, existingAnswer: answer });
+  assert.deepEqual(f.messages.map((message: any) => message.to), ['old@example.invalid', 'migrated@example.invalid']);
+  assert.equal((await applyChange(c, proof)).status, 200);
   const saved = await f.store.read('xiongan:legacy-user');
   assert.equal(saved.secret, secret); assert.equal(saved.revision, 8); assert.deepEqual(saved.unrelated, initial.unrelated);
   assert.deepEqual(saved.enabledMethods, initial.enabledMethods); assert.deepEqual(saved.recoveryHashes, []);
   assert.equal(saved.recoveryProfile.answerHash, answerHash); assert.equal(saved.recoveryProfile.email, 'migrated@example.invalid');
   assert.equal((await other.call('session')).status, 401);
   await c.call('bootstrap'); assert.equal((await c.login()).status, 200); assert.equal((await c.call('account')).data.methods.ca.bound, true);
-  assert.equal((await c.call('registration/email/start', { email: 'changed@example.invalid' })).status, 401);
 });
 
-test('migration without reserved factors works only under fresh independent authentication; TOTP alias is still server verified', async t => {
+test('migration without reserved factors requires a new independent proof; TOTP alias remains server verified', async t => {
   const f = await fixture({ initial: { 'xiongan:legacy-user': { revision: 1, secret, lastStep: -1, recoveryHashes: [] } } }); t.after(f.close);
   const c = f.client(); await c.call('bootstrap'); await c.login();
-  const start = await c.call('registration/email/start', { email: 'legacy@example.invalid', existingCode: hotp(secret, Math.floor(f.state.now / 30000)) });
-  assert.equal(start.status, 200);
-  assert.equal((await c.call('registration/email/confirm', { challengeId: start.data.challengeId, code: f.messages.at(-1).code })).status, 200);
+  const proof = await prepareChange(f, c, { action: 'email.initial', email: 'legacy@example.invalid' }, { existingCode: hotp(secret, Math.floor(f.state.now / 30000)) });
+  assert.equal((await applyChange(c, proof)).status, 200);
   f.state.now += 30000; await c.call('bootstrap');
   assert.equal((await c.call('totp', { username: 'LEGACY@EXAMPLE.INVALID', account: f.signer.address, chainId: '1', code: hotp(secret, Math.floor(f.state.now / 30000)) })).status, 200);
-  assert.equal((await c.call('registration/email/start', { email: 'new@example.invalid' })).status, 403);
+  assert.equal((await c.call('account/change/start', { action: 'email.replace', email: 'new@example.invalid' })).status, 403);
 });
 
 test('registration and recovery email stay coherent and reset never accepts a new recipient', async t => {
   const f = await fixture(); t.after(f.close); const c = f.client(), flow = await f.begin(c);
   assert.equal((await c.call('registration/confirm', flow.body)).status, 200);
-  const body = { email: 'different@example.invalid', questionId: 'recovery-phrase', answer };
-  assert.equal((await c.call('recovery/enroll/start', body)).data.error, 'AUTH_REGISTRATION_EMAIL_MISMATCH');
-  f.state.now += 60000;
-  const start = await c.call('recovery/enroll/start', { ...body, email: 'New.User@example.invalid' }); assert.equal(start.status, 200);
-  assert.equal((await c.call('recovery/enroll/confirm', { challengeId: start.data.challengeId, code: f.messages.at(-1).code })).status, 200);
+  const body = { action: 'recovery.initial', email: 'different@example.invalid', questionId: 'recovery-phrase', answer };
+  assert.equal((await c.call('account/change/start', body)).data.error, 'AUTH_REGISTRATION_EMAIL_MISMATCH');
+  const proof = await prepareChange(f, c, { ...body, email: 'New.User@example.invalid' }, {}, flow.wallet);
+  assert.equal((await applyChange(c, proof)).status, 200);
   await c.call('bootstrap'); const challenge = (await c.call('challenge', { account: flow.wallet.address, chainId: '1', method: 'wallet' })).data;
   await c.call('proof', { account: flow.wallet.address, chainId: '1', id: challenge.id, signature: await flow.wallet.signMessage(challenge.message) });
   assert.equal((await c.call('recovery/reset/start', { answer, email: 'attacker@example.invalid' })).status, 400);
-  assert.equal((await c.call('registration/email/start', { email: 'new-address@example.invalid' })).status, 401);
+  const pending = (await c.call('account/change/start', { action: 'email.replace', email: 'new-address@example.invalid' })).data;
+  assert.notEqual((await c.call('account/change/verify', { changeId: pending.changeId })).status, 200);
 });
 
 test('old encrypted v1 credentials and newly registered directory survive restart without rekey or plaintext', async t => {
@@ -293,53 +297,40 @@ test('store capacity refuses oversize before persistence, preserving old usable 
 test('competing legacy migrations and signup cannot claim the same tenant email or stale account revision', async t => {
   const f = await fixture(); t.after(f.close);
   const a = f.client(), b = f.client(); await a.call('bootstrap'); await a.login(); await b.call('bootstrap'); await b.login();
-  const first = await a.call('registration/email/start', { email: 'first-legacy@example.invalid' });
-  const firstCode = f.messages.at(-1).code;
-  const second = await b.call('registration/email/start', { email: 'second-legacy@example.invalid' });
-  const secondCode = f.messages.at(-1).code;
-  const outcomes = await Promise.all([a.call('registration/email/confirm', { challengeId: first.data.challengeId, code: firstCode }),
-    b.call('registration/email/confirm', { challengeId: second.data.challengeId, code: secondCode })]);
-  assert.equal(outcomes.filter(result => result.status === 200).length, 1);
-  assert.equal((await f.store.read('@registration:xiongan')).records.length, 1);
-
+  const first = await prepareChange(f, a, { action: 'email.initial', email: 'first-legacy@example.invalid' });
+  const second = await prepareChange(f, b, { action: 'email.initial', email: 'second-legacy@example.invalid' });
+  const outcomes = await Promise.all([applyChange(a, first), applyChange(b, second)]);
+  assert.equal(outcomes.filter(result => result.status === 200).length, 1); assert.equal((await f.store.read('@registration:xiongan')).records.length, 1);
   const g = await fixture(); t.after(g.close); const signup = g.client(), flow = await g.begin(signup, 'mixed-race@example.invalid');
-  g.state.now += 60000; const migrating = g.client(); await migrating.call('bootstrap'); await migrating.login();
-  const migration = await migrating.call('registration/email/start', { email: 'MIXED-RACE@example.invalid' });
-  const race = await Promise.all([signup.call('registration/confirm', flow.body),
-    migrating.call('registration/email/confirm', { challengeId: migration.data.challengeId, code: g.messages.at(-1).code })]);
-  assert.equal(race.filter(result => result.status === 200).length, 1);
-  assert.equal((await g.store.read('@registration:xiongan')).records.length, 1);
+  const migrating = g.client(); await migrating.call('bootstrap'); await migrating.login();
+  const migration = await prepareChange(g, migrating, { action: 'email.initial', email: 'MIXED-RACE@example.invalid' });
+  const race = await Promise.all([signup.call('registration/confirm', flow.body), applyChange(migrating, migration)]);
+  assert.equal(race.filter(result => result.status === 200).length, 1); assert.equal((await g.store.read('@registration:xiongan')).records.length, 1);
 });
 
-test('email replacement verifies old reserved answer/email and new email, atomically moving the alias and recovery recipient', async t => {
+test('email replacement verifies old reserved answer/email and new email, atomically moving alias and recovery recipient', async t => {
   const f = await fixture(); t.after(f.close); const c = f.client(), flow = await f.begin(c, 'before@example.invalid');
   const created = await c.call('registration/confirm', { ...flow.body, password }); assert.equal(created.status, 200);
-  assert.equal((await c.call('registration/email/start', { email: 'after@example.invalid' })).data.error, 'AUTH_RECOVERY_REQUIRED');
-  const start = await c.call('recovery/enroll/start', { email: 'before@example.invalid', questionId: 'recovery-phrase', answer });
-  assert.equal((await c.call('recovery/enroll/confirm', { challengeId: start.data.challengeId, code: f.messages.at(-1).code })).status, 200);
+  const reserved = await prepareChange(f, c, { action: 'recovery.initial', email: 'before@example.invalid', questionId: 'recovery-phrase', answer });
+  assert.equal((await applyChange(c, reserved)).status, 200);
   await c.call('bootstrap'); assert.equal((await c.call('password', { username: 'before@example.invalid', password, account: flow.wallet.address, chainId: '1' })).status, 200);
-  const reset = await c.call('recovery/reset/start', { answer }); assert.equal(f.messages.at(-1).to, 'before@example.invalid');
-  const proof = await c.call('recovery/reset/confirm', { challengeId: reset.data.challengeId, code: f.messages.at(-1).code });
-  f.state.now += 60000;
-  const changing = await c.call('registration/email/start', { email: 'after@example.invalid', resetProof: proof.data.resetProof });
-  assert.equal(changing.status, 200); assert.equal(f.messages.at(-1).to, 'after@example.invalid');
-  const confirmed = await c.call('registration/email/confirm', { challengeId: changing.data.challengeId, code: f.messages.at(-1).code }); assert.equal(confirmed.status, 200);
+  const offset = f.messages.length, proof = await prepareChange(f, c, { action: 'email.replace', email: 'after@example.invalid' }, { existingAnswer: answer });
+  assert.deepEqual(f.messages.slice(offset).map((message: any) => message.to), ['before@example.invalid', 'after@example.invalid']);
+  assert.equal((await applyChange(c, proof)).status, 200);
   const credential = await f.store.read(`xiongan:${created.data.session.username}`);
   assert.equal(credential.registration.email, 'after@example.invalid'); assert.equal(credential.recoveryProfile.email, 'after@example.invalid');
-  await c.call('bootstrap');
-  assert.equal((await c.call('password', { username: 'before@example.invalid', password, account: flow.wallet.address, chainId: '1' })).status, 401);
+  await c.call('bootstrap'); assert.equal((await c.call('password', { username: 'before@example.invalid', password, account: flow.wallet.address, chainId: '1' })).status, 401);
   assert.equal((await c.call('password', { username: 'after@example.invalid', password, account: flow.wallet.address, chainId: '1' })).status, 200);
   const again = await c.call('recovery/reset/start', { answer }); assert.equal(again.status, 200); assert.equal(f.messages.at(-1).to, 'after@example.invalid');
 });
 
 test('migration cancellation/revocation prevents queued writes and never erases prior credentials', async t => {
-  for (const action of ['registration/email/cancel', 'logout']) {
+  for (const action of ['account/change/cancel', 'logout']) {
     const store = new DelayedStore(), f = await fixture({ store }); t.after(f.close); const c = f.client(); await c.call('bootstrap'); await c.login();
-    const start = await c.call('registration/email/start', { email: 'cancel-migration@example.invalid' }); assert.equal(start.status, 200);
-    const hold = gate(); store.beforeCommit = hold;
-    const confirming = c.call('registration/email/confirm', { challengeId: start.data.challengeId, code: f.messages.at(-1).code });
+    const proof = await prepareChange(f, c, { action: 'email.initial', email: 'cancel-migration@example.invalid' });
+    const hold = gate(); store.beforeCommit = hold; const confirming = applyChange(c, proof);
     await hold.started; await c.call(action, {}); hold.release(); assert.notEqual((await confirming).status, 200);
-    assert.equal(await store.read('@registration:xiongan'), null); assert.equal((await store.read('xiongan:legacy-user')).registration, undefined);
+    assert.equal(await store.read('@registration:xiongan'), null); assert.equal((await store.read('xiongan:legacy-user'))?.registration, undefined);
   }
 });
 

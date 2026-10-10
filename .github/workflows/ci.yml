@@ -6,6 +6,26 @@ on:
   pull_request:
 
 jobs:
+  task-runtime-minimum:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - name: Setup exact minimum Node runtime
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.18.0'
+          cache: npm
+      - name: Install pinned build dependencies
+        run: npm ci
+      - name: Build and verify standalone authentication package
+        run: |
+          npm run pack:auth
+          npm run pack:auth:verify
+      - name: Import canonical task core and smoke installed service
+        run: node scripts/controls/task-auth-runtime-smoke.mjs --runtime dist/package-auth
+
   verify:
     runs-on: ubuntu-latest
 
@@ -40,7 +60,9 @@ jobs:
         run: npm test
 
       - name: Browser entry
-        run: npm run wallet:browser:build
+        run: |
+          npm run wallet:browser:build
+          node --test tests/task-static-module-closure.test.mjs
 
       # No genuine wallet, network RPC, user keys or user signatures. Reuse the existing hosted runner;
       # this step does not provision infrastructure or establish device acceptance.
@@ -66,6 +88,8 @@ jobs:
           export WALLET_BROWSER_CHROMIUM="${WALLET_BROWSER_CHROMIUM:-$(command -v google-chrome || command -v chromium)}"
           test -n "$WALLET_BROWSER_CHROMIUM"
           node scripts/controls/login-methods-ui-smoke.cjs
+          node scripts/controls/method-change-ui-smoke.cjs
+          node --test tests/task-authorization-browser.test.mjs
           node scripts/controls/tenant-password-ui-smoke.cjs
 
       - name: Account authentication browser evidence
@@ -204,6 +228,9 @@ jobs:
 
       - name: Authentication runtime integrity
         run: npm run pack:auth:verify
+
+      - name: Authentication task runtime package smoke
+        run: node scripts/controls/task-auth-runtime-smoke.mjs --runtime dist/package-auth
 
       - name: Isolated installed authentication journey
         run: npm run test:auth:installed

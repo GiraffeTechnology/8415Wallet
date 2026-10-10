@@ -1,3 +1,4 @@
+const change = require('./method-change-test-ui.cjs');
 const { installScreenNavigation } = require('./screen-navigation.cjs');
 // Actual UI + actual HTTP auth service; ephemeral synthetic accounts only.
 // No real user credential, email, transaction, hardware or deployment acceptance.
@@ -37,8 +38,8 @@ async function main() {
   try {
     browser = await chromium.launch({ executablePath: process.env.WALLET_BROWSER_CHROMIUM || '/usr/bin/chromium', args: ['--no-sandbox', '--disable-dev-shm-usage'] });
     for (profile of ['v2', 'v3']) for (const width of [1440, 390]) {
-      time = Date.now(); const store = new MemoryCredentialStore();
-      auth = createAuthService({ origin, tenant: config.tenant.id, accounts: [{ username: 'tester', passwordHash, wallets: [{ account: actor, chainId: '1' }] }], store, now: () => time });
+      time = Date.now(); const mail = [], store = new MemoryCredentialStore(change.registeredState(config.tenant.id, 'tester', 'tester@example.invalid', time));
+      auth = createAuthService({ origin, tenant: config.tenant.id, accounts: [{ username: 'tester', passwordHash, wallets: [{ account: actor, chainId: '1' }] }], store, now: () => time, sendOtp: async message => { mail.push(message); } });
       const context = await browser.newContext({ viewport: { width, height: width === 390 ? 844 : 1000 }, isMobile: width === 390 });
       const errors = [], offOrigin = []; context.on('request', request => { if (!request.url().startsWith(`${origin}/`)) offOrigin.push(request.url()); }); await context.route('**/*', route => route.request().url().startsWith(`${origin}/`) ? route.continue() : route.abort());
       await installSyntheticLoginSigner(context);
@@ -79,6 +80,7 @@ async function main() {
       const startSetup = async () => {
         await page.click('#auth-manage-open');
         await page.click('#auth-enroll-start');
+        await change.authorize(page, { password }, () => mail.at(-1));
         await page.waitForFunction(() => !document.getElementById('auth-enroll-qr').hidden);
       };
       const passwordAgain = async () => {
@@ -88,7 +90,7 @@ async function main() {
         await page.click('#wallet-login'); await unlocked(); await idle();
       };
       await startSetup();
-      const cancelResponse = page.waitForResponse(response => response.url().endsWith('/auth/totp/enroll/cancel'));
+      const cancelResponse = page.waitForResponse(response => response.url().endsWith('/auth/account/change/cancel'));
       await page.click('#auth-enroll-cancel'); await cancelResponse; await qrEmpty();
       await startSetup(); time += 300001; await page.clock.fastForward(300001); await qrEmpty();
       // Enrollment expiry also ages out the five-minute independent-login prerequisite.
@@ -101,17 +103,19 @@ async function main() {
       let releaseStart, startReceived;
       const gate = new Promise(resolve => { releaseStart = resolve; });
       const held = new Promise(resolve => { startReceived = resolve; });
-      await page.route('**/auth/totp/enroll/start', async route => {
+      await page.route('**/auth/account/change/confirm', async route => {
         const response = await route.fetch(); startReceived(); await gate; await route.fulfill({ response });
       });
-      await page.click('#auth-manage-open');
-        await page.click('#auth-enroll-start'); await held;
+      await page.click('#auth-manage-open'); await page.click('#auth-enroll-start');
+      assert.equal((await change.identity(page, { password })).status, 200);
+      const pendingEmail = change.email(page, mail.at(-1).code); await held;
       await page.click('#wallet-logout'); await qrEmpty();
-      const lateResponse = page.waitForResponse(response => response.url().endsWith('/auth/totp/enroll/start'));
-      releaseStart(); await lateResponse; await page.waitForLoadState('networkidle'); await qrEmpty();
-      await page.unroute('**/auth/totp/enroll/start'); await passwordAgain();
-      await page.click('#auth-manage-open');
-        await page.click('#auth-enroll-start'); await page.waitForFunction(() => document.getElementById('auth-enroll-secret').textContent.includes('otpauth:'));
+      const lateResponse = page.waitForResponse(response => response.url().endsWith('/auth/account/change/confirm'));
+      releaseStart(); await lateResponse; await pendingEmail; await page.waitForLoadState('networkidle'); await qrEmpty();
+      await page.unroute('**/auth/account/change/confirm');
+      // Six lifecycle scenarios deliberately cross the production OTP budget window.
+      time += 900001; await page.clock.fastForward(900001); await passwordAgain();
+      await startSetup(); await page.waitForFunction(() => document.getElementById('auth-enroll-secret').textContent.includes('otpauth:'));
       const text = await page.textContent('#auth-enroll-secret'), secret = text.match(/\n([A-Z2-7]{32})\n/)[1];
       // Synthetic only: inspect in-memory pixels, decode independently, save no QR/URI.
       await page.waitForFunction(() => !document.getElementById('auth-enroll-qr').hidden);
@@ -157,4 +161,4 @@ async function main() {
     console.log(JSON.stringify(evidence, null, 2));
   } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }
 }
-main().then(() => require('./account-settings-ui-smoke.cjs').run()).then(() => require('./registration-ui-smoke.cjs').run()).then(() => require('./password-settings-ui-smoke.cjs').run()).catch(error => { console.error(error); process.exitCode = 1; });
+main().then(() => require('./account-settings-ui-smoke.cjs').run()).then(() => require('./registration-ui-smoke.cjs').run()).then(() => require('./password-settings-ui-smoke.cjs').run()).catch(error => { change.failure(error); });

@@ -15,7 +15,8 @@ export const AUTH_STATUS = 'NONPRODUCTION_PACKAGE_NOT_ACTIVATED';
 // State meaning is versioned independently of the unchanged AES envelope format.
 // Older code may discard factor fields or revive a superseded configured password
 // even though it can decrypt the unchanged v1 envelope.
-export const AUTH_STATE_SEMANTICS = '8415wallet-auth-state/3';
+export const AUTH_STATE_SEMANTICS = '8415wallet-auth-state/4';
+export const PASSWORD_AUTH_STATE_SEMANTICS = '8415wallet-auth-state/3';
 export const REGISTRATION_AUTH_STATE_SEMANTICS = '8415wallet-auth-state/2';
 export const LEGACY_AUTH_STATE_SEMANTICS = '8415wallet-auth-state/1';
 export const sha256 = bytes => createHash('sha256').update(bytes).digest('hex');
@@ -27,19 +28,24 @@ const gitPattern = /^[0-9a-f]{40}$/;
 export function authStateSemantics(release) {
   const value = release?.runtime?.authStateSemantics;
   // An absent declaration is the pre-registration/recovery generation only.
-  fail(value === undefined || [LEGACY_AUTH_STATE_SEMANTICS, REGISTRATION_AUTH_STATE_SEMANTICS, AUTH_STATE_SEMANTICS].includes(value), 'STATE_SEMANTICS_REFUSED');
+  fail(value === undefined || [LEGACY_AUTH_STATE_SEMANTICS, REGISTRATION_AUTH_STATE_SEMANTICS, PASSWORD_AUTH_STATE_SEMANTICS, AUTH_STATE_SEMANTICS].includes(value), 'STATE_SEMANTICS_REFUSED');
   return value ?? LEGACY_AUTH_STATE_SEMANTICS;
 }
 export function validateAuthStateTransition(current, candidate, { rollback = false } = {}) {
   const from = authStateSemantics(current), to = authStateSemantics(candidate);
   if (from === to) return;
-  const generations = [LEGACY_AUTH_STATE_SEMANTICS, REGISTRATION_AUTH_STATE_SEMANTICS, AUTH_STATE_SEMANTICS];
+  const generations = [LEGACY_AUTH_STATE_SEMANTICS, REGISTRATION_AUTH_STATE_SEMANTICS, PASSWORD_AUTH_STATE_SEMANTICS, AUTH_STATE_SEMANTICS];
   fail(generations.indexOf(to) > generations.indexOf(from), 'STATE_SEMANTICS_DOWNGRADE_REFUSED');
   // Only the enumerated, reviewed forward generations are accepted. A rollback
   // cannot silently perform a forward migration; unknown future versions fail.
   fail(!rollback, 'STATE_SEMANTICS_TRANSITION_REFUSED');
 }
-export const sourcePathAllowed = path => LEGAL_FILES.includes(path) || /^(?:server\/[a-z][a-z0-9-]*\.mjs|web\/login-core\.mjs|deploy\/auth-xiongan\/(?:(?:install|migrate-legacy)\.mjs|8415wallet-auth-xiongan\.service|auth-location\.nginx\.conf)|docs\/AUTH-INSTALL\.md|scripts\/package\/verify-auth\.mjs|LICENSE)$/.test(path);
+export const TASK_RUNTIME_SOURCE_PATHS = Object.freeze([
+  'src/agent/receiptObservation.ts', 'src/agent/taskContract.ts', 'src/codec/abi.ts', 'src/codec/keccak.ts',
+  'src/controls/accounts.ts', 'src/controls/authorization.ts', 'src/controls/client.ts', 'src/controls/execution.ts',
+  'src/sdk/errors.ts', 'src/sdk/interfaceIds.ts', 'src/xiongan/address.ts', 'src/xiongan/externalAssets.ts',
+]);
+export const sourcePathAllowed = path => TASK_RUNTIME_SOURCE_PATHS.includes(path) || LEGAL_FILES.includes(path) || /^(?:server\/[a-z][a-z0-9-]*\.mjs|web\/login-core\.mjs|deploy\/auth-xiongan\/(?:(?:install|migrate-legacy)\.mjs|8415wallet-auth-xiongan\.service|auth-location\.nginx\.conf)|docs\/AUTH-INSTALL\.md|scripts\/package\/verify-auth\.mjs|LICENSE)$/.test(path);
 export function safePath(path) {
   return typeof path === 'string' && path.length > 0 && path.length <= 240 && /^[A-Za-z0-9_@.+/=-]+$/.test(path)
     && path.split('/').every(part => part && part !== '.' && part !== '..');
@@ -139,6 +145,7 @@ export function verifyAuthDirectory(directory, { expectedTree } = {}) {
     fail(sourceEntries.has(original) && objectHash('blob', readFileSync(join(directory, packaged))) === sourceEntries.get(original).object, 'SOURCE_PACKAGE_BLOB_MISMATCH');
   }
   const required = ['server/main.mjs', 'server/service-entry.mjs', 'server/runtime-entry.mjs', 'server/auth-service.mjs', 'server/crypto.mjs', 'server/config-validation.mjs', 'server/ca-verifier.mjs', 'server/store.mjs', 'server/operator-init.mjs', 'server/operator-activate.mjs', 'web/login-core.mjs', 'deploy/auth-xiongan/install.mjs', 'deploy/auth-xiongan/8415wallet-auth-xiongan.service', 'deploy/auth-xiongan/auth-location.nginx.conf', 'docs/AUTH-INSTALL.md', 'scripts/package/verify-auth.mjs', 'LICENSE'];
+  if (authStateSemantics(release) === AUTH_STATE_SEMANTICS) required.push('server/task-background-runner.mjs', 'server/task-authorization.mjs', 'server/task-receipt-adapter.mjs', 'server/method-change-service.mjs', ...TASK_RUNTIME_SOURCE_PATHS);
   fail(required.every(file => expectedFiles.includes(file)), 'REQUIRED_FILE_MISSING');
   const sourcePackage = JSON.parse(readFileSync(join(directory, 'provenance/package.source.json'), 'utf8'));
   const sourceLock = JSON.parse(readFileSync(join(directory, 'provenance/package-lock.source.json'), 'utf8'));

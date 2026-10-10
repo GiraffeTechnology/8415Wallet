@@ -1,0 +1,133 @@
+{
+  "schema": "8415-task-contract-vectors/1",
+  "baseCommit": "da7e5478e1de1407e566149813108f8afa4c9342",
+  "notice": "Synthetic public data; no quote or authorization is verified; no execution capability.",
+  "vectors": [
+    {
+      "name": "exact-operation",
+      "policy": {
+        "schema": "8415-agent-task/1",
+        "taskId": "sell-token-7",
+        "tenant": "xiongan",
+        "origin": "https://xiongan.8415wallet.com:9446",
+        "chainId": "11155111",
+        "actor": "0x1111111111111111111111111111111111111111",
+        "expiresAt": "10000",
+        "fees": {
+          "perOperationWei": "100000",
+          "totalWei": "200000"
+        },
+        "intent": {
+          "kind": "exact-operation",
+          "operation": {
+            "chainId": "11155111",
+            "actor": "0x1111111111111111111111111111111111111111",
+            "kind": "erc721-transfer",
+            "contract": "0x3333333333333333333333333333333333333333",
+            "recipient": "0x2222222222222222222222222222222222222222",
+            "tokenId": "7"
+          }
+        }
+      },
+      "taskDigest": "0x01958b8c4813dee89117a8ed2df6d962398045fcc6c826b8ffb1ab9d3a5e82ba",
+      "child": {
+        "schema": "8415-agent-child/1",
+        "operationId": "operation-1",
+        "taskDigest": "0x01958b8c4813dee89117a8ed2df6d962398045fcc6c826b8ffb1ab9d3a5e82ba",
+        "operation": {
+          "chainId": "11155111",
+          "actor": "0x1111111111111111111111111111111111111111",
+          "kind": "erc721-transfer",
+          "contract": "0x3333333333333333333333333333333333333333",
+          "recipient": "0x2222222222222222222222222222222222222222",
+          "tokenId": "7"
+        },
+        "nonce": "5",
+        "expiresAt": "1500",
+        "wire": {
+          "to": "0x3333333333333333333333333333333333333333",
+          "calldataHash": "0x4444444444444444444444444444444444444444444444444444444444444444",
+          "valueWei": "0"
+        },
+        "fees": {
+          "gasLimit": "21000",
+          "maxFeePerGasWei": "2"
+        },
+        "market": null
+      },
+      "childDigest": "0xa2898e33a49b4fa1baed2c8066ee9a834136d9ec1be8df7a8029a9eaa0e1ddaa"
+    },
+    {
+      "name": "nft-sale",
+      "policy": {
+        "schema": "8415-agent-task/1",
+        "taskId": "sell-token-7",
+        "tenant": "xiongan",
+        "origin": "https://xiongan.8415wallet.com:9446",
+        "chainId": "11155111",
+        "actor": "0x1111111111111111111111111111111111111111",
+        "expiresAt": "10000",
+        "fees": {
+          "perOperationWei": "100000",
+          "totalWei": "200000"
+        },
+        "intent": {
+          "kind": "nft-sale",
+          "direction": "sell",
+          "standard": "ERC-721",
+          "contract": "0x3333333333333333333333333333333333333333",
+          "tokenId": "7",
+          "quantity": "1",
+          "minimumProceeds": {
+            "currency": "USD",
+            "amountMinor": "50000",
+            "minorUnit": 2,
+            "comparison": "gt",
+            "basis": "net"
+          },
+          "marketAdapters": [
+            "existing-market"
+          ]
+        }
+      },
+      "taskDigest": "0xbad60bb3ba6442452de4f413ac040302c697189524a123033fe35c86fa7755c2",
+      "child": {
+        "schema": "8415-agent-child/1",
+        "operationId": "operation-1",
+        "taskDigest": "0xbad60bb3ba6442452de4f413ac040302c697189524a123033fe35c86fa7755c2",
+        "operation": {
+          "chainId": "11155111",
+          "actor": "0x1111111111111111111111111111111111111111",
+          "kind": "erc721-transfer",
+          "contract": "0x3333333333333333333333333333333333333333",
+          "recipient": "0x2222222222222222222222222222222222222222",
+          "tokenId": "7"
+        },
+        "nonce": "5",
+        "expiresAt": "1500",
+        "wire": {
+          "to": "0x3333333333333333333333333333333333333333",
+          "calldataHash": "0x4444444444444444444444444444444444444444444444444444444444444444",
+          "valueWei": "0"
+        },
+        "fees": {
+          "gasLimit": "21000",
+          "maxFeePerGasWei": "2"
+        },
+        "market": {
+          "adapterId": "existing-market",
+          "quoteId": "quote-1",
+          "buyer": "0x2222222222222222222222222222222222222222",
+          "proceedsMinor": "50100",
+          "currency": "USD",
+          "minorUnit": 2,
+          "basis": "net",
+          "expiresAt": "1700",
+          "priceEvidenceRef": "price-1",
+          "settlementEvidenceRef": "settlement-1"
+        }
+      },
+      "childDigest": "0xe5ee33a9c7767ce1de83e617127f6da1727f2215834e435b14a99a1037361986"
+    }
+  ]
+}

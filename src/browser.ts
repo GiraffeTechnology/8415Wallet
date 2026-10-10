@@ -19,3 +19,5 @@ export { isAddressInput } from './xiongan/address.ts';
 export { TransactionWouldRevertError } from './sdk/transactions.ts';
 export { LegacyClearingSession, parseLegacyClearingState, parseLegacyClearingDeployment, legacyTradeKey, CLEARING_NOTES } from './wallet/legacyClearingSession.ts';
 export type { Erc20Balance, Erc20Metadata, AssetReview, AssetState, AssetStore, AssetTransaction, AssetReceipt } from './xiongan/externalAssets.ts';
+export * from './agent/taskContract.ts';
+export * from './agent/receiptObservation.ts';
