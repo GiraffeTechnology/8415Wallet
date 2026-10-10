@@ -10,13 +10,16 @@ import { createAuthService } from '../server/auth-service.mjs';
 import { MemoryCredentialStore, openEncryptedStore } from '../server/store.mjs';
 import { hashPassword, hotp } from '../server/crypto.mjs';
 const password = 'synthetic-account-password', hash = await hashPassword(password);
+const registration = { version: 1, email: 'synthetic@example.invalid', verifiedAt: 1 };
+const initialCredential = { registration };
+const initialStore = () => ({ 'xiongan:tester': initialCredential, '@registration:xiongan': { version: 1, records: [{ username: 'tester', email: registration.email, verifiedAt: 1 }] } });
 async function fixture(options: any = {}) {
-  const signer = Wallet.createRandom(), state = { now: Date.now() }, store = options.store ?? new MemoryCredentialStore();
+  const signer = Wallet.createRandom(), state = { now: Math.floor(Date.now() / 30000) * 30000 }, store = options.store ?? new MemoryCredentialStore(initialStore()), mailbox: any[] = [];
   let handler: any;
   const server = createServer((req, res) => handler(req, res)); server.listen(0, '127.0.0.1'); await once(server, 'listening');
   const address = server.address() as { port: number }, origin = `http://127.0.0.1:${address.port}`;
   const account = { username: 'tester', ...(options.withoutPassword ? {} : { passwordHash: hash }), wallets: [{ account: signer.address, chainId: '1' }], caFingerprints: options.fingerprints ?? [] };
-  handler = createAuthService({ origin, tenant: 'xiongan', accounts: [account, ...(options.additionalAccounts ?? [])], store, now: () => state.now, ...options });
+  handler = createAuthService({ origin, tenant: 'xiongan', accounts: [account, ...(options.additionalAccounts ?? [])], store, now: () => state.now, sendOtp: async (message: any) => { mailbox.push(message); }, ...options });
   const client = () => {
     const jar = new Map<string, string>(); let csrf = '';
     const call = async (path: string, body?: any, headers: Record<string, string> = {}) => {
@@ -27,9 +30,32 @@ async function fixture(options: any = {}) {
       const data = await response.json() as any; if (response.ok && data.csrf) csrf = data.csrf;
       return { status: response.status, data, headers: response.headers };
     };
-    return { call, bootstrap: () => call('bootstrap'), login: (extra = {}) => call('password', { username: 'tester', password, account: signer.address, chainId: '1', ...extra }), jar };
+    // Every management helper traverses the real combined API. No legacy route
+    // is translated by the server, and no stored/session flag substitutes proof.
+    let setup: any = null;
+    const authorize = async (intent: any, factors: any = {}) => {
+      const start = await call('account/change/start', intent); if (start.status !== 200) return start;
+      const verified = await call('account/change/verify', { changeId: start.data.changeId, originalPassword: password, ...factors });
+      if (verified.status !== 200) return verified;
+      const response = await call('account/change/confirm', { changeId: start.data.changeId, code: mailbox.at(-1).code });
+      return { ...response, data: { ...response.data, changeId: start.data.changeId } };
+    };
+    const startSetup = async (body: any = {}) => {
+      const result = await authorize({ action: `totp.${body.purpose ?? (body.existingCode ? 'replace' : 'initial')}` },
+        { ...(body.existingCode === undefined ? {} : { existingCode: body.existingCode }), ...(body.recovery === undefined ? {} : { recovery: body.recovery }) });
+      if (result.status === 200) setup = result.data;
+      return result;
+    };
+    const confirmSetup = (body: any) => call('account/change/commit', { changeProof: body.changeProof ?? setup?.changeProof, code: body.code });
+    const cancelSetup = (body: any = {}) => call('account/change/cancel', body);
+    const methods = async (body: any) => {
+      const proof = await authorize({ action: 'methods', enabledMethods: body.enabledMethods },
+        { ...(body.existingCode === undefined ? {} : { existingCode: body.existingCode }), ...(body.recovery === undefined ? {} : { recovery: body.recovery }) });
+      return proof.status === 200 ? call('account/change/commit', { changeProof: proof.data.changeProof }) : proof;
+    };
+    return { call, authorize, startSetup, confirmSetup, cancelSetup, methods, bootstrap: () => call('bootstrap'), login: (extra = {}) => call('password', { username: 'tester', password, account: signer.address, chainId: '1', ...extra }), jar };
   };
-  return { client, signer, origin, state, store, close: () => new Promise<void>(resolve => server.close(() => resolve())) };
+  return { client, signer, origin, state, store, mailbox, close: () => new Promise<void>(resolve => server.close(() => resolve())) };
 }
 test('password authentication has origin, CSRF, tenant, fixed wallet binding and revocable HttpOnly session', async t => {
   const f = await fixture(); t.after(f.close); const c = f.client();
@@ -47,16 +73,16 @@ test('password authentication has origin, CSRF, tenant, fixed wallet binding and
 });
 test('TOTP enrollment requires independent recent login, confirmation, single-use codes and recovery', async t => {
   const f = await fixture(); t.after(f.close); const c = f.client(); await c.bootstrap(); await c.login();
-  const setup = await c.call('totp/enroll/start', {}); assert.equal(setup.status, 200); assert.match(setup.data.uri, /^otpauth:\/\/totp\//);
-  assert.equal((await c.call('totp/enroll/confirm', { code: 'wrong' })).status, 401);
+  const setup = await c.startSetup({}); assert.equal(setup.status, 200); assert.match(setup.data.uri, /^otpauth:\/\/totp\//);
+  assert.equal((await c.confirmSetup({ code: 'wrong' })).status, 403);
   const code = hotp(setup.data.secret, Math.floor(f.state.now / 30000));
-  const enabled = await c.call('totp/enroll/confirm', { code }); assert.equal(enabled.status, 200); assert.equal(enabled.data.recoveryCodes.length, 8);
+  const enabled = await c.confirmSetup({ code }); assert.equal(enabled.status, 200); assert.equal(enabled.data.recoveryCodes.length, 8);
   assert.equal((await c.call('session')).status, 401);
   const loginBody = { username: 'tester', account: f.signer.address, chainId: '1', code };
   await c.bootstrap(); assert.equal((await c.call('totp', loginBody)).status, 401);
   f.state.now += 30000; loginBody.code = hotp(setup.data.secret, Math.floor(f.state.now / 30000));
   assert.equal((await c.call('totp', loginBody)).status, 200);
-  assert.equal((await c.call('totp/enroll/start', {})).status, 403);
+  assert.equal((await c.startSetup({})).status, 403);
   const other = f.client(); await other.bootstrap(); assert.equal((await other.call('totp', loginBody)).status, 401);
   const recovery = { ...loginBody, code: enabled.data.recoveryCodes[0], recovery: true };
   assert.equal((await other.call('totp', recovery)).status, 200);
@@ -64,16 +90,16 @@ test('TOTP enrollment requires independent recent login, confirmation, single-us
 });
 test('TOTP replay state updates serialize concurrent requests and authenticator replacement revokes sessions', async t => {
   const f = await fixture(); t.after(f.close); const c = f.client(); await c.bootstrap(); await c.login();
-  const setup = await c.call('totp/enroll/start', {}); await c.call('totp/enroll/confirm', { code: hotp(setup.data.secret, Math.floor(f.state.now / 30000)) });
+  const setup = await c.startSetup({}); await c.confirmSetup({ code: hotp(setup.data.secret, Math.floor(f.state.now / 30000)) });
   f.state.now += 30000;
   const a = f.client(), b = f.client(); await a.bootstrap(); await b.bootstrap();
   const body = { username: 'tester', account: f.signer.address, chainId: '1', code: hotp(setup.data.secret, Math.floor(f.state.now / 30000)) };
   assert.deepEqual((await Promise.all([a.call('totp', body), b.call('totp', body)])).map(r => r.status).sort(), [200, 401]);
-  await c.bootstrap(); await c.login(); assert.equal((await c.call('totp/enroll/start', {})).status, 401);
+  await c.bootstrap(); await c.login(); assert.equal((await c.startSetup({ purpose: 'replace' })).status, 401);
   f.state.now += 30000;
-  const replacement = await c.call('totp/enroll/start', { existingCode: hotp(setup.data.secret, Math.floor(f.state.now / 30000)) });
+  const replacement = await c.startSetup({ existingCode: hotp(setup.data.secret, Math.floor(f.state.now / 30000)) });
   assert.equal(replacement.status, 200); assert.notEqual(replacement.data.secret, setup.data.secret);
-  assert.equal((await c.call('totp/enroll/confirm', { code: hotp(replacement.data.secret, Math.floor(f.state.now / 30000)) })).status, 200);
+  assert.equal((await c.confirmSetup({ code: hotp(replacement.data.secret, Math.floor(f.state.now / 30000)) })).status, 200);
   assert.equal((await a.call('session')).status, 401); assert.equal((await b.call('session')).status, 401);
 });
 test('local private-key proof uses a server nonce and rejects replay, wrong message and cancelled challenge', async t => {
@@ -124,14 +150,14 @@ test('CA account binding is fingerprint-based and logout invalidates an in-fligh
 });
 test('TOTP setup cancellation, expiry and exhausted confirmation attempts do not enroll', async t => {
   const f = await fixture(); t.after(f.close); const c = f.client(); await c.bootstrap(); await c.login();
-  const first = (await c.call('totp/enroll/start', {})).data; await c.call('totp/enroll/cancel', {});
-  assert.equal((await c.call('totp/enroll/confirm', { code: hotp(first.secret, Math.floor(f.state.now / 30000)) })).status, 401);
-  const second = (await c.call('totp/enroll/start', {})).data;
-  for (let n = 0; n < 5; n++) assert.equal((await c.call('totp/enroll/confirm', { code: 'invalid' })).status, 401);
-  assert.equal((await c.call('totp/enroll/confirm', { code: hotp(second.secret, Math.floor(f.state.now / 30000)) })).status, 401);
+  const first = (await c.startSetup({})).data; await c.cancelSetup({});
+  assert.equal((await c.confirmSetup({ code: hotp(first.secret, Math.floor(f.state.now / 30000)) })).status, 403);
+  const second = (await c.startSetup({})).data;
+  for (let n = 0; n < 5; n++) assert.equal((await c.confirmSetup({ code: 'invalid' })).status, 403);
+  assert.equal((await c.confirmSetup({ code: hotp(second.secret, Math.floor(f.state.now / 30000)) })).status, 403);
   f.state.now += 5 * 60000;
-  assert.equal((await c.call('totp/enroll/start', {})).status, 403);
-  assert.equal(await f.store.read('xiongan:tester'), null);
+  assert.equal((await c.startSetup({})).status, 403);
+  assert.deepEqual(await f.store.read('xiongan:tester'), initialCredential);
 });
 test('a failed credential write leaves the store unhealthy rather than risking replay', async () => {
   class FailedStore extends MemoryCredentialStore { async persist() { throw Error('synthetic storage failure'); } }
@@ -148,6 +174,7 @@ function pause() {
   return { started, entered, waiting, release };
 }
 class GatedCredentialStore extends MemoryCredentialStore {
+  constructor() { super(initialStore()); }
   nextRead: ReturnType<typeof pause> | null = null;
   nextTransaction: ReturnType<typeof pause> | null = null;
   nextPersist: ReturnType<typeof pause> | null = null;
@@ -171,7 +198,7 @@ class GatedCredentialStore extends MemoryCredentialStore {
     return super.persist(data);
   }
 }
-const confirmation = (setup: any, now: number) => ({ enrollmentId: setup.enrollmentId, code: hotp(setup.secret, Math.floor(now / 30000)) });
+const confirmation = (setup: any, now: number) => ({ changeProof: setup.changeProof, code: hotp(setup.secret, Math.floor(now / 30000)) });
 
 test('account management status is authenticated, account-bound and secret-free', async t => {
   const fingerprint = 'e'.repeat(64), f = await fixture({ fingerprints: [fingerprint], verifyCa: async () => ({ fingerprint }) });
@@ -182,9 +209,10 @@ test('account management status is authenticated, account-bound and secret-free'
   assert.deepEqual(result.data, { schema: '8415wallet-account/1', tenant: 'xiongan', origin: f.origin,
     username: 'tester', account: f.signer.address, chainId: '1',
     methods: { password: { available: true, enabled: true, bound: true }, wallet: { available: true, enabled: true, bound: true }, ca: { available: true, enabled: true, bound: true }, totp: { available: true, enabled: false, bound: false } },
-    recovery: { configured: false, emailMasked: null, questionId: null, emailOtpAvailable: false, questions: ['recovery-phrase', 'first-school', 'childhood-place'] },
-    registration: { required: true, complete: false, email: null, emailMasked: null, emailOtpAvailable: false },
+    recovery: { configured: false, emailMasked: null, questionId: null, emailOtpAvailable: true, questions: ['recovery-phrase', 'first-school', 'childhood-place'] },
+    registration: { required: false, complete: true, email: registration.email, emailMasked: 's***@example.invalid', emailOtpAvailable: true },
     authenticator: { enrolled: false, pending: false, expiresAt: null, replacement: false },
+    methodChange: { available: true, factor: 'password', verifiedEmailRequired: false, emailMasked: 's***@example.invalid', existingCodeRequired: false, existingAnswerRequired: false, trustedDeviceSupported: false },
     management: { freshIndependentLogin: true, reauthenticateBy: login.data.issuedAt + 300000, existingCodeRequired: false } });
   assert.equal(result.headers.get('cache-control'), 'no-store');
   assert.doesNotMatch(JSON.stringify(result.data), /passwordHash|recoveryHashes|recoverySalt|secret|fingerprint|csrf|session/);
@@ -192,11 +220,11 @@ test('account management status is authenticated, account-bound and secret-free'
   assert.equal((await c.call('account', undefined, { 'X-Wallet-Tenant': 'other' })).status, 403);
   assert.equal((await c.call('account', undefined, { 'Sec-Fetch-Site': 'cross-site' })).status, 403);
   assert.equal((await c.call('account?username=another')).status, 404);
-  const setup = (await c.call('totp/enroll/start', { purpose: 'initial' })).data;
+  const setup = (await c.startSetup({ purpose: 'initial' })).data;
   const pending = (await c.call('account')).data;
   assert.deepEqual(pending.authenticator, { enrolled: false, pending: true, expiresAt: setup.expiresAt, replacement: false });
   assert.equal(pending.methods.totp.enabled, false);
-  const enabled = await c.call('totp/enroll/confirm', confirmation(setup, f.state.now)); assert.equal(enabled.status, 200);
+  const enabled = await c.confirmSetup(confirmation(setup, f.state.now)); assert.equal(enabled.status, 200);
   assert.equal((await c.call('account')).status, 401);
   await c.bootstrap(); await c.login();
   const active = (await c.call('account')).data;
@@ -204,7 +232,7 @@ test('account management status is authenticated, account-bound and secret-free'
   assert.equal(active.authenticator.enrolled, true); assert.equal(active.management.existingCodeRequired, true);
   f.state.now += 300000;
   assert.equal((await c.call('account')).data.management.freshIndependentLogin, false);
-  assert.equal((await c.call('totp/enroll/start', { purpose: 'replace', existingCode: enabled.data.recoveryCodes[0], recovery: true })).status, 403);
+  assert.equal((await c.startSetup({ purpose: 'replace', existingCode: enabled.data.recoveryCodes[0], recovery: true })).status, 403);
 });
 
 test('account status distinguishes server CA availability and per-account bindings without selecting one method globally', async t => {
@@ -221,18 +249,18 @@ test('account status distinguishes server CA availability and per-account bindin
 
 test('initial and replacement purposes fail closed on state changes; recovery replacement preserves other methods', async t => {
   const f = await fixture(); t.after(f.close); const c = f.client(); await c.bootstrap(); await c.login();
-  assert.equal((await c.call('totp/enroll/start', { purpose: 'replace' })).data.error, 'AUTH_SETUP_STATE_CHANGED');
-  const setup = (await c.call('totp/enroll/start', { purpose: 'initial' })).data;
-  const enrolled = await c.call('totp/enroll/confirm', confirmation(setup, f.state.now));
+  assert.equal((await c.startSetup({ purpose: 'replace' })).data.error, 'AUTH_SETUP_STATE_CHANGED');
+  const setup = (await c.startSetup({ purpose: 'initial' })).data;
+  const enrolled = await c.confirmSetup(confirmation(setup, f.state.now));
   await c.bootstrap(); await c.login();
-  assert.equal((await c.call('totp/enroll/start', { purpose: 'initial' })).data.error, 'AUTH_SETUP_STATE_CHANGED');
-  assert.equal((await c.call('totp/enroll/start', { purpose: 'replace' })).status, 401);
-  const replacement = await c.call('totp/enroll/start', { purpose: 'replace', existingCode: enrolled.data.recoveryCodes[0], recovery: true });
-  assert.equal(replacement.status, 200); assert.equal(replacement.data.purpose, 'replace');
+  assert.equal((await c.startSetup({ purpose: 'initial' })).data.error, 'AUTH_SETUP_STATE_CHANGED');
+  assert.equal((await c.startSetup({ purpose: 'replace' })).status, 401);
+  const replacement = await c.startSetup({ purpose: 'replace', existingCode: enrolled.data.recoveryCodes[0], recovery: true });
+  assert.equal(replacement.status, 200); assert.equal(replacement.data.action, 'totp.replace');
   const pending = (await c.call('account')).data;
   assert.equal(pending.authenticator.enrolled, true); assert.equal(pending.authenticator.replacement, true);
   assert.equal((await f.store.read('xiongan:tester')).secret, setup.secret);
-  assert.equal((await c.call('totp/enroll/confirm', confirmation(replacement.data, f.state.now))).status, 200);
+  assert.equal((await c.confirmSetup(confirmation(replacement.data, f.state.now))).status, 200);
   const recoveryClient = f.client(); await recoveryClient.bootstrap();
   assert.equal((await recoveryClient.call('totp', { username: 'tester', account: f.signer.address, chainId: '1', code: enrolled.data.recoveryCodes[1], recovery: true })).status, 401);
   await c.bootstrap(); assert.equal((await c.login()).status, 200);
@@ -241,8 +269,8 @@ test('initial and replacement purposes fail closed on state changes; recovery re
 
 test('TOTP and recovery sessions can inspect methods but cannot manage authenticator enrollment', async t => {
   const f = await fixture(); t.after(f.close); const c = f.client(); await c.bootstrap(); await c.login();
-  const setup = (await c.call('totp/enroll/start', {})).data;
-  const enrolled = await c.call('totp/enroll/confirm', confirmation(setup, f.state.now));
+  const setup = (await c.startSetup({})).data;
+  const enrolled = await c.confirmSetup(confirmation(setup, f.state.now));
   f.state.now += 30000;
   for (const recovery of [false, true]) {
     const other = f.client(); await other.bootstrap();
@@ -250,20 +278,20 @@ test('TOTP and recovery sessions can inspect methods but cannot manage authentic
     assert.equal((await other.call('totp', { username: 'tester', account: f.signer.address, chainId: '1', code, recovery })).status, 200);
     const status = (await other.call('account')).data;
     assert.equal(status.authenticator.enrolled, true); assert.deepEqual(status.management, { freshIndependentLogin: false, reauthenticateBy: null, existingCodeRequired: true });
-    assert.equal((await other.call('totp/enroll/start', { purpose: 'replace', existingCode: enrolled.data.recoveryCodes[1], recovery: true })).status, 403);
+    assert.equal((await other.startSetup({ purpose: 'replace', existingCode: enrolled.data.recoveryCodes[1], recovery: true })).status, 403);
   }
 });
 
 test('cancel and logout invalidate enrollment starts delayed on credential reads', async t => {
-  for (const action of ['totp/enroll/cancel', 'logout']) {
+  for (const action of ['account/change/cancel', 'logout']) {
     const store = new GatedCredentialStore(), f = await fixture({ store }); t.after(f.close);
     const c = f.client(); await c.bootstrap(); await c.login();
-    const gate = store.holdRead(), start = c.call('totp/enroll/start', { purpose: 'initial' });
+    const gate = store.holdRead(), start = c.startSetup({ purpose: 'initial' });
     await gate.started;
     assert.equal((await c.call(action, {})).status, 200); gate.release();
-    const late = await start; assert.equal(late.status, 401); assert.equal(late.data.secret, undefined);
-    assert.equal(await store.read('xiongan:tester'), null);
-    if (action === 'totp/enroll/cancel') assert.equal((await c.call('account')).data.authenticator.pending, false);
+    const late = await start; assert.equal(late.status, action === 'logout' ? 401 : 403); assert.equal(late.data.secret, undefined);
+    assert.deepEqual(await store.read('xiongan:tester'), initialCredential);
+    if (action === 'account/change/cancel') assert.equal((await c.call('account')).data.authenticator.pending, false);
     else assert.equal((await c.call('account')).status, 401);
   }
 });
@@ -271,34 +299,34 @@ test('cancel and logout invalidate enrollment starts delayed on credential reads
 test('a newer enrollment start supersedes delayed starts and rejects stale setup identifiers', async t => {
   const store = new GatedCredentialStore(), f = await fixture({ store }); t.after(f.close);
   const c = f.client(); await c.bootstrap(); await c.login();
-  const gate = store.holdRead(), late = c.call('totp/enroll/start', {}); await gate.started;
-  const current = await c.call('totp/enroll/start', {}); assert.equal(current.status, 200);
-  gate.release(); assert.equal((await late).status, 401);
-  const newer = (await c.call('totp/enroll/start', {})).data;
-  assert.notEqual(newer.enrollmentId, current.data.enrollmentId);
-  assert.equal((await c.call('totp/enroll/cancel', { enrollmentId: current.data.enrollmentId })).data.error, 'AUTH_SETUP_STATE_CHANGED');
-  assert.equal((await c.call('totp/enroll/confirm', confirmation(current.data, f.state.now))).data.error, 'AUTH_SETUP_STATE_CHANGED');
-  assert.equal((await c.call('totp/enroll/confirm', confirmation(newer, f.state.now))).status, 200);
+  const gate = store.holdRead(), late = c.startSetup({}); await gate.started;
+  const current = await c.startSetup({}); assert.equal(current.status, 200);
+  gate.release(); assert.equal((await late).status, 403);
+  const newer = (await c.startSetup({})).data;
+  assert.notEqual(newer.changeProof, current.data.changeProof);
+  assert.equal((await c.cancelSetup({ changeProof: current.data.changeProof })).data.error, 'AUTH_SETUP_STATE_CHANGED');
+  assert.equal((await c.confirmSetup(confirmation(current.data, f.state.now))).data.error, 'AUTH_CHANGE_REFUSED');
+  assert.equal((await c.confirmSetup(confirmation(newer, f.state.now))).status, 200);
   assert.equal((await store.read('xiongan:tester')).secret, newer.secret);
 });
 
 test('cancel and logout prevent confirmations waiting to enter a credential transaction', async t => {
-  for (const action of ['totp/enroll/cancel', 'logout']) {
+  for (const action of ['account/change/cancel', 'logout']) {
     const store = new GatedCredentialStore(), f = await fixture({ store }); t.after(f.close);
-    const c = f.client(); await c.bootstrap(); await c.login(); const setup = (await c.call('totp/enroll/start', {})).data;
-    const gate = store.holdTransaction(), confirm = c.call('totp/enroll/confirm', confirmation(setup, f.state.now));
+    const c = f.client(); await c.bootstrap(); await c.login(); const setup = (await c.startSetup({})).data;
+    const gate = store.holdTransaction(), confirm = c.confirmSetup(confirmation(setup, f.state.now));
     await gate.started;
-    assert.equal((await c.call(action, {})).status, 200); gate.release(); assert.equal((await confirm).status, 401);
-    assert.equal(await store.read('xiongan:tester'), null);
+    assert.equal((await c.call(action, {})).status, 200); gate.release(); assert.equal((await confirm).status, action === 'logout' ? 401 : 403);
+    assert.deepEqual(await store.read('xiongan:tester'), initialCredential);
   }
 });
 
 test('two account sessions cannot confirm competing initial authenticator enrollments', async t => {
   const store = new GatedCredentialStore(), f = await fixture({ store }); t.after(f.close);
   const a = f.client(), b = f.client(); await a.bootstrap(); await a.login(); await b.bootstrap(); await b.login();
-  const setupA = (await a.call('totp/enroll/start', {})).data, setupB = (await b.call('totp/enroll/start', {})).data;
-  const gate = store.holdTransaction(), first = a.call('totp/enroll/confirm', confirmation(setupA, f.state.now)); await gate.started;
-  assert.equal((await b.call('totp/enroll/confirm', confirmation(setupB, f.state.now))).status, 200);
+  const setupA = (await a.startSetup({})).data, setupB = (await b.startSetup({})).data;
+  const gate = store.holdTransaction(), first = a.confirmSetup(confirmation(setupA, f.state.now)); await gate.started;
+  assert.equal((await b.confirmSetup(confirmation(setupB, f.state.now))).status, 200);
   gate.release(); assert.equal((await first).status, 401);
   const credential = await store.read('xiongan:tester'); assert.equal(credential.revision, 1); assert.equal(credential.secret, setupB.secret);
   assert.equal((await a.call('account')).status, 401); assert.equal((await b.call('account')).status, 401);
@@ -306,22 +334,22 @@ test('two account sessions cannot confirm competing initial authenticator enroll
 
 test('credential revision changes reject pending confirms even before in-memory session revocation', async t => {
   const store = new GatedCredentialStore(), f = await fixture({ store }); t.after(f.close);
-  const c = f.client(); await c.bootstrap(); await c.login(); const setup = (await c.call('totp/enroll/start', {})).data;
-  const gate = store.holdTransaction(), confirm = c.call('totp/enroll/confirm', confirmation(setup, f.state.now)); await gate.started;
+  const c = f.client(); await c.bootstrap(); await c.login(); const setup = (await c.startSetup({})).data;
+  const gate = store.holdTransaction(), confirm = c.confirmSetup(confirmation(setup, f.state.now)); await gate.started;
   // An independently committed credential revision is authoritative, regardless
   // of the old session's previously successful read.
-  await store.transaction('xiongan:tester', () => ({ revision: 4 }));
-  gate.release(); assert.equal((await confirm).status, 401); assert.deepEqual(await store.read('xiongan:tester'), { revision: 4 });
+  await store.transaction('xiongan:tester', () => ({ ...initialCredential, revision: 4 }));
+  gate.release(); assert.equal((await confirm).status, 409); assert.deepEqual(await store.read('xiongan:tester'), { ...initialCredential, revision: 4 });
   assert.equal((await c.call('account')).status, 401);
 });
 
 test('cancellation reports an already-submitted atomic confirmation rather than claiming rollback', async t => {
   const store = new GatedCredentialStore(), f = await fixture({ store }); t.after(f.close);
-  const c = f.client(); await c.bootstrap(); await c.login(); const setup = (await c.call('totp/enroll/start', {})).data;
-  const gate = store.holdPersist(), confirm = c.call('totp/enroll/confirm', confirmation(setup, f.state.now)); await gate.started;
-  const cancellation = await c.call('totp/enroll/cancel', { enrollmentId: setup.enrollmentId });
+  const c = f.client(); await c.bootstrap(); await c.login(); const setup = (await c.startSetup({})).data;
+  const gate = store.holdPersist(), confirm = c.confirmSetup(confirmation(setup, f.state.now)); await gate.started;
+  const cancellation = await c.cancelSetup({ changeProof: setup.changeProof });
   assert.equal(cancellation.status, 200); assert.deepEqual(cancellation.data, { cancelled: false, confirmationInProgress: true });
-  assert.equal((await c.call('totp/enroll/start', {})).data.error, 'AUTH_SETUP_STATE_CHANGED');
+  assert.equal((await c.startSetup({})).data.error, 'AUTH_SETUP_STATE_CHANGED');
   assert.equal((await c.call('logout', {})).status, 200);
   gate.release(); assert.equal((await confirm).status, 200);
   assert.equal((await store.read('xiongan:tester')).secret, setup.secret); assert.equal((await c.call('account')).status, 401);
@@ -336,28 +364,28 @@ test('account reads delayed past logout never return formerly authenticated stat
 test('setup and queued confirmation expire at the independent-login freshness deadline', async t => {
   const store = new GatedCredentialStore(), f = await fixture({ store }); t.after(f.close);
   const c = f.client(); await c.bootstrap(); const login = await c.login(); f.state.now += 299000;
-  const setup = (await c.call('totp/enroll/start', {})).data; assert.equal(setup.expiresAt, login.data.issuedAt + 300000);
-  const gate = store.holdTransaction(), confirm = c.call('totp/enroll/confirm', confirmation(setup, f.state.now)); await gate.started;
+  const setup = (await c.startSetup({})).data; assert.equal(setup.expiresAt, login.data.issuedAt + 300000);
+  const gate = store.holdTransaction(), confirm = c.confirmSetup(confirmation(setup, f.state.now)); await gate.started;
   f.state.now += 1000; gate.release(); const rejected = await confirm;
   assert.equal(rejected.status, 403); assert.equal(rejected.data.error, 'AUTH_RECENT_INDEPENDENT_LOGIN_REQUIRED');
-  assert.equal(await store.read('xiongan:tester'), null);
+  assert.deepEqual(await store.read('xiongan:tester'), initialCredential);
   assert.equal((await c.call('account')).data.authenticator.pending, false);
 });
 
 
 test('method selection accepts only known bound available methods and retains an independent login', async t => {
   const f = await fixture(); t.after(f.close); const c = f.client();
-  assert.equal((await c.call('account/methods', { enabledMethods: ['password'] })).status, 401);
+  assert.equal((await c.methods({ enabledMethods: ['password'] })).status, 401);
   await c.bootstrap(); await c.login();
   for (const enabledMethods of [undefined, 'password', ['password', 'password'], ['password', 'email'], [null]]) {
-    assert.equal((await c.call('account/methods', { enabledMethods })).data.error, 'AUTH_METHODS_REFUSED');
+    assert.equal((await c.methods({ enabledMethods })).data.error, 'AUTH_METHODS_REFUSED');
   }
   for (const enabledMethods of [['password', 'ca'], ['password', 'totp']]) {
-    assert.equal((await c.call('account/methods', { enabledMethods })).data.error, 'AUTH_METHOD_UNAVAILABLE');
+    assert.equal((await c.methods({ enabledMethods })).data.error, 'AUTH_METHOD_UNAVAILABLE');
   }
-  assert.equal((await c.call('account/methods', { enabledMethods: [] })).data.error, 'AUTH_INDEPENDENT_METHOD_REQUIRED');
-  assert.equal(await f.store.read('xiongan:tester'), null);
-  assert.deepEqual((await c.call('account/methods', { enabledMethods: ['password', 'wallet'] })).data, { updated: true, loggedOut: true });
+  assert.equal((await c.methods({ enabledMethods: [] })).data.error, 'AUTH_INDEPENDENT_METHOD_REQUIRED');
+  assert.deepEqual(await f.store.read('xiongan:tester'), initialCredential);
+  assert.deepEqual((await c.methods({ enabledMethods: ['password', 'wallet'] })).data, { updated: true, loggedOut: true, action: 'methods' });
   assert.equal((await c.call('session')).status, 401);
   const stored = await f.store.read('xiongan:tester'); assert.deepEqual(stored.enabledMethods, ['password', 'wallet']); assert.equal(stored.revision, 1);
 });
@@ -365,7 +393,7 @@ test('method selection accepts only known bound available methods and retains an
 test('per-account choices persist, revoke every session and enforce each login without removing bindings', async t => {
   const f = await fixture(); t.after(f.close); const a = f.client(), b = f.client();
   await a.bootstrap(); await a.login(); await b.bootstrap(); await b.login();
-  assert.equal((await a.call('account/methods', { enabledMethods: ['password'] })).status, 200);
+  assert.equal((await a.methods({ enabledMethods: ['password'] })).status, 200);
   assert.equal((await a.call('session')).status, 401); assert.equal((await b.call('session')).status, 401);
   const selected = { account: f.signer.address, chainId: '1' }, token = f.client(); await token.bootstrap();
   const challenge = (await token.call('challenge', { ...selected, method: 'wallet' })).data;
@@ -373,23 +401,23 @@ test('per-account choices persist, revoke every session and enforce each login w
   await a.bootstrap(); assert.equal((await a.login()).status, 200);
   const status = (await a.call('account')).data;
   assert.deepEqual(status.methods.wallet, { available: true, enabled: false, bound: true });
-  assert.equal((await a.call('account/methods', { enabledMethods: ['wallet'] })).status, 200);
+  assert.equal((await a.methods({ enabledMethods: ['wallet'] })).status, 200);
   await b.bootstrap(); assert.equal((await b.login()).status, 401);
   await token.bootstrap(); const next = (await token.call('challenge', { ...selected, method: 'wallet' })).data;
   assert.equal((await token.call('proof', { ...selected, id: next.id, signature: await f.signer.signMessage(next.message) })).status, 200);
-  assert.equal((await token.call('account/methods', { enabledMethods: ['password', 'wallet'] })).status, 200);
+  assert.equal((await token.methods({ enabledMethods: ['password', 'wallet'] })).status, 200);
   await a.bootstrap(); assert.equal((await a.login()).status, 200);
   const restored = (await a.call('account')).data; assert.equal(restored.methods.password.enabled, true); assert.equal(restored.methods.wallet.enabled, true);
 });
 
 test('TOTP disable and re-enable require existing proof, preserve enrollment, and refuse disabled login before consuming a code', async t => {
   const f = await fixture(); t.after(f.close); const c = f.client(); await c.bootstrap(); await c.login();
-  const setup = (await c.call('totp/enroll/start', {})).data, enrolled = (await c.call('totp/enroll/confirm', confirmation(setup, f.state.now))).data;
+  const setup = (await c.startSetup({})).data, enrolled = (await c.confirmSetup(confirmation(setup, f.state.now))).data;
   await c.bootstrap(); await c.login();
-  assert.equal((await c.call('account/methods', { enabledMethods: ['totp'] })).data.error, 'AUTH_INDEPENDENT_METHOD_REQUIRED');
-  assert.equal((await c.call('account/methods', { enabledMethods: ['password', 'wallet'] })).status, 401);
+  assert.equal((await c.methods({ enabledMethods: ['totp'] })).data.error, 'AUTH_INDEPENDENT_METHOD_REQUIRED');
+  assert.equal((await c.methods({ enabledMethods: ['password', 'wallet'] })).status, 401);
   assert.equal((await f.store.read('xiongan:tester')).revision, 1);
-  assert.equal((await c.call('account/methods', { enabledMethods: ['password', 'wallet'], existingCode: enrolled.recoveryCodes[0], recovery: true })).status, 200);
+  assert.equal((await c.methods({ enabledMethods: ['password', 'wallet'], existingCode: enrolled.recoveryCodes[0], recovery: true })).status, 200);
   const disabled = await f.store.read('xiongan:tester'); assert.equal(disabled.secret, setup.secret); assert.equal(disabled.recoveryHashes.length, 7);
   const other = f.client(); await other.bootstrap();
   const body = { username: 'tester', account: f.signer.address, chainId: '1', code: enrolled.recoveryCodes[1], recovery: true };
@@ -397,31 +425,31 @@ test('TOTP disable and re-enable require existing proof, preserve enrollment, an
   assert.equal((await f.store.read('xiongan:tester')).recoveryHashes.length, 7);
   await c.bootstrap(); await c.login(); const status = (await c.call('account')).data;
   assert.deepEqual(status.methods.totp, { available: true, enabled: false, bound: true }); assert.equal(status.authenticator.enrolled, true);
-  assert.equal((await c.call('account/methods', { enabledMethods: ['password', 'wallet', 'totp'], existingCode: enrolled.recoveryCodes[1], recovery: true })).status, 200);
+  assert.equal((await c.methods({ enabledMethods: ['password', 'wallet', 'totp'], existingCode: enrolled.recoveryCodes[1], recovery: true })).status, 200);
   await other.bootstrap(); assert.equal((await other.call('totp', { ...body, code: enrolled.recoveryCodes[2] })).status, 200);
-  assert.equal((await other.call('account/methods', { enabledMethods: ['password', 'wallet', 'totp'] })).status, 403);
+  assert.equal((await other.methods({ enabledMethods: ['password', 'wallet', 'totp'] })).status, 403);
 });
 
 test('concurrent method updates and enrollment cannot overwrite a newer credential revision', async t => {
   const store = new GatedCredentialStore(), f = await fixture({ store }); t.after(f.close);
   const a = f.client(), b = f.client(); await a.bootstrap(); await a.login(); await b.bootstrap(); await b.login();
-  const setup = (await a.call('totp/enroll/start', {})).data;
-  const gate = store.holdTransaction(), confirm = a.call('totp/enroll/confirm', confirmation(setup, f.state.now)); await gate.started;
-  assert.equal((await b.call('account/methods', { enabledMethods: ['password'] })).status, 200);
+  const setup = (await a.startSetup({})).data;
+  const gate = store.holdTransaction(), confirm = a.confirmSetup(confirmation(setup, f.state.now)); await gate.started;
+  assert.equal((await b.methods({ enabledMethods: ['password'] })).status, 200);
   gate.release(); assert.equal((await confirm).status, 401);
-  assert.deepEqual(await store.read('xiongan:tester'), { enabledMethods: ['password'], revision: 1 });
-  await a.bootstrap(); await a.login(); const next = (await a.call('totp/enroll/start', {})).data;
-  assert.equal((await a.call('totp/enroll/confirm', confirmation(next, f.state.now))).status, 200);
+  assert.deepEqual(await store.read('xiongan:tester'), { ...initialCredential, enabledMethods: ['password'], revision: 1 });
+  await a.bootstrap(); await a.login(); const next = (await a.startSetup({})).data;
+  assert.equal((await a.confirmSetup(confirmation(next, f.state.now))).status, 200);
   const after = await store.read('xiongan:tester'); assert.deepEqual(after.enabledMethods, ['password', 'totp']); assert.equal(after.revision, 2);
 });
 
 test('method updates reject stale independent login and logout during queued storage access', async t => {
   const store = new GatedCredentialStore(), f = await fixture({ store }); t.after(f.close);
   const c = f.client(); await c.bootstrap(); await c.login();
-  const gate = store.holdTransaction(), update = c.call('account/methods', { enabledMethods: ['password'] }); await gate.started;
-  await c.call('logout', {}); gate.release(); assert.equal((await update).status, 401); assert.equal(await store.read('xiongan:tester'), null);
+  const gate = store.holdTransaction(), update = c.methods({ enabledMethods: ['password'] }); await gate.started;
+  await c.call('logout', {}); gate.release(); assert.equal((await update).status, 401); assert.deepEqual(await store.read('xiongan:tester'), initialCredential);
   await c.bootstrap(); await c.login(); f.state.now += 300000;
-  assert.equal((await c.call('account/methods', { enabledMethods: ['password'] })).data.error, 'AUTH_RECENT_INDEPENDENT_LOGIN_REQUIRED');
+  assert.equal((await c.methods({ enabledMethods: ['password'] })).data.error, 'AUTH_RECENT_INDEPENDENT_LOGIN_REQUIRED');
 });
 
 
@@ -430,40 +458,38 @@ test('a method policy change affects only its own account', async t => {
     wallets: [{ account: signer.address, chainId: '1' }], caFingerprints: [] }] }); t.after(f.close);
   const a = f.client(), b = f.client(); await a.bootstrap(); await a.login(); await b.bootstrap();
   assert.equal((await b.login({ username: 'other', account: signer.address })).status, 200);
-  assert.equal((await a.call('account/methods', { enabledMethods: ['password'] })).status, 200);
+  assert.equal((await a.methods({ enabledMethods: ['password'] })).status, 200);
   const status = await b.call('account'); assert.equal(status.status, 200); assert.equal(status.data.username, 'other');
   assert.equal(status.data.methods.password.enabled, true); assert.equal(status.data.methods.wallet.enabled, true);
   assert.equal(await f.store.read('xiongan:other'), null);
 });
 
-test('reserved question and verified email add reset proof without replacing independent login or the old authenticator proof', async t => {
-  const mailbox: any[] = [], f = await fixture({ sendOtp: async (message: any) => { mailbox.push(message); } }); t.after(f.close);
-  const c = f.client(); await c.bootstrap(); await c.login();
+test('reserved answer and prior verified email join exact identity and authenticator proof without a generic reset grant', async t => {
+  const f = await fixture(); t.after(f.close); const c = f.client(); await c.bootstrap(); await c.login();
   const answer = 'synthetic reserved recovery answer';
-  const reserved = await c.call('recovery/enroll/start', { email: 'synthetic@example.invalid', questionId: 'recovery-phrase', answer });
-  assert.equal(reserved.status, 200); assert.equal(mailbox.length, 1); assert.equal(mailbox[0].purpose, 'enroll');
+  const reserved = await c.authorize({ action: 'recovery.initial', email: registration.email, questionId: 'recovery-phrase', answer });
+  assert.equal(reserved.status, 200); assert.equal(f.mailbox.length, 1); assert.equal(f.mailbox[0].purpose, 'method-change');
   assert.equal(reserved.data.code, undefined); assert.equal(reserved.data.email, undefined);
-  assert.equal((await c.call('recovery/enroll/confirm', { challengeId: reserved.data.challengeId, code: mailbox[0].code })).status, 200);
+  assert.equal((await c.call('account/change/commit', { changeProof: reserved.data.changeProof })).status, 200);
   assert.equal((await c.call('session')).status, 401);
   await c.bootstrap(); await c.login();
   const status = (await c.call('account')).data;
   assert.equal(status.recovery.configured, true); assert.equal(status.recovery.emailMasked, 's***@example.invalid');
   assert.equal(status.recovery.emailOtpAvailable, true); assert.equal(status.recovery.questionId, 'recovery-phrase');
-  const setup = (await c.call('totp/enroll/start', { purpose: 'initial' })).data;
-  const enrolled = (await c.call('totp/enroll/confirm', confirmation(setup, f.state.now))).data;
-  assert.equal((await f.store.read('xiongan:tester')).recoveryProfile.email, 'synthetic@example.invalid');
-  await c.bootstrap(); await c.login();
-  assert.equal((await c.call('totp/enroll/start', { purpose: 'replace', existingCode: enrolled.recoveryCodes[0], recovery: true })).status, 401);
-  assert.equal((await f.store.read('xiongan:tester')).recoveryHashes.length, 8);
-  f.state.now += 60000;
-  assert.equal((await c.call('recovery/reset/start', { answer, email: 'attacker@example.invalid' })).status, 400);
-  const reset = await c.call('recovery/reset/start', { answer }); assert.equal(reset.status, 200);
-  assert.equal(mailbox.length, 2); assert.equal(mailbox[1].to, 'synthetic@example.invalid'); assert.equal(mailbox[1].purpose, 'reset');
-  const proof = await c.call('recovery/reset/confirm', { challengeId: reset.data.challengeId, code: mailbox[1].code }); assert.equal(proof.status, 200);
-  assert.equal((await c.call('totp/enroll/start', { purpose: 'replace', resetProof: proof.data.resetProof, existingCode: 'invalid', recovery: true })).status, 401);
-  const replacement = await c.call('totp/enroll/start', { purpose: 'replace', resetProof: proof.data.resetProof, existingCode: enrolled.recoveryCodes[0], recovery: true });
-  assert.equal(replacement.status, 200);
-  assert.equal((await c.call('totp/enroll/confirm', confirmation(replacement.data, f.state.now))).status, 200);
-  const after = await f.store.read('xiongan:tester'); assert.equal(after.recoveryProfile.email, 'synthetic@example.invalid'); assert.equal(after.secret, replacement.data.secret);
-  assert.equal(mailbox.length, 2);
+  const setup = await c.authorize({ action: 'totp.initial' }, { existingAnswer: answer }); assert.equal(setup.status, 200);
+  const enrolled = (await c.confirmSetup(confirmation(setup.data, f.state.now))).data;
+  assert.equal((await f.store.read('xiongan:tester')).recoveryProfile.email, registration.email);
+  await c.bootstrap(); await c.login(); const before = await f.store.read('xiongan:tester');
+  const missing = await c.authorize({ action: 'totp.replace' }, { existingCode: enrolled.recoveryCodes[0], recovery: true });
+  assert.equal(missing.status, 403); assert.deepEqual(await f.store.read('xiongan:tester'), before);
+  const substituted = await c.call('account/change/start', { action: 'totp.replace', email: 'attacker@example.invalid' });
+  assert.equal(substituted.status, 400); assert.equal(f.mailbox.length, 2);
+  const invalid = await c.authorize({ action: 'totp.replace' }, { existingAnswer: answer, existingCode: 'invalid', recovery: true });
+  assert.equal(invalid.status, 401); assert.deepEqual(await f.store.read('xiongan:tester'), before);
+  const replacement = await c.authorize({ action: 'totp.replace' }, { existingAnswer: answer, existingCode: enrolled.recoveryCodes[0], recovery: true });
+  assert.equal(replacement.status, 200); assert.equal(f.mailbox.length, 3);
+  assert.equal(f.mailbox[2].to, registration.email); assert.equal(f.mailbox[2].purpose, 'method-change');
+  assert.equal((await c.call('account/change/commit', { changeProof: 'generic-reset-proof', code: hotp(replacement.data.secret, Math.floor(f.state.now / 30000)) })).status, 403);
+  assert.equal((await c.confirmSetup(confirmation(replacement.data, f.state.now))).status, 200);
+  const after = await f.store.read('xiongan:tester'); assert.equal(after.recoveryProfile.email, registration.email); assert.equal(after.secret, replacement.data.secret);
 });

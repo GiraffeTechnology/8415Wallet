@@ -71,7 +71,7 @@ function dappMap(plan, profile = 'v2') {
 
 test('checked-in reviewed Wallet boundary has all exact entries mandatory', () => {
   assert.equal(currentPolicy.review.status, 'approved-for-local-build');
-  assert.equal(currentPolicy.entries.length, 263);
+  assert.equal(currentPolicy.entries.length, 278);
   const loaded = loadPolicy(join(root, 'config/product-source-allowlist.json'), sha256(readFileSync(join(root, 'config/product-source-allowlist.json'))));
   assert.deepEqual(loaded.policy.entries, currentPolicy.entries);
   assert.equal(currentPolicy.schema, POLICY_SCHEMA); assert.equal(currentPolicy.version, 2);
@@ -100,7 +100,7 @@ test('reviewed policy legal notice and companion guide preserve distribution bou
 test('inspection writes nothing and reports predicted source identity', t => {
   const f = fixture(t); const indexBefore = readFileSync(join(f.source, '.git/index'));
   const plan = inspectSource(f.options), summary = planSummary(plan);
-  assert.equal(summary.writes, false); assert.equal(summary.sourceEntryCount, 263);
+  assert.equal(summary.writes, false); assert.equal(summary.sourceEntryCount, 278);
   assert.equal(summary.closure.browserOutputs.length, 2);
   assert.deepEqual(readFileSync(join(f.source, '.git/index')), indexBefore);
   assert.equal(existsSync(join(f.directory, 'output')), false);
@@ -360,7 +360,7 @@ test('committed in-repository policy and tooling need no self-referential source
   assert.deepEqual(readFileSync(join(f.source, '.git/index')), indexBefore);
   assert.deepEqual(NONPRODUCT_SOURCE_FAMILY_EXCLUSIONS.slice(2), TOOLING_FILES.filter(path => path.startsWith('scripts/package/')));
   for (const path of TOOLING_FILES) assert.equal(plan.productEntries.some(entry => entry.path === path), false);
-  assert.equal(plan.policy.entries.length, 263);
+  assert.equal(plan.policy.entries.length, 278);
 });
 
 test('staged local snapshot retains genuine HEAD and dirty relation while clean CI refuses', t => {
@@ -495,7 +495,7 @@ test('source-only or failed builds produce no publication paths or Github output
   const result = materialize(f);
   assert.equal(existsSync(join(result.outputRoot, 'publication')), false);
   assert.throws(() => emitGithubOutputs({ ...result, githubOutput: output }), /PUBLICATION_REQUIRES_VERIFIED_BUILD/);
-  assert.deepEqual(readFileSync(output), before); assert.equal(plan.productEntries.length, 264);
+  assert.deepEqual(readFileSync(output), before); assert.equal(plan.productEntries.length, 279);
 });
 
 test('CLI identity and clean flags are explicit and inspect cannot emit Github outputs', t => {
@@ -513,9 +513,9 @@ test('CLI identity and clean flags are explicit and inspect cannot emit Github o
 
 const retainedCiCommands = new Map([
   ['Setup Node', 'uses: actions/setup-node@v4'], ['Install', 'run: npm ci'], ['Typecheck', 'run: npm run typecheck'],
-  ['Test', 'run: npm test'], ['Browser entry', 'run: npm run wallet:browser:build'],
+  ['Test', 'run: npm test'], ['Browser entry', 'npm run wallet:browser:build'],
   ['Verified wallet login browser privacy', 'node scripts/controls/login-ui-smoke.cjs'],
-  ['Account authentication browser journeys', 'node scripts/controls/login-methods-ui-smoke.cjs\n          node scripts/controls/tenant-password-ui-smoke.cjs'],
+  ['Account authentication browser journeys', 'node scripts/controls/login-methods-ui-smoke.cjs'],
   ['Multilingual wallet browser privacy and review invariants', 'node scripts/controls/i18n-ui-smoke.cjs'],
   ['Approved wallet UI browser journeys', 'node scripts/controls/approved-ui-smoke.cjs'],
   ['Xiongan synthetic browser recovery', 'npm run wallet:xiongan:smoke'], ['ERC20 browser recovery', 'node scripts/controls/erc20-ui-smoke.cjs'],
@@ -534,13 +534,28 @@ const retainedCiEvidence = [
   'Approved wallet UI browser evidence', 'Xiongan synthetic browser evidence', 'ERC20 browser evidence', 'Standalone settlement browser evidence',
 ];
 function assertCiContract(text) {
-  const parts = text.split(/^      - /m).slice(1);
+  const jobs = new Map([...text.split(/^jobs:\n/m)[1].matchAll(/^  ([a-z][a-z-]*):\n([\s\S]*?)(?=^  [a-z][a-z-]*:\n|$(?![\s\S]))/gm)].map(match => [match[1], match[2]]));
+  assert.deepEqual([...jobs.keys()].sort(), ['task-runtime-minimum', 'verify'], 'CI_EXACT_JOBS_REQUIRED');
+  for (const [name, job] of jobs) {
+    const checkouts = job.split(/^      - /m).slice(1).filter(part => part.startsWith('uses: actions/checkout@v4'));
+    assert.equal(checkouts.length, 1, `CI_CHECKOUT_REQUIRED: ${name}`);
+    assert.ok(checkouts[0].includes('ref: ${{ github.event.pull_request.head.sha || github.sha }}'), `CI_EXACT_HEAD_REQUIRED: ${name}`);
+  }
+  const minimum = jobs.get('task-runtime-minimum');
+  for (const command of ['uses: actions/setup-node@v4', "node-version: '22.18.0'", 'run: npm ci', 'npm run pack:auth', 'npm run pack:auth:verify', 'node scripts/controls/task-auth-runtime-smoke.mjs --runtime dist/package-auth'])
+    assert.ok(minimum.includes(command), `CI_EXACT_MINIMUM_RUNTIME_REQUIRED: ${command}`);
+  assert.equal(minimum.includes('if: always()'), false, 'CI_MINIMUM_FAILURE_BYPASS_REFUSED');
+  const parts = jobs.get('verify').split(/^      - /m).slice(1);
   const steps = new Map(parts.filter(part => part.startsWith('name: ')).map(part => [part.match(/^name: ([^\n]+)/)[1], part]));
   assert.equal(parts.filter(part => part.startsWith('uses: actions/checkout@v4')).length, 1, 'CI_CHECKOUT_REQUIRED');
   assert.ok(parts.find(part => part.startsWith('uses: actions/checkout@v4')).includes('ref: ${{ github.event.pull_request.head.sha || github.sha }}'), 'CI_EXACT_HEAD_REQUIRED');
-  assert.ok(text.includes('node-version: [22, 24]'), 'CI_MATRIX_REQUIRED');
+  assert.ok(jobs.get('verify').includes('node-version: [22, 24]'), 'CI_MATRIX_REQUIRED');
   assert.equal(/(?:playwright\s+install|apt(?:-get)?\s+install|continue-on-error:)/.test(text), false, 'CI_INSTALL_OR_FAILURE_BYPASS_REFUSED');
   for (const [name, command] of retainedCiCommands) assert.ok(steps.get(name)?.includes(command), `CI_ORIGINAL_COMMAND_REQUIRED: ${name}`);
+  for (const command of ['node scripts/controls/tenant-password-ui-smoke.cjs', 'node scripts/controls/method-change-ui-smoke.cjs', 'node --test tests/task-authorization-browser.test.mjs'])
+    assert.ok(steps.get('Account authentication browser journeys').includes(command), `CI_AUTH_JOURNEY_REQUIRED: ${command}`);
+  assert.ok(steps.get('Browser entry').includes('node --test tests/task-static-module-closure.test.mjs'), 'CI_STATIC_GRAPH_REQUIRED');
+  assert.ok(steps.get('Authentication task runtime package smoke')?.includes('node scripts/controls/task-auth-runtime-smoke.mjs --runtime dist/package-auth'), 'CI_MATRIX_AUTH_RUNTIME_REQUIRED');
   for (const name of retainedCiEvidence) assert.ok(steps.get(name)?.includes('uses: actions/upload-artifact@v4'), `CI_EVIDENCE_REQUIRED: ${name}`);
   assert.ok(steps.get('Test').includes('PRODUCT_STRICT_SMOKE_SOURCE: ${{ github.workspace }}'), 'CI_STRICT_SMOKE_REQUIRED');
   const producer = steps.get('Build and verify public product kit');
@@ -561,12 +576,19 @@ function assertCiContract(text) {
 test('CI retains the complete validation pipeline and publishes only success-gated exact public outputs', () => {
   assertCiContract(readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8'));
   const packageJson = JSON.parse(readFileSync(join(root, 'package.json')));
-  assert.ok(packageJson.scripts.test.endsWith('tests/license-packaging.test.mjs tests/product-source.test.mjs'));
+  const testFiles = packageJson.scripts.test.split(' ');
+  for (const path of ['tests/license-packaging.test.mjs', 'tests/product-source.test.mjs', 'tests/task-receipt-observation.test.mjs', 'tests/task-receipt-package-closure.test.mjs'])
+    assert.equal(testFiles.filter(value => value === path).length, 1, `CI_TEST_ENUMERATION_REQUIRED: ${path}`);
 });
 
 test('CI contract rejects always-upload, missing output, private dist fallback and absent producer', () => {
   const text = readFileSync(join(root, '.github/workflows/ci.yml'), 'utf8');
   const mutations = [
+    text.replace("node-version: '22.18.0'", "node-version: '22'"),
+    text.replace('      - name: Build and verify standalone authentication package', '      - name: Missing minimum package build').replace('          npm run pack:auth:verify\n', ''),
+    text.replace('run: node scripts/controls/task-auth-runtime-smoke.mjs --runtime dist/package-auth', 'run: echo skipped'),
+    text.replace('node scripts/controls/method-change-ui-smoke.cjs', 'echo skipped'),
+    text.replace('node --test tests/task-static-module-closure.test.mjs', 'echo skipped'),
     text.replace('      - name: Verified public product artifacts\n        if: success()', '      - name: Verified public product artifacts\n        if: always()'),
     text.replace('            ${{ steps.public_product.outputs.report_path }}\n', ''),
     text.replace('            ${{ steps.public_product.outputs.report_path }}\n', '            ${{ steps.public_product.outputs.report_path }}\n            dist/8415wallet-dapp-delivery-*.tar.gz\n'),

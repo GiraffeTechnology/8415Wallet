@@ -1,3 +1,4 @@
+const change = require('./method-change-test-ui.cjs');
 // Real Chromium + HTTP service, synthetic credentials and in-memory email only.
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -32,7 +33,7 @@ async function run() {
     fs.mkdirSync(out, { recursive: true });
     browser = await chromium.launch({ executablePath: process.env.WALLET_BROWSER_CHROMIUM || '/usr/bin/chromium', args: ['--no-sandbox', '--disable-dev-shm-usage'] });
     for (profile of ['v2', 'v3']) for (const width of [1440, 390]) {
-      time = Date.now(); mail = []; const store = new MemoryCredentialStore();
+      time = Date.now(); mail = []; const store = new MemoryCredentialStore(change.registeredState(config.tenant.id, 'tester', 'reserved@example.invalid', time));
       auth = createAuthService({ origin, tenant: config.tenant.id, accounts: [{ username: 'tester', passwordHash, wallets: [{ account: actor, chainId: '1' }] }], store,
         now: () => time, sendOtp: async value => { mail.push(value); return { accepted: true }; } });
       const context = await browser.newContext({ viewport: { width, height: width === 390 ? 844 : 1000 }, isMobile: width === 390 });
@@ -81,32 +82,45 @@ async function run() {
       await page.click('#auth-manage-open'); await login();
       assert.equal(await page.isChecked('#auth-enable-password'), true); assert.equal(await page.isChecked('#auth-enable-wallet'), true);
       assert.equal(await page.isDisabled('#auth-enable-ca'), true); assert.equal(await page.locator('#auth-existing-fields').isVisible(), false);
-      await page.fill('#auth-reserved-email', 'reserved@example.invalid'); await page.fill('#auth-reserved-answer', answer);
-      const challenge = await post('#auth-recovery-enroll', 'recovery/enroll/start'); assert.equal(challenge.digits, 8); assert.equal(mail.length, 1);
-      assert.equal(await page.inputValue('#auth-reserved-answer'), ''); await page.fill('#auth-email-code', mail.at(-1).code);
-      await post('#auth-email-confirm', 'recovery/enroll/confirm'); await page.waitForFunction(() => document.getElementById('wallet-private').hidden);
+      assert.equal(await page.inputValue('#auth-reserved-email'), 'reserved@example.invalid');
+      await page.fill('#auth-reserved-answer', answer);
+      const reserved = await change.commit(page, '#auth-recovery-enroll', { password }, () => mail.at(-1));
+      assert.equal(reserved.status, 200); assert.equal(mail.length, 1); assert.equal(mail.at(-1).purpose, 'method-change');
+      assert.equal(await page.inputValue('#auth-reserved-answer'), ''); await page.waitForFunction(() => document.getElementById('wallet-private').hidden);
       await login(); assert.match(await page.textContent('#auth-recovery-state'), /r\*\*\*@example.invalid/);
-      await page.click('#auth-enroll-start'); const initial = await confirmTotp(); await login();
-      await page.fill('#auth-reset-answer', 'wrong synthetic phrase'); const wrong = await post('#auth-reset-start', 'recovery/reset/start'); assert.equal(wrong.error, 'AUTH_REFUSED');
+      await page.click('#auth-enroll-start'); await change.authorize(page, { password, answer }, () => mail.at(-1));
+      const initial = await confirmTotp(); await login();
+      const beforeWrong = await store.read(`${config.tenant.id}:tester`), mailBeforeWrong = mail.length;
+      await page.click('#auth-enroll-start');
+      const wrong = await change.identity(page, { password, answer: 'wrong synthetic phrase', existingCode: initial.codes[0], recovery: true });
+      assert.equal(wrong.status, 403); assert.equal(wrong.body.error, 'AUTH_CHANGE_REFUSED'); assert.equal(mail.length, mailBeforeWrong);
+      assert.equal(JSON.stringify(await store.read(`${config.tenant.id}:tester`)) === JSON.stringify(beforeWrong), true);
       time += 61000; await page.clock.fastForward(61000);
-      await page.fill('#auth-reset-answer', answer); await post('#auth-reset-start', 'recovery/reset/start'); assert.equal(mail.length, 2);
+      await page.click('#auth-enroll-start'); assert.equal((await change.identity(page, { password, answer, existingCode: initial.codes[0], recovery: true })).status, 200);
       const beforeCalls = await page.evaluate(() => globalThis.__settingsCalls.length), beforeRequests = requests.length;
       await page.selectOption('#ui-locale', 'ja'); await page.selectOption('#ui-locale', 'en');
       assert.equal(await page.evaluate(() => globalThis.__settingsCalls.length), beforeCalls); assert.equal(requests.length, beforeRequests);
-      await page.fill('#auth-email-code', 'notvalid'); const wrongCode = await post('#auth-email-confirm', 'recovery/reset/confirm'); assert.equal(wrongCode.error, 'AUTH_REFUSED');
-      await page.fill('#auth-email-code', mail.at(-1).code); await post('#auth-email-confirm', 'recovery/reset/confirm');
-      await page.waitForFunction(() => document.getElementById('auth-recovery-verification-status').textContent.includes('verified briefly'));
-      await page.fill('#auth-existing-code', initial.codes[0]); await page.check('#auth-existing-recovery'); await page.click('#auth-enroll-start');
+      const wrongCode = await change.email(page, mail.at(-1).code === '00000000' ? '11111111' : '00000000');
+      assert.equal(wrongCode.status, 403); assert.equal(wrongCode.body.error, 'AUTH_CHANGE_REFUSED');
+      assert.equal(JSON.stringify(await store.read(`${config.tenant.id}:tester`)) === JSON.stringify(beforeWrong), true);
+      // Failed combined proof is cancelled. Restart after the production OTP budget
+      // window, with a new login and the still-unused existing recovery factor.
+      time += 900001; await page.clock.fastForward(900001); await login();
+      await page.click('#auth-enroll-start'); await change.authorize(page, { password, answer, existingCode: initial.codes[0], recovery: true }, () => mail.at(-1));
       const replacement = await confirmTotp(); await login();
       assert.equal(await page.isChecked('#auth-enable-password'), true); assert.equal(await page.isChecked('#auth-enable-wallet'), true); assert.equal(await page.isChecked('#auth-enable-totp'), true);
-      await page.uncheck('#auth-enable-totp'); await page.fill('#auth-existing-code', replacement.codes[0]); await page.check('#auth-existing-recovery');
-      await post('#auth-methods-save', 'account/methods'); await page.waitForFunction(() => document.getElementById('wallet-private').hidden);
+      await page.uncheck('#auth-enable-totp');
+      const disabled = await change.commit(page, '#auth-methods-save', { password, answer, existingCode: replacement.codes[0], recovery: true }, () => mail.at(-1));
+      assert.equal(disabled.status, 200); await page.waitForFunction(() => document.getElementById('wallet-private').hidden);
       time += 30000; await page.clock.fastForward(30000); await page.selectOption('#wallet-login-method', 'totp'); await page.fill('#auth-username', 'tester'); await page.fill('#auth-code', hotp(replacement.secret, Math.floor(time / 30000)));
       const denied = await post('#wallet-login', 'totp'); assert.equal(denied.error, 'AUTH_REFUSED'); await idle();
       await login(); assert.equal(await page.isChecked('#auth-enable-totp'), false); assert.equal(await page.isDisabled('#auth-enable-totp'), false);
-      await page.uncheck('#auth-enable-password'); await page.uncheck('#auth-enable-wallet');
-      const noPath = await post('#auth-methods-save', 'account/methods'); assert.equal(noPath.error, 'AUTH_INDEPENDENT_METHOD_REQUIRED');
-      await page.check('#auth-enable-wallet'); await post('#auth-methods-save', 'account/methods'); await page.waitForFunction(() => document.getElementById('wallet-private').hidden);
+      await page.uncheck('#auth-enable-password'); await page.uncheck('#auth-enable-wallet'); await page.click('#auth-methods-save');
+      const noPath = await change.identity(page, { password, answer, existingCode: replacement.codes[1], recovery: true, stage: 'start' });
+      assert.equal(noPath.status, 409); assert.equal(noPath.body.error, 'AUTH_INDEPENDENT_METHOD_REQUIRED');
+      await page.check('#auth-enable-wallet');
+      const walletOnly = await change.commit(page, '#auth-methods-save', { password, answer, existingCode: replacement.codes[1], recovery: true }, () => mail.at(-1));
+      assert.equal(walletOnly.status, 200); await page.waitForFunction(() => document.getElementById('wallet-private').hidden);
       await login('wallet'); assert.equal(await page.isChecked('#auth-enable-password'), false); assert.equal(await page.isChecked('#auth-enable-wallet'), true);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       await page.screenshot({ path: path.join(out, `${profile}-${width}-account-settings.png`), fullPage: false });
@@ -115,7 +129,7 @@ async function run() {
       assert.equal(await page.locator('#auth-method-states').isVisible(), false); assert.equal(await page.inputValue('#auth-reserved-answer'), '');
       assert.deepEqual(offOrigin, []); assert.deepEqual(errors, []);
       evidence.push({ profile, width, dropdownKeyboardAndSixLocales: true, methodLabels: true, publicEntryNoProviderOrAuthCalls: true, emailAndQuestionEnrollment: true,
-        resetOnlyEmail: true, oldRecoveryPlusEmailAndAnswer: true, actualMethodPolicyPersistence: true, lastIndependentMethodProtected: true, localeNoAdditionalRequests: true,
+        freshOriginalPasswordAndReservedEmail: true, oldRecoveryPlusEmailAndAnswer: true, wrongAnswerAndEmailPreserveOldState: true, actualMethodPolicyPersistence: true, lastIndependentMethodProtected: true, localeNoAdditionalRequests: true,
         noOffOriginRequests: true, privateOnReload: true, noOverflow: true, syntheticOnly: true });
       await context.close();
     }
@@ -124,4 +138,4 @@ async function run() {
   } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }
 }
 module.exports = { run };
-if (require.main === module) run().catch(error => { console.error(error); process.exitCode = 1; });
+if (require.main === module) run().catch(error => { change.failure(error); });

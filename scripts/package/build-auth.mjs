@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gzipSync } from 'node:zlib';
-import { AUTH_SCHEMA, AUTH_STATUS, AUTH_STATE_SEMANTICS, jsonBytes, packagePathAllowed, runtimePackage, safePath, sha256, sourcePathAllowed, sourceTree, verifyAuthDirectory, walkAuth } from './verify-auth.mjs';
+import { AUTH_SCHEMA, AUTH_STATUS, AUTH_STATE_SEMANTICS, TASK_RUNTIME_SOURCE_PATHS, jsonBytes, packagePathAllowed, runtimePackage, safePath, sha256, sourcePathAllowed, sourceTree, verifyAuthDirectory, walkAuth } from './verify-auth.mjs';
 
 export function captureAuthSource(root) {
   const git = (args, options = {}) => execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], ...options });
@@ -69,6 +69,7 @@ export function buildAuthPackage({ root = process.cwd(), offline = false, output
       if (sourcePathAllowed(path) && !staged.has(path)) throw new Error(`AUTH_PACKAGE_UNTRACKED_SOURCE_STAGE_REQUIRED: ${path}`);
     }
   }
+  for (const path of TASK_RUNTIME_SOURCE_PATHS) if (!staged.has(path)) throw new Error(`AUTH_PACKAGE_TRACKED_SOURCE_REQUIRED: ${path}`);
   const sourceBytes = path => {
     const entry = staged.get(path); if (!entry) throw new Error(`AUTH_PACKAGE_TRACKED_SOURCE_REQUIRED: ${path}`);
     return execFileSync('git', ['cat-file', 'blob', entry.object], { cwd: root, maxBuffer: 32 * 1024 * 1024 });

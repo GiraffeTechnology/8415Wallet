@@ -13,14 +13,14 @@ import { validateAuthConfig } from '../server/config-validation.mjs';
 import { createAuthService } from '../server/auth-service.mjs';
 import { MemoryCredentialStore } from '../server/store.mjs';
 import { captureAuthSource } from '../scripts/package/build-auth.mjs';
-import { LEGAL_FILES, AUTH_SCHEMA, AUTH_STATUS, runtimePackage, sha256, walkAuth } from '../scripts/package/verify-auth.mjs';
+import { TASK_RUNTIME_SOURCE_PATHS, LEGAL_FILES, AUTH_SCHEMA, AUTH_STATUS, runtimePackage, sha256, walkAuth } from '../scripts/package/verify-auth.mjs';
 import { independentNode } from './helpers/independent-node.mjs';
 const fixtureNode = await independentNode();
 after(() => fixtureNode.cleanup());
 const uid = process.getuid(), nodeUid = fixtureNode.uid;
 const tenant = 'fixture-tenant', origin = 'https://wallet.example.invalid:9447';
 const accounts = [{ username: 'fixture-user', wallets: [{ account: `0x${'1'.repeat(40)}`, chainId: '8453' }] }];
-const sourceFiles = ['server/main.mjs', 'server/service-entry.mjs', 'server/runtime-entry.mjs', 'server/socket-path.mjs', 'server/mail-config.mjs', 'server/mail-otp.mjs', 'server/account-directory.mjs', 'server/recovery-service.mjs', 'server/registration-service.mjs', 'server/auth-service.mjs', 'server/crypto.mjs', 'server/config-validation.mjs', 'server/ca-verifier.mjs', 'server/store.mjs', 'server/operator-init.mjs', 'server/operator-activate.mjs', 'web/login-core.mjs', 'deploy/auth-xiongan/install.mjs', 'deploy/auth-xiongan/8415wallet-auth-xiongan.service', 'deploy/auth-xiongan/auth-location.nginx.conf', 'docs/AUTH-INSTALL.md', 'scripts/package/verify-auth.mjs', ...LEGAL_FILES];
+const sourceFiles = ['server/task-background-runner.mjs', 'server/task-authorization.mjs', 'server/task-receipt-adapter.mjs', 'server/method-change-service.mjs', ...TASK_RUNTIME_SOURCE_PATHS, 'server/main.mjs', 'server/service-entry.mjs', 'server/runtime-entry.mjs', 'server/socket-path.mjs', 'server/mail-config.mjs', 'server/mail-otp.mjs', 'server/account-directory.mjs', 'server/recovery-service.mjs', 'server/registration-service.mjs', 'server/auth-service.mjs', 'server/crypto.mjs', 'server/config-validation.mjs', 'server/ca-verifier.mjs', 'server/store.mjs', 'server/operator-init.mjs', 'server/operator-activate.mjs', 'web/login-core.mjs', 'deploy/auth-xiongan/install.mjs', 'deploy/auth-xiongan/8415wallet-auth-xiongan.service', 'deploy/auth-xiongan/auth-location.nginx.conf', 'docs/AUTH-INSTALL.md', 'scripts/package/verify-auth.mjs', ...LEGAL_FILES];
 function put(root, path, data) { mkdirSync(dirname(join(root, path)), { recursive: true }); writeFileSync(join(root, path), data, { mode: 0o644 }); }
 function syntheticPackage(root, label = '', { mailSupported = true } = {}) {
   const source = join(root, 'source'), runtime = join(root, 'runtime'); mkdirSync(source); mkdirSync(runtime);

@@ -91,7 +91,8 @@ export async function receiptFixed(provider: Eip1193Provider, input: FixedSubmis
   const at = { ...base, blockNumber, blockHash };
   const matches = (x: unknown, expected: string) => typeof x === 'string' && x.toLowerCase() === expected.toLowerCase();
   const canonical = async () => {
-    const head = rpcObject(await controlRpc(provider, 'eth_getBlockByNumber', [`0x${blockNumber.toString(16)}`, false]));
+    const headValue = await controlRpc(provider, 'eth_getBlockByNumber', [`0x${blockNumber.toString(16)}`, false]);
+    const head = headValue === null ? {} : rpcObject(headValue);
     check(rpcQuantity(await controlRpc(provider, 'eth_chainId', [])) === r.pin.chainId, 'CONTROL_CHAIN_MISMATCH');
     return matches(head.hash, blockHash);
   };
@@ -110,7 +111,7 @@ export async function receiptFixed(provider: Eip1193Provider, input: FixedSubmis
     check(controlHex(code) && hashControlBytes(code) === pin.runtimeCodeHash.toLowerCase(), 'CONTROL_RUNTIME_PIN_MISMATCH');
   }
   const head = rpcQuantity(await controlRpc(provider, 'eth_blockNumber', []));
-  check(head >= blockNumber, 'CONTROL_HEAD_BEHIND_RECEIPT');
+  if (head < blockNumber) return { ...at, state: 'reorged', confirmations: 0n, executionEventObserved: false };
   const depth = head - blockNumber + 1n;
   const status = rpcQuantity(receipt.status);
   check(status === 0n || status === 1n, 'CONTROL_RECEIPT_STATUS_REFUSED');
@@ -209,7 +210,8 @@ export async function proveSupersededNonce(provider: Eip1193Provider, expected: 
     hashControlBytes(tx.input) !== r.calldataHash.toLowerCase(), 'CONTROL_REPLACEMENT_IS_ORIGINAL_INTENT');
   const blockHash = receipt.blockHash.toLowerCase(), blockNumber = rpcQuantity(receipt.blockNumber);
   const canonical = async () => {
-    const b = rpcObject(await controlRpc(provider, 'eth_getBlockByNumber', [`0x${blockNumber.toString(16)}`, false]));
+    const value = await controlRpc(provider, 'eth_getBlockByNumber', [`0x${blockNumber.toString(16)}`, false]);
+    const b = value === null ? {} : rpcObject(value);
     check(same(b.hash, blockHash) && rpcQuantity(await controlRpc(provider, 'eth_chainId', [])) === r.pin.chainId,
       'CONTROL_REPLACEMENT_REORGED');
   };

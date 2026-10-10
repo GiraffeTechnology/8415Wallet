@@ -1,3 +1,4 @@
+import { cancelMethodChangeUi } from '../web/method-change-ui.mjs';
 import { isPlatformPasswordProfile } from '../web/tenant-password-routing.mjs';
 import { clearEnrollmentQr, renderEnrollmentQr } from '../web/enrollment-qr.mjs';
 import * as uiI18n from '../web/i18n.mjs';
@@ -25,7 +26,7 @@ function fixture() {
     if (method === 'personal_sign') return signer.signMessage(getBytes(params[0]));
     throw new Error('Unexpected provider method');
   } };
-  const sdk = { ...uiI18n, clearEnrollmentQr, renderEnrollmentQr, WalletLogin, WalletLoginError, verifyMessage, getAddress, hashMessage, Interface,
+  const sdk = { ...uiI18n, cancelMethodChangeUi, clearEnrollmentQr, renderEnrollmentQr, WalletLogin, WalletLoginError, verifyMessage, getAddress, hashMessage, Interface,
     isPlatformPasswordProfile, getReleaseProfile: () => config.promise, acquireWalletUi: () => Symbol(), releaseWalletUi() {} };
   const login = new Function('document', 'globalThis', 'setTimeout', 'clearTimeout', ...Object.keys(sdk), `${source}\nreturn walletLogin;`)(
     { getElementById: element, addEventListener: (event: string, callback: any) => lifecycle.set(event, callback) },

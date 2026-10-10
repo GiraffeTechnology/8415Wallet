@@ -100,6 +100,16 @@ export function decodeControlWords(types: readonly StaticType[], value: unknown)
   return values;
 }
 const strictDecode = decodeControlWords;
+/** Shared strict sequence decoder for snapshot and receipt-block binding. */
+export function decodeControlSequence(value: unknown): OnchainControlSequence {
+  const f = strictDecode(SEQUENCE_TYPES, value);
+  return { token: f[0] as string, tokenId: f[1] as bigint,
+      initialAccount: f[2] as string, currentAccount: f[3] as string, evidenceAuthority: f[4] as string,
+      registerId: f[5] as string, verificationProfile: f[6] as string, tokenCodeHash: f[7] as string,
+      revision: f[8] as bigint, cursor: f[9] as bigint, completedCount: f[10] as bigint,
+      callbackRootPlusOne: f[11] as bigint, appended: f[12] as bigint,
+      detachedCommitment: f[13] as string, closed: f[14] as boolean };
+}
 function encodeAction(action: ControlAction): string {
   const encode = (signature: string, types: readonly StaticType[], values: readonly AbiValue[]) => encodeCall(signature, types, values);
   switch (action.kind) {
@@ -142,13 +152,8 @@ export class ResponsibilityControlClient {
       ]));
     const code = await controlRpc(this.#provider, 'eth_getCode', [this.deployment.controller, block]);
     requireValue(controlHex(code) && hashControlBytes(code) === this.deployment.runtimeCodeHash.toLowerCase(), 'CONTROL_RUNTIME_PIN_MISMATCH');
-    const f = await read('sequence(bytes32)', ['bytes32'], [sequenceId], SEQUENCE_TYPES);
-    const sequence: OnchainControlSequence = { token: f[0] as string, tokenId: f[1] as bigint,
-      initialAccount: f[2] as string, currentAccount: f[3] as string, evidenceAuthority: f[4] as string,
-      registerId: f[5] as string, verificationProfile: f[6] as string, tokenCodeHash: f[7] as string,
-      revision: f[8] as bigint, cursor: f[9] as bigint, completedCount: f[10] as bigint,
-      callbackRootPlusOne: f[11] as bigint, appended: f[12] as bigint,
-      detachedCommitment: f[13] as string, closed: f[14] as boolean };
+    const sequence = decodeControlSequence(await controlRpc(this.#provider, 'eth_call', [
+      { to: this.deployment.controller, data: encodeCall('sequence(bytes32)', ['bytes32'], [sequenceId]) }, block]));
     const count = (await read('legCount(bytes32)', ['bytes32'], [sequenceId], ['uint256']))[0] as bigint;
     // The window is bounded; retained history is not, because the chain does not
     // retain it. A detached prefix lives at the register.
@@ -240,7 +245,8 @@ export class ResponsibilityControlClient {
       typeof receipt.from === 'string' && receipt.from.toLowerCase() === record.actor && controlHex(receipt.blockHash, 32), 'CONTROL_RECEIPT_BINDING_REFUSED');
     const number = quantity(receipt.blockNumber); const blockHash = receipt.blockHash.toLowerCase();
     const at = { ...base, blockNumber: number, blockHash };
-    const header = object(await controlRpc(this.#provider, 'eth_getBlockByNumber', [`0x${number.toString(16)}`, false]));
+    const headerValue = await controlRpc(this.#provider, 'eth_getBlockByNumber', [`0x${number.toString(16)}`, false]);
+    const header = headerValue === null ? {} : object(headerValue);
     if (typeof header.hash !== 'string' || header.hash.toLowerCase() !== blockHash)
       return { ...at, state: 'reorged', confirmations: 0n, executionEventObserved: false };
     const transaction = object(await controlRpc(this.#provider, 'eth_getTransactionByHash', [record.transactionHash]));
@@ -252,12 +258,13 @@ export class ResponsibilityControlClient {
       typeof transaction.from === 'string' && transaction.from.toLowerCase() === record.actor &&
       typeof transaction.to === 'string' && transaction.to.toLowerCase() === this.deployment.controller.toLowerCase(), 'CONTROL_TRANSACTION_BINDING_REFUSED');
     const head = quantity(await controlRpc(this.#provider, 'eth_blockNumber', []));
-    requireValue(head >= number, 'CONTROL_HEAD_BEHIND_RECEIPT');
+    if (head < number) return { ...at, state: 'reorged', confirmations: 0n, executionEventObserved: false };
     const confirmations = head - number + 1n;
     const status = quantity(receipt.status);
     requireValue(status === 0n || status === 1n, 'CONTROL_RECEIPT_STATUS_REFUSED');
     const canonical = async () => {
-      const finalHeader = object(await controlRpc(this.#provider, 'eth_getBlockByNumber', [`0x${number.toString(16)}`, false]));
+      const headerValue = await controlRpc(this.#provider, 'eth_getBlockByNumber', [`0x${number.toString(16)}`, false]);
+      const finalHeader = headerValue === null ? {} : object(headerValue);
       const chain = quantity(await controlRpc(this.#provider, 'eth_chainId', []));
       requireValue(chain === this.deployment.chainId, 'CONTROL_CHAIN_MISMATCH');
       return typeof finalHeader.hash === 'string' && finalHeader.hash.toLowerCase() === blockHash;

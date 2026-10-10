@@ -1,3 +1,4 @@
+const change = require('./method-change-test-ui.cjs');
 const { installScreenNavigation } = require('./screen-navigation.cjs');
 // Actual UI + actual HTTP auth service; ephemeral synthetic accounts only.
 // No real user credential, email, transaction, hardware or deployment acceptance.
@@ -35,10 +36,11 @@ async function main() {
   let browser;
   const evidence = [];
   try {
+    change.checkpoint('browser-launch');
     browser = await chromium.launch({ executablePath: process.env.WALLET_BROWSER_CHROMIUM || '/usr/bin/chromium', args: ['--no-sandbox', '--disable-dev-shm-usage'] });
     for (profile of ['v2', 'v3']) for (const width of [1440, 390]) {
-      time = Date.now(); const store = new MemoryCredentialStore();
-      auth = createAuthService({ origin, tenant: config.tenant.id, accounts: [{ username: 'tester', passwordHash, wallets: [{ account: actor, chainId: '1' }] }], store, now: () => time });
+      time = Date.now(); const mail = [], store = new MemoryCredentialStore(change.registeredState(config.tenant.id, 'tester', 'tester@example.invalid', time));
+      auth = createAuthService({ origin, tenant: config.tenant.id, accounts: [{ username: 'tester', passwordHash, wallets: [{ account: actor, chainId: '1' }] }], store, now: () => time, sendOtp: async message => { mail.push(message); } });
       const context = await browser.newContext({ viewport: { width, height: width === 390 ? 844 : 1000 }, isMobile: width === 390 });
       const errors = [], offOrigin = []; context.on('request', request => { if (!request.url().startsWith(`${origin}/`)) offOrigin.push(request.url()); }); await context.route('**/*', route => route.request().url().startsWith(`${origin}/`) ? route.continue() : route.abort());
       await installSyntheticLoginSigner(context);
@@ -63,14 +65,18 @@ async function main() {
       const page = installScreenNavigation(await context.newPage()); await page.clock.install({ time }); page.on('pageerror', error => errors.push(error.message));
       const idle = () => page.waitForFunction(() => !document.getElementById('wallet-login').disabled);
       const unlocked = () => page.waitForFunction(() => !document.getElementById('wallet-private').hidden);
+      change.checkpoint('page-load');
       await page.goto(`${origin}/web/index.html`); await page.waitForFunction(() => document.getElementById('release-profile').textContent.includes('8415wallet'));
       assert.deepEqual(await page.evaluate(() => globalThis.__authTest.calls), []);
+      change.checkpoint('password-refusal');
       await page.selectOption('#wallet-login-method', 'password'); await page.fill('#auth-username', 'tester'); await page.fill('#auth-password', 'wrong');
       await page.click('#wallet-login'); await idle(); assert.equal(await page.locator('#wallet-private').isVisible(), false);
       assert.match(await page.textContent('#wallet-login-status'), /AUTH_REFUSED/);
+      change.checkpoint('password-login');
       await page.fill('#auth-password', password); await page.click('#wallet-login'); await unlocked(); await idle();
       assert.equal(await page.inputValue('#auth-password'), '');
       assert.equal((await page.evaluate(() => globalThis.__authTest.calls)).includes('personal_sign'), false);
+      change.checkpoint('asset-connect');
       await page.click('#asset-connect'); await page.waitForFunction(() => document.getElementById('asset-result').textContent.includes('balanceWei'));
       const qrEmpty = async () => {
         assert.equal(await page.textContent('#auth-enroll-secret'), '');
@@ -79,6 +85,7 @@ async function main() {
       const startSetup = async () => {
         await page.click('#auth-manage-open');
         await page.click('#auth-enroll-start');
+        await change.authorize(page, { password }, () => mail.at(-1));
         await page.waitForFunction(() => !document.getElementById('auth-enroll-qr').hidden);
       };
       const passwordAgain = async () => {
@@ -87,31 +94,34 @@ async function main() {
         await page.fill('#auth-username', 'tester'); await page.fill('#auth-password', password);
         await page.click('#wallet-login'); await unlocked(); await idle();
       };
-      await startSetup();
-      const cancelResponse = page.waitForResponse(response => response.url().endsWith('/auth/totp/enroll/cancel'));
+      change.checkpoint('setup-cancel'); await startSetup();
+      const cancelResponse = page.waitForResponse(response => response.url().endsWith('/auth/account/change/cancel'));
       await page.click('#auth-enroll-cancel'); await cancelResponse; await qrEmpty();
-      await startSetup(); time += 300001; await page.clock.fastForward(300001); await qrEmpty();
+      change.checkpoint('setup-expiry'); await startSetup(); time += 300001; await page.clock.fastForward(300001); await qrEmpty();
       // Enrollment expiry also ages out the five-minute independent-login prerequisite.
       await passwordAgain();
-      await startSetup(); await page.evaluate(() => dispatchEvent(new Event('pagehide'))); await qrEmpty();
+      change.checkpoint('setup-pagehide'); await startSetup(); await page.evaluate(() => dispatchEvent(new Event('pagehide'))); await qrEmpty();
       assert.equal(await page.locator('#wallet-private').isVisible(), false); await passwordAgain();
-      await startSetup(); await page.evaluate(() => globalThis.__authTest.changeAccount()); await qrEmpty();
+      change.checkpoint('setup-account-change'); await startSetup(); await page.evaluate(() => globalThis.__authTest.changeAccount()); await qrEmpty();
       assert.equal(await page.locator('#wallet-private').isVisible(), false);
       await page.evaluate(actor => { globalThis.__authTest.actor = actor; }, actor); await passwordAgain();
+      change.checkpoint('setup-late-confirm');
       let releaseStart, startReceived;
       const gate = new Promise(resolve => { releaseStart = resolve; });
       const held = new Promise(resolve => { startReceived = resolve; });
-      await page.route('**/auth/totp/enroll/start', async route => {
+      await page.route('**/auth/account/change/confirm', async route => {
         const response = await route.fetch(); startReceived(); await gate; await route.fulfill({ response });
       });
-      await page.click('#auth-manage-open');
-        await page.click('#auth-enroll-start'); await held;
+      await page.click('#auth-manage-open'); await page.click('#auth-enroll-start');
+      assert.equal((await change.identity(page, { password })).status, 200);
+      const pendingEmail = change.email(page, mail.at(-1).code); await held;
       await page.click('#wallet-logout'); await qrEmpty();
-      const lateResponse = page.waitForResponse(response => response.url().endsWith('/auth/totp/enroll/start'));
-      releaseStart(); await lateResponse; await page.waitForLoadState('networkidle'); await qrEmpty();
-      await page.unroute('**/auth/totp/enroll/start'); await passwordAgain();
-      await page.click('#auth-manage-open');
-        await page.click('#auth-enroll-start'); await page.waitForFunction(() => document.getElementById('auth-enroll-secret').textContent.includes('otpauth:'));
+      const lateResponse = page.waitForResponse(response => response.url().endsWith('/auth/account/change/confirm'));
+      releaseStart(); await lateResponse; await pendingEmail; await page.waitForLoadState('networkidle'); await qrEmpty();
+      await page.unroute('**/auth/account/change/confirm');
+      // Six lifecycle scenarios deliberately cross the production OTP budget window.
+      time += 900001; await page.clock.fastForward(900001); await passwordAgain();
+      change.checkpoint('setup-final-confirm'); await startSetup(); await page.waitForFunction(() => document.getElementById('auth-enroll-secret').textContent.includes('otpauth:'));
       const text = await page.textContent('#auth-enroll-secret'), secret = text.match(/\n([A-Z2-7]{32})\n/)[1];
       // Synthetic only: inspect in-memory pixels, decode independently, save no QR/URI.
       await page.waitForFunction(() => !document.getElementById('auth-enroll-qr').hidden);
@@ -134,17 +144,22 @@ async function main() {
       const recovery = (await page.textContent('#auth-recovery-codes')).split('\n'); assert.equal(recovery.length, 8);
       await page.click('#auth-recovery-dismiss'); assert.equal(await page.textContent('#auth-recovery-codes'), '');
       time += 30000; await page.clock.fastForward(30000);
+      change.checkpoint('totp-login');
       await page.selectOption('#wallet-login-method', 'totp'); await page.fill('#auth-code', hotp(secret, Math.floor(time / 30000)));
       await page.click('#wallet-login'); await unlocked(); await idle();
       assert.equal(await page.locator('#auth-enrollment').isVisible(), false);
       await page.screenshot({ path: path.join(out, `${profile}-${width}-totp.png`), fullPage: false });
       await page.click('#wallet-logout'); assert.equal(await page.locator('#wallet-private').isVisible(), false);
+      change.checkpoint('totp-replay');
       await page.fill('#auth-code', hotp(secret, Math.floor(time / 30000))); await page.click('#wallet-login'); await idle();
       assert.equal(await page.locator('#wallet-private').isVisible(), false);
+      change.checkpoint('recovery-login');
       await page.check('#auth-recovery'); await page.fill('#auth-code', recovery[0]); await page.click('#wallet-login'); await unlocked(); await idle();
+      change.checkpoint('wallet-login');
       await page.click('#wallet-logout'); await page.selectOption('#wallet-login-method', 'wallet'); await page.click('#wallet-login'); await unlocked(); await idle();
       assert.equal((await page.evaluate(() => globalThis.__authTest.calls)).includes('personal_sign'), true);
       await page.evaluate(() => globalThis.__authTest.changeAccount()); assert.equal(await page.locator('#wallet-private').isVisible(), false);
+      change.checkpoint('reload-ca-refusal');
       await page.reload(); await page.waitForFunction(() => document.getElementById('release-profile').textContent.includes('8415wallet'));
       assert.equal(await page.locator('#wallet-private').isVisible(), false);
       await page.selectOption('#wallet-login-method', 'ca'); await page.click('#wallet-login'); await idle();
@@ -153,8 +168,9 @@ async function main() {
       evidence.push({ profile, width, password: true, totpEnrollment: true, localQrPixelRoundtrip: true, qrClearedAfterConfirm: true, qrCancelExpiryPagehideIdentityCleared: true, lateEnrollmentRefused: true, noOffOriginRequests: true, localePreservesEnrollment: true, totpLogin: true, totpReplayRefused: true, recovery: true, registeredWallet: true, accountChangeLocks: true, reloadLocks: true, unavailableCaRefused: true });
       await context.close();
     }
+    change.checkpoint('evidence');
     fs.writeFileSync(path.join(out, 'results.json'), JSON.stringify({ synthetic: true, actualHttpService: true, evidence }, null, 2));
     console.log(JSON.stringify(evidence, null, 2));
   } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }
 }
-main().then(() => require('./account-settings-ui-smoke.cjs').run()).then(() => require('./registration-ui-smoke.cjs').run()).then(() => require('./password-settings-ui-smoke.cjs').run()).catch(error => { console.error(error); process.exitCode = 1; });
+main().then(() => { change.checkpoint('account-settings'); return require('./account-settings-ui-smoke.cjs').run(); }).then(() => { change.checkpoint('registration'); return require('./registration-ui-smoke.cjs').run(); }).then(() => { change.checkpoint('password-settings'); return require('./password-settings-ui-smoke.cjs').run(); }).catch(error => { change.failure(error); });

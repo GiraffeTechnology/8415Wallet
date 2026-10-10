@@ -6,7 +6,7 @@ import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { captureAuthSource, deterministicAuthArchive } from '../scripts/package/build-auth.mjs';
-import { LEGAL_FILES, AUTH_SCHEMA, AUTH_STATUS, AUTH_STATE_SEMANTICS, REGISTRATION_AUTH_STATE_SEMANTICS, LEGACY_AUTH_STATE_SEMANTICS, authStateSemantics, validateAuthStateTransition, jsonBytes, packagePathAllowed, readAuthArchive, runtimePackage, sha256, sourcePathAllowed, sourceTree, unpackAuthArchive, verifyAuthArchive, verifyAuthDirectory, walkAuth } from '../scripts/package/verify-auth.mjs';
+import { LEGAL_FILES, AUTH_SCHEMA, AUTH_STATUS, AUTH_STATE_SEMANTICS, PASSWORD_AUTH_STATE_SEMANTICS, TASK_RUNTIME_SOURCE_PATHS, REGISTRATION_AUTH_STATE_SEMANTICS, LEGACY_AUTH_STATE_SEMANTICS, authStateSemantics, validateAuthStateTransition, jsonBytes, packagePathAllowed, readAuthArchive, runtimePackage, sha256, sourcePathAllowed, sourceTree, unpackAuthArchive, verifyAuthArchive, verifyAuthDirectory, walkAuth } from '../scripts/package/verify-auth.mjs';
 import { paths, nginxLocation, upgrade, rollbackCode } from '../deploy/auth-xiongan/install.mjs';
 
 function temporary(t) { const path = mkdtempSync(join(tmpdir(), 'wallet-auth-package-test-')); t.after(() => rmSync(path, { recursive: true, force: true })); return path; }
@@ -17,7 +17,7 @@ const sourceLock = { name: '8415wallet', lockfileVersion: 3, packages: {
   'node_modules/ethers': { version: '6.17.0', resolved: 'https://registry.npmjs.org/ethers/-/ethers-6.17.0.tgz', integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==' },
   'node_modules/typescript': { version: '5.9.3', dev: true },
 } };
-const sourcePaths = ['server/main.mjs', 'server/service-entry.mjs', 'server/runtime-entry.mjs', 'server/auth-service.mjs', 'server/crypto.mjs', 'server/config-validation.mjs', 'server/ca-verifier.mjs', 'server/store.mjs', 'server/operator-init.mjs', 'server/operator-activate.mjs', 'web/login-core.mjs', 'deploy/auth-xiongan/install.mjs', 'deploy/auth-xiongan/8415wallet-auth-xiongan.service', 'deploy/auth-xiongan/auth-location.nginx.conf', 'docs/AUTH-INSTALL.md', 'scripts/package/verify-auth.mjs', ...LEGAL_FILES];
+const sourcePaths = ['server/task-background-runner.mjs', 'server/task-authorization.mjs', 'server/task-receipt-adapter.mjs', 'server/method-change-service.mjs', ...TASK_RUNTIME_SOURCE_PATHS, 'server/main.mjs', 'server/service-entry.mjs', 'server/runtime-entry.mjs', 'server/auth-service.mjs', 'server/crypto.mjs', 'server/config-validation.mjs', 'server/ca-verifier.mjs', 'server/store.mjs', 'server/operator-init.mjs', 'server/operator-activate.mjs', 'web/login-core.mjs', 'deploy/auth-xiongan/install.mjs', 'deploy/auth-xiongan/8415wallet-auth-xiongan.service', 'deploy/auth-xiongan/auth-location.nginx.conf', 'docs/AUTH-INSTALL.md', 'scripts/package/verify-auth.mjs', ...LEGAL_FILES];
 function git(root, args) { return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim(); }
 function fixture(t, { semantics, label = '' } = {}) {
   const root = temporary(t); const sourceRoot = join(root, 'source'); const runtimeRoot = join(root, 'runtime'); mkdirSync(sourceRoot); mkdirSync(runtimeRoot);
@@ -71,7 +71,7 @@ test('auth state semantics allow only the reviewed forward edge and same-generat
     assert.throws(() => validateAuthStateTransition(current, old, { rollback: true }), /STATE_SEMANTICS_DOWNGRADE_REFUSED/);
   }
   assert.throws(() => validateAuthStateTransition(legacy, current, { rollback: true }), /STATE_SEMANTICS_TRANSITION_REFUSED/);
-  for (const value of [null, 2, '', '8415wallet-auth-state/4', '1', {}]) {
+  for (const value of [null, 2, '', '8415wallet-auth-state/5', '1', {}]) {
     assert.throws(() => authStateSemantics({ runtime: { authStateSemantics: value } }), /STATE_SEMANTICS_REFUSED/);
     assert.throws(() => validateAuthStateTransition(current, { runtime: { authStateSemantics: value } }), /STATE_SEMANTICS_REFUSED/);
   }
@@ -82,7 +82,7 @@ test('directory verification preserves legacy readability and validates the inde
   f.release.runtime.authStateSemantics = AUTH_STATE_SEMANTICS; f.update();
   assert.equal(verifyAuthDirectory(f.runtimeRoot).runtime.credentialStoreFormat, 1);
   assert.equal(authStateSemantics(verifyAuthDirectory(f.runtimeRoot)), AUTH_STATE_SEMANTICS);
-  f.release.runtime.authStateSemantics = '8415wallet-auth-state/4'; f.update();
+  f.release.runtime.authStateSemantics = '8415wallet-auth-state/5'; f.update();
   assert.throws(() => verifyAuthDirectory(f.runtimeRoot), /STATE_SEMANTICS_REFUSED/);
 });
 
@@ -121,7 +121,7 @@ test('legacy inactive installation can upgrade to new semantics without creating
   await assert.rejects(rollbackCode(f.options), /STATE_SEMANTICS_DOWNGRADE_REFUSED/);
   assert.equal(existsSync(join(f.target.root, 'operation.lock')), false);
 });
-for (const semantics of [undefined, REGISTRATION_AUTH_STATE_SEMANTICS]) for (const state of ['never-activated', 'registered', 'reserved-reset']) {
+for (const semantics of [undefined, REGISTRATION_AUTH_STATE_SEMANTICS, PASSWORD_AUTH_STATE_SEMANTICS]) for (const state of ['never-activated', 'registered', 'reserved-reset']) {
   test(`code transitions preserve ${state} state and refuse downgrade to ${semantics ?? 'legacy'} before any switch`, async t => {
     const legacy = fixture(t, { semantics, label: `old-${state}` });
     const current = fixture(t, { semantics: AUTH_STATE_SEMANTICS, label: `current-${state}` });
@@ -146,7 +146,7 @@ for (const semantics of [undefined, REGISTRATION_AUTH_STATE_SEMANTICS]) for (con
     else { assert.equal(readFileSync(keyPath, 'utf8'), 'SYNTHETIC-NON-CREDENTIAL'); assert.deepEqual(readFileSync(f.config.statePath), bytes); }
   });
 }
-for (const semantics of [undefined, REGISTRATION_AUTH_STATE_SEMANTICS]) test(`uncertain cross-generation start never falls back to ${semantics ?? 'legacy'} code`, async t => {
+for (const semantics of [undefined, REGISTRATION_AUTH_STATE_SEMANTICS, PASSWORD_AUTH_STATE_SEMANTICS]) test(`uncertain cross-generation start never falls back to ${semantics ?? 'legacy'} code`, async t => {
   const legacy = fixture(t, { semantics, label: 'legacy-running' }), next = fixture(t, { semantics: AUTH_STATE_SEMANTICS, label: 'new-uncertain-start' });
   const f = installedFixture(legacy, { status: 'proxy-enabled' }), calls = [];
   const state = Buffer.from('SYNTHETIC-STATE-MUST-STAY-UNCHANGED'); f.privatePut(f.config.statePath, state);
@@ -275,4 +275,36 @@ test('independently licensed existing auth packages remain verifiable with their
   }
   f.release.source = captureAuthSource(f.sourceRoot); f.update();
   assert.doesNotThrow(() => verifyAuthDirectory(f.runtimeRoot));
+});
+
+
+
+test('task runtime source closure has the exact contract and receipt TypeScript module set', t => {
+  const f = fixture(t, { semantics: AUTH_STATE_SEMANTICS });
+  assert.deepEqual(TASK_RUNTIME_SOURCE_PATHS, ['src/agent/receiptObservation.ts', 'src/agent/taskContract.ts', 'src/codec/abi.ts', 'src/codec/keccak.ts',
+    'src/controls/accounts.ts', 'src/controls/authorization.ts', 'src/controls/client.ts', 'src/controls/execution.ts',
+    'src/sdk/errors.ts', 'src/sdk/interfaceIds.ts', 'src/xiongan/address.ts', 'src/xiongan/externalAssets.ts']);
+  assert.doesNotThrow(() => verifyAuthDirectory(f.runtimeRoot));
+  assert.equal(packagePathAllowed('src/agent/unauthorized.ts'), false);
+  put(f.runtimeRoot, 'src/agent/unauthorized.ts', 'export {};\n'); f.update();
+  assert.throws(() => verifyAuthDirectory(f.runtimeRoot), /PAYLOAD_ALLOWLIST_REFUSED/);
+});
+for (const path of TASK_RUNTIME_SOURCE_PATHS) test(`task runtime refuses missing or altered canonical source: ${path}`, t => {
+  const f = fixture(t, { semantics: AUTH_STATE_SEMANTICS });
+  const original = readFileSync(join(f.runtimeRoot, path));
+  put(f.runtimeRoot, path, 'changed source\n');
+  assert.throws(() => verifyAuthDirectory(f.runtimeRoot), /FILE_DIGEST_MISMATCH/);
+  f.update(); assert.throws(() => verifyAuthDirectory(f.runtimeRoot), /SOURCE_BLOB_MISMATCH/);
+  put(f.runtimeRoot, path, original); f.update(); rmSync(join(f.runtimeRoot, path)); f.update();
+  assert.throws(() => verifyAuthDirectory(f.runtimeRoot), /SOURCE_PAYLOAD_COMPLETENESS/);
+});
+test('password generation /3 can upgrade to /4 without changing user, key or credential bytes', async t => {
+  const old = fixture(t, { semantics: PASSWORD_AUTH_STATE_SEMANTICS, label: 'password-generation' });
+  const next = fixture(t, { semantics: AUTH_STATE_SEMANTICS, label: 'task-generation' }), f = installedFixture(old);
+  const keyPath = join(f.target.config, 'store-key'), keyBytes = Buffer.alloc(32, 0x45), stateBytes = Buffer.from('Synthetic encrypted credential bytes preserved unchanged');
+  f.privatePut(keyPath, keyBytes); f.privatePut(f.config.statePath, stateBytes);
+  const configBytes = readFileSync(join(f.target.config, 'auth.json'));
+  assert.equal((await upgrade({ ...f.options, packageDirectory: next.runtimeRoot })).status, 'code-upgraded');
+  assert.deepEqual(readFileSync(keyPath), keyBytes); assert.deepEqual(readFileSync(f.config.statePath), stateBytes);
+  assert.deepEqual(readFileSync(join(f.target.config, 'auth.json')), configBytes);
 });

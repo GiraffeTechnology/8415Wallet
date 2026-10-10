@@ -91,6 +91,122 @@ function parseRequest(text: string) {
   check(typeof r.agent === 'string' && /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,63}$/.test(r.agent), 'ASSET_REQUEST_AGENT_REFUSED');
   return { r, chainId: chain(r.chainId), actor: inputAddr(r.actor), expiresAt: uint(r.expiresAt), action: obj(r.action) };
 }
+export type AssetReceiptObservation = AssetReceipt & { readonly blockNumber: string | null; readonly blockHash: string | null;
+  readonly executionEventObserved: boolean };
+/** Shared exact-transaction/event/canonical-chain observer. Inputs are copied;
+ * no store, wallet selection, signing or send is performed here. Session callers
+ * retain their additional account/connection guards. Depth is not finality. */
+export async function receiptAssetTransaction(provider: Eip1193Provider, input: AssetTransaction,
+  transactionHash: string, confirmations: bigint, identityGuard?: () => Promise<void>): Promise<AssetReceiptObservation> {
+  check(typeof confirmations === 'bigint' && confirmations >= 1n, 'ASSET_CONFIRMATIONS_REFUSED');
+  const expected = Object.freeze(tx(input)); transactionHash = hash(transactionHash);
+  const rpc = (method: string, params: readonly unknown[]) => controlRpc(provider, method, params);
+  const identity = async () => {
+    check(quantity(await rpc('eth_chainId', [])) === quantity(expected.chainId), 'ASSET_CHAIN_CHANGED');
+    if (identityGuard) await identityGuard();
+  };
+  await identity();
+  let observedBlockNumber: string | null = null, observedBlockHash: string | null = null;
+  const output = (s: AssetReceipt['state'], count = 0n): AssetReceiptObservation => ({ state: s, transactionHash, confirmations: count.toString(),
+    blockNumber: observedBlockNumber, blockHash: observedBlockHash, executionEventObserved: s === 'confirmed' });
+  const raw = await rpc('eth_getTransactionReceipt', [transactionHash]); if (raw === null) return output('pending');
+  const receipt = obj(raw), blockNumber = quantity(receipt.blockNumber), blockHash = hash(receipt.blockHash);
+  observedBlockNumber = blockNumber.toString(); observedBlockHash = blockHash;
+  check(hash(receipt.transactionHash) === transactionHash, 'ASSET_RECEIPT_BINDING_REFUSED');
+  const actual = obj(await rpc('eth_getTransactionByHash', [transactionHash]));
+  check(hash(actual.hash) === transactionHash && hash(actual.blockHash) === blockHash && quantity(actual.blockNumber) === blockNumber, 'ASSET_RECEIPT_BINDING_REFUSED');
+  check(addr(receipt.from) === expected.from && addr(receipt.to) === expected.to && quantity(receipt.transactionIndex) === quantity(actual.transactionIndex), 'ASSET_RECEIPT_BINDING_REFUSED');
+  check(addr(actual.from) === expected.from && addr(actual.to) === expected.to && quantity(actual.nonce) === quantity(expected.nonce) &&
+    quantity(actual.value) === quantity(expected.value) && typeof actual.input === 'string' && actual.input.toLowerCase() === expected.data, 'ASSET_TRANSACTION_BINDING_REFUSED');
+  if (actual.chainId !== undefined) check(quantity(actual.chainId) === quantity(expected.chainId), 'ASSET_RECEIPT_BINDING_REFUSED');
+  const canonical = await rpc('eth_getBlockByNumber', [hex(blockNumber), false]);
+  if (canonical === null || hash(obj(canonical).hash) !== blockHash) return output('reorged');
+  const head = quantity(await rpc('eth_blockNumber', [])); if (head < blockNumber) return output('reorged');
+  const count = head - blockNumber + 1n, status = quantity(receipt.status); check(status === 0n || status === 1n, 'ASSET_RECEIPT_STATUS_REFUSED');
+  if (count < confirmations) {
+    await identity();
+    const current = await rpc('eth_getBlockByNumber', [hex(blockNumber), false]);
+    return current === null || hash(obj(current).hash) !== blockHash ? output('reorged') : output('confirming', count);
+  }
+  if (status === 1n && expected.data.startsWith('0xa9059cbb')) {
+    check(expected.data.length === 138 && Array.isArray(receipt.logs), 'ASSET_ERC20_EFFECT_UNOBSERVED');
+    const from = `0x${'0'.repeat(24)}${expected.from.slice(2)}`;
+    const recipient = `0x${expected.data.slice(10, 74)}`, amount = `0x${expected.data.slice(74, 138)}`;
+    const signature = keccak256Utf8('Transfer(address,address,uint256)');
+    const effect = receipt.logs.some((raw: unknown) => {
+      const log = obj(raw);
+      if (log.transactionHash !== transactionHash || log.blockHash !== blockHash || quantity(log.blockNumber) !== blockNumber ||
+        quantity(log.transactionIndex) !== quantity(receipt.transactionIndex) || log.removed !== false) return false;
+      if (typeof log.address !== 'string' || log.address.toLowerCase() !== expected.to || !Array.isArray(log.topics)) return false;
+      const topics = log.topics.map((t: unknown) => typeof t === 'string' ? t.toLowerCase() : '');
+      return topics.length === 3 && topics[0] === signature && topics[1] === from && topics[2] === recipient &&
+        typeof log.data === 'string' && log.data.toLowerCase() === amount;
+    });
+    // An exact event is execution evidence, not a promise about future balances
+    // or nonstandard fee/rebase economics. A mismatched event stays unresolved.
+    check(effect, 'ASSET_ERC20_EFFECT_UNOBSERVED');
+  } else if (status === 1n && expected.data !== '0x') {
+    check(Array.isArray(receipt.logs), 'ASSET_NFT_EFFECT_UNOBSERVED');
+    const from = `0x${'0'.repeat(24)}${expected.from.slice(2)}`, recipient = `0x${expected.data.slice(74, 138)}`;
+    const id = expected.data.slice(138, 202), is721 = expected.data.startsWith('0x42842e0e');
+    const signature = keccak256Utf8(is721 ? 'Transfer(address,address,uint256)' : 'TransferSingle(address,address,address,uint256,uint256)');
+    const effect = receipt.logs.some((raw: unknown) => {
+      const log = obj(raw);
+      if (log.transactionHash !== transactionHash || log.blockHash !== blockHash || quantity(log.blockNumber) !== blockNumber ||
+        quantity(log.transactionIndex) !== quantity(receipt.transactionIndex) || log.removed !== false) return false;
+      if (typeof log.address !== 'string' || log.address.toLowerCase() !== expected.to || !Array.isArray(log.topics)) return false;
+      const topics = log.topics.map((t: unknown) => typeof t === 'string' ? t.toLowerCase() : '');
+      return is721 ? topics.length === 4 && topics[0] === signature && topics[1] === from && topics[2] === recipient && topics[3] === `0x${id}` && log.data === '0x' :
+        topics.length === 4 && topics[0] === signature && topics[1] === from && topics[2] === from && topics[3] === recipient &&
+        log.data === `0x${id}${expected.data.slice(202, 266)}`;
+    }); check(effect, 'ASSET_NFT_EFFECT_UNOBSERVED');
+  }
+  // A receipt is not ERC-8415 holder/finality evidence or economic finality.
+  await identity();
+  const finalBlock = await rpc('eth_getBlockByNumber', [hex(blockNumber), false]);
+  if (finalBlock === null || hash(obj(finalBlock).hash) !== blockHash) return output('reorged');
+  return output(status === 0n ? 'reverted' : 'confirmed', count);
+}
+
+export type AssetReplacementObservation = { readonly originalOutcome: 'superseded-not-successful'; readonly replacementHash: string;
+  readonly blockNumber: string; readonly blockHash: string; readonly confirmations: string };
+/** Proof of a different intent consuming the same actor/chain/nonce, never proof
+ * that the original task succeeded. Matching intent uses hash recovery instead. */
+export async function proveAssetReplacement(provider: Eip1193Provider, input: AssetTransaction,
+  originalTransactionHash: string | null, transactionHash: string, minimumConfirmations: bigint,
+  identityGuard?: () => Promise<void>): Promise<AssetReplacementObservation> {
+  check(typeof minimumConfirmations === 'bigint' && minimumConfirmations >= 1n, 'ASSET_CONFIRMATIONS_REFUSED');
+  const expected = Object.freeze(tx(input)), chainId = quantity(expected.chainId).toString(), h = hash(transactionHash);
+  check(originalTransactionHash === null || h !== hash(originalTransactionHash), 'ASSET_SAVED_HASH_NOT_A_REPLACEMENT');
+  const rpc = (method: string, params: readonly unknown[]) => controlRpc(provider, method, params);
+  const identity = async () => {
+    check(quantity(await rpc('eth_chainId', [])) === BigInt(chainId), 'ASSET_CHAIN_CHANGED');
+    if (identityGuard) await identityGuard();
+  };
+  await identity();
+  const r = obj(await rpc('eth_getTransactionReceipt', [h])), replacement = obj(await rpc('eth_getTransactionByHash', [h]));
+  const number = quantity(r.blockNumber), blockHash = hash(r.blockHash);
+  check(hash(r.transactionHash) === h && hash(replacement.hash) === h && hash(replacement.blockHash) === blockHash && quantity(replacement.blockNumber) === number,
+    'ASSET_REPLACEMENT_BINDING_REFUSED');
+  check(addr(r.from) === expected.from && r.to === replacement.to && quantity(r.transactionIndex) === quantity(replacement.transactionIndex), 'ASSET_REPLACEMENT_BINDING_REFUSED');
+  check(addr(replacement.from) === expected.from && quantity(replacement.nonce) === quantity(expected.nonce), 'ASSET_REPLACEMENT_NONCE_REFUSED');
+  if (replacement.chainId !== undefined) check(quantity(replacement.chainId) === BigInt(chainId), 'ASSET_REPLACEMENT_BINDING_REFUSED');
+  check(replacement.to === null || controlHex(replacement.to, 20), 'ASSET_REPLACEMENT_BINDING_REFUSED');
+  check(controlHex(replacement.input), 'ASSET_REPLACEMENT_BINDING_REFUSED');
+  check(replacement.to?.toLowerCase() !== expected.to || quantity(replacement.value) !== quantity(expected.value) || replacement.input.toLowerCase() !== expected.data,
+    'ASSET_MATCHING_INTENT_RECOVER_HASH');
+  check([0n, 1n].includes(quantity(r.status)), 'ASSET_RECEIPT_STATUS_REFUSED');
+  const canonical = await rpc('eth_getBlockByNumber', [hex(number), false]);
+  check(canonical !== null && hash(obj(canonical).hash) === blockHash, 'ASSET_REPLACEMENT_REORGED');
+  const head = quantity(await rpc('eth_blockNumber', []));
+  check(head >= number && head - number + 1n >= minimumConfirmations, 'ASSET_REPLACEMENT_CONFIRMATIONS_REQUIRED');
+  await identity();
+  const finalBlock = await rpc('eth_getBlockByNumber', [hex(number), false]);
+  check(finalBlock !== null && hash(obj(finalBlock).hash) === blockHash, 'ASSET_REPLACEMENT_REORGED');
+  return { originalOutcome: 'superseded-not-successful', replacementHash: h,
+    blockNumber: number.toString(), blockHash, confirmations: (head - number + 1n).toString() };
+}
+
 /** External EOA custody only. No private keys, token allowances, delegated/session
  * authority, swaps, bridging or connection to the 8415 controlled account. */
 export class ExternalAssetSession {
@@ -288,61 +404,9 @@ export class ExternalAssetSession {
     } finally { this.#busy = false; }
   }
   async #receipt(state: AssetState, transactionHash: string, confirmations: bigint): Promise<AssetReceipt> {
-    check(confirmations >= 1n, 'ASSET_CONFIRMATIONS_REFUSED'); await this.#identity();
-    const output = (s: AssetReceipt['state'], count = 0n) => ({ state: s, transactionHash, confirmations: count.toString() });
-    const raw = await this.#rpc('eth_getTransactionReceipt', [transactionHash]); if (raw === null) return output('pending');
-    const receipt = obj(raw), blockNumber = quantity(receipt.blockNumber), blockHash = hash(receipt.blockHash);
-    check(hash(receipt.transactionHash) === transactionHash, 'ASSET_RECEIPT_BINDING_REFUSED');
-    const actual = obj(await this.#rpc('eth_getTransactionByHash', [transactionHash]));
-    check(hash(actual.hash) === transactionHash && hash(actual.blockHash) === blockHash && quantity(actual.blockNumber) === blockNumber, 'ASSET_RECEIPT_BINDING_REFUSED');
-    const expected = state.transaction!;
-    check(addr(receipt.from) === expected.from && addr(receipt.to) === expected.to && quantity(receipt.transactionIndex) === quantity(actual.transactionIndex), 'ASSET_RECEIPT_BINDING_REFUSED');
-    check(addr(actual.from) === expected.from && addr(actual.to) === expected.to && quantity(actual.nonce) === quantity(expected.nonce) &&
-      quantity(actual.value) === quantity(expected.value) && typeof actual.input === 'string' && actual.input.toLowerCase() === expected.data, 'ASSET_TRANSACTION_BINDING_REFUSED');
-    if (actual.chainId !== undefined) check(quantity(actual.chainId) === BigInt(this.chainId), 'ASSET_RECEIPT_BINDING_REFUSED');
-    const canonical = await this.#rpc('eth_getBlockByNumber', [hex(blockNumber), false]);
-    if (canonical === null || hash(obj(canonical).hash) !== blockHash) return output('reorged');
-    const head = quantity(await this.#rpc('eth_blockNumber', [])); if (head < blockNumber) return output('reorged');
-    const count = head - blockNumber + 1n, status = quantity(receipt.status); check(status === 0n || status === 1n, 'ASSET_RECEIPT_STATUS_REFUSED');
-    if (count < confirmations) return output('confirming', count);
-    if (status === 1n && expected.data.startsWith('0xa9059cbb')) {
-      check(expected.data.length === 138 && Array.isArray(receipt.logs), 'ASSET_ERC20_EFFECT_UNOBSERVED');
-      const from = `0x${'0'.repeat(24)}${expected.from.slice(2)}`;
-      const recipient = `0x${expected.data.slice(10, 74)}`, amount = `0x${expected.data.slice(74, 138)}`;
-      const signature = keccak256Utf8('Transfer(address,address,uint256)');
-      const effect = receipt.logs.some((raw: unknown) => {
-        const log = obj(raw);
-        if (log.transactionHash !== transactionHash || log.blockHash !== blockHash || quantity(log.blockNumber) !== blockNumber ||
-          quantity(log.transactionIndex) !== quantity(receipt.transactionIndex) || log.removed !== false) return false;
-        if (typeof log.address !== 'string' || log.address.toLowerCase() !== expected.to || !Array.isArray(log.topics)) return false;
-        const topics = log.topics.map((t: unknown) => typeof t === 'string' ? t.toLowerCase() : '');
-        return topics.length === 3 && topics[0] === signature && topics[1] === from && topics[2] === recipient &&
-          typeof log.data === 'string' && log.data.toLowerCase() === amount;
-      });
-      // An exact event is execution evidence, not a promise about future balances
-      // or nonstandard fee/rebase economics. A mismatched event stays unresolved.
-      check(effect, 'ASSET_ERC20_EFFECT_UNOBSERVED');
-    } else if (status === 1n && expected.data !== '0x') {
-      check(Array.isArray(receipt.logs), 'ASSET_NFT_EFFECT_UNOBSERVED');
-      const from = `0x${'0'.repeat(24)}${expected.from.slice(2)}`, recipient = `0x${expected.data.slice(74, 138)}`;
-      const id = expected.data.slice(138, 202), is721 = expected.data.startsWith('0x42842e0e');
-      const signature = keccak256Utf8(is721 ? 'Transfer(address,address,uint256)' : 'TransferSingle(address,address,address,uint256,uint256)');
-      const effect = receipt.logs.some((raw: unknown) => {
-        const log = obj(raw);
-        if (log.transactionHash !== transactionHash || log.blockHash !== blockHash || quantity(log.blockNumber) !== blockNumber ||
-          quantity(log.transactionIndex) !== quantity(receipt.transactionIndex) || log.removed !== false) return false;
-        if (typeof log.address !== 'string' || log.address.toLowerCase() !== expected.to || !Array.isArray(log.topics)) return false;
-        const topics = log.topics.map((t: unknown) => typeof t === 'string' ? t.toLowerCase() : '');
-        return is721 ? topics.length === 4 && topics[0] === signature && topics[1] === from && topics[2] === recipient && topics[3] === `0x${id}` && log.data === '0x' :
-          topics.length === 4 && topics[0] === signature && topics[1] === from && topics[2] === from && topics[3] === recipient &&
-          log.data === `0x${id}${expected.data.slice(202, 266)}`;
-      }); check(effect, 'ASSET_NFT_EFFECT_UNOBSERVED');
-    }
-    // A receipt is not ERC-8415 holder/finality evidence or economic finality.
-    await this.#identity();
-    const finalBlock = await this.#rpc('eth_getBlockByNumber', [hex(blockNumber), false]);
-    if (finalBlock === null || hash(obj(finalBlock).hash) !== blockHash) return output('reorged');
-    return output(status === 0n ? 'reverted' : 'confirmed', count);
+    const provider: Eip1193Provider = { request: ({ method, params }) => this.#rpc(method, params ?? []) };
+    const observed = await receiptAssetTransaction(provider, state.transaction!, transactionHash, confirmations, () => this.#identity());
+    return { state: observed.state, transactionHash: observed.transactionHash, confirmations: observed.confirmations };
   }
   async reconcile(minimumConfirmations = 2n): Promise<AssetReceipt> {
     const s = await this.status(); check(s.status === 'submitted' && s.transactionHash !== null, 'ASSET_KNOWN_HASH_REQUIRED');
@@ -358,31 +422,11 @@ export class ExternalAssetSession {
   /** Explicit read-only proof that a DIFFERENT canonical transaction consumed the
    * saved nonce. Never calls the original intent successful and never resends. */
   async acknowledgeReplacement(transactionHash: string, minimumConfirmations = 2n): Promise<{ originalOutcome: 'superseded-not-successful'; replacementHash: string }> {
-    check(minimumConfirmations >= 1n, 'ASSET_CONFIRMATIONS_REFUSED');
     const s = await this.status(); check(s.status !== 'idle' && s.transaction !== null, 'ASSET_ACTIVE_SUBMISSION_REQUIRED');
-    const h = hash(transactionHash);
-    check(s.transactionHash === null || h !== s.transactionHash, 'ASSET_SAVED_HASH_NOT_A_REPLACEMENT');
-    await this.#identity();
-    const r = obj(await this.#rpc('eth_getTransactionReceipt', [h])), replacement = obj(await this.#rpc('eth_getTransactionByHash', [h]));
-    const number = quantity(r.blockNumber), blockHash = hash(r.blockHash);
-    check(hash(r.transactionHash) === h && hash(replacement.hash) === h && hash(replacement.blockHash) === blockHash && quantity(replacement.blockNumber) === number,
-      'ASSET_REPLACEMENT_BINDING_REFUSED');
-    check(addr(r.from) === s.actor && r.to === replacement.to && quantity(r.transactionIndex) === quantity(replacement.transactionIndex), 'ASSET_REPLACEMENT_BINDING_REFUSED');
-    check(addr(replacement.from) === s.actor && quantity(replacement.nonce) === quantity(s.transaction.nonce), 'ASSET_REPLACEMENT_NONCE_REFUSED');
-    if (replacement.chainId !== undefined) check(quantity(replacement.chainId) === BigInt(s.chainId), 'ASSET_REPLACEMENT_BINDING_REFUSED');
-    check(replacement.to === null || controlHex(replacement.to, 20), 'ASSET_REPLACEMENT_BINDING_REFUSED');
-    check(controlHex(replacement.input), 'ASSET_REPLACEMENT_BINDING_REFUSED');
-    check(replacement.to?.toLowerCase() !== s.transaction.to || quantity(replacement.value) !== quantity(s.transaction.value) || replacement.input.toLowerCase() !== s.transaction.data,
-      'ASSET_MATCHING_INTENT_RECOVER_HASH');
-    check([0n, 1n].includes(quantity(r.status)), 'ASSET_RECEIPT_STATUS_REFUSED');
-    const canonical = await this.#rpc('eth_getBlockByNumber', [hex(number), false]);
-    check(canonical !== null && hash(obj(canonical).hash) === blockHash, 'ASSET_REPLACEMENT_REORGED');
-    const head = quantity(await this.#rpc('eth_blockNumber', []));
-    check(head >= number && head - number + 1n >= minimumConfirmations, 'ASSET_REPLACEMENT_CONFIRMATIONS_REQUIRED');
-    await this.#identity();
-    check(hash(obj(await this.#rpc('eth_getBlockByNumber', [hex(number), false])).hash) === blockHash, 'ASSET_REPLACEMENT_REORGED');
+    const provider: Eip1193Provider = { request: ({ method, params }) => this.#rpc(method, params ?? []) };
+    const proof = await proveAssetReplacement(provider, s.transaction, s.transactionHash, transactionHash, minimumConfirmations, () => this.#identity());
     check(await this.#store.compareAndSwap(s.revision, { ...s, revision: s.revision + 1, status: 'idle', transaction: null, transactionHash: null, digest: null }), 'ASSET_OPERATION_CONCURRENT');
-    return { originalOutcome: 'superseded-not-successful', replacementHash: h };
+    return { originalOutcome: proof.originalOutcome, replacementHash: proof.replacementHash };
   }
   async acknowledge(minimumConfirmations = 2n): Promise<void> {
     const s = await this.status(); check(s.status === 'submitted' && s.transactionHash !== null, 'ASSET_KNOWN_HASH_REQUIRED');

@@ -7,9 +7,21 @@ export class AccountAuthClient {
     const response = await this.#fetch(new URL(`/auth/${path}`, this.#origin), { method: body === undefined ? 'GET' : 'POST', credentials: 'same-origin', cache: 'no-store', keepalive,
       headers: { 'X-Wallet-Tenant': this.#tenant, ...(this.#csrf ? { 'X-Wallet-CSRF': this.#csrf } : {}), ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-    const text = await response.text(); if (text.length > 16384) throw new WalletLoginError('LOGIN_SERVER_RESPONSE_REFUSED');
+    const text = await response.text(); if (text.length > (path.startsWith('tasks/') ? 4194304 : 16384)) throw new WalletLoginError('LOGIN_SERVER_RESPONSE_REFUSED');
     let result; try { result = JSON.parse(text); } catch { throw new WalletLoginError('LOGIN_SERVICE_UNAVAILABLE'); }
-    if (!response.ok) throw new WalletLoginError(typeof result.error === 'string' && /^AUTH_[A-Z_]+$/.test(result.error) ? result.error : 'LOGIN_SERVICE_UNAVAILABLE');
+    if (!response.ok) {
+      const error = new WalletLoginError(typeof result.error === 'string' && (path.startsWith('tasks/') ? /^(AUTH|TASK)_[A-Z_]+$/ : /^AUTH_[A-Z_]+$/).test(result.error) ? result.error : 'LOGIN_SERVICE_UNAVAILABLE');
+      // Scheduling metadata is never authority. Only the authenticated task-route
+      // limiter's explicit 429 response may delay automatic continuation.
+      if (path.startsWith('tasks/') && response.status === 429 && error.code === 'AUTH_RATE_LIMITED') {
+        const header = response.headers?.get?.('Retry-After');
+        const seconds = typeof header === 'string' && /^[1-9][0-9]{0,2}$/.test(header) ? Number(header) : result.retryAfterSeconds;
+        if (Number.isSafeInteger(seconds) && seconds >= 1 && seconds <= 900) {
+          error.status = 429; error.retryAfterMs = seconds * 1000;
+        }
+      }
+      throw error;
+    }
     return result;
   }
   async capabilities() {
@@ -17,6 +29,7 @@ export class AccountAuthClient {
     if (value.schema !== '8415wallet-auth/1' || value.tenant !== this.#tenant || value.origin !== this.#origin) throw new WalletLoginError('LOGIN_SERVICE_BINDING_REFUSED');
     this.#capabilities = value; return value;
   }
+  get supportsMethodManagement() { return this.#capabilities?.methodManagement === "combined-v1"; }
   get supportsPasswordManagement() { return this.#capabilities?.passwordManagement === true; }
   async registrationStart(email) {
     const epoch = ++this.#registrationEpoch;
@@ -119,6 +132,11 @@ export class AccountAuthClient {
       value.authenticator.enrolled !== value.methods.totp.bound || value.management.existingCodeRequired !== value.authenticator.enrolled)
       throw new WalletLoginError('LOGIN_SERVICE_BINDING_REFUSED');
     return value;
+  }
+  async change(action, body = {}) {
+    if (!this.#session) throw new WalletLoginError('LOGIN_REQUIRED');
+    if (!['start', 'verify', 'confirm', 'commit', 'cancel'].includes(action)) throw new WalletLoginError('AUTH_ROUTE_REFUSED');
+    return this.request(`account/change/${action}`, body);
   }
   async recovery(action, body = {}) {
     if (!['enroll/start', 'enroll/confirm', 'reset/start', 'reset/confirm', 'cancel'].includes(action)) throw new WalletLoginError('AUTH_ROUTE_REFUSED');

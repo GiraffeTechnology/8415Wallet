@@ -203,16 +203,17 @@ access and removes SMTP credential references when the operator applies it.
 ## Authentication state semantics and safe code rollback
 
 Credential ciphertext still uses envelope/store format 1. New packages separately
-record `authStateSemantics: 8415wallet-auth-state/3` for authenticated initial
-password setup/replacement and the account's encrypted password-hash override.
-Generation 2 added registration, enabled login methods and reserved recovery
-factors; absence of a marker denotes legacy semantics 1. The installer permits
-the reviewed forward transitions 1→2, 1→3 and 2→3 and same-generation code
-rollback. It refuses every backward transition, including 3→2, 3→1 and 2→1,
-whether requested as a rollback or disguised as an upgrade. Unknown generations
-fail closed. Old code could ignore a password override and revive its superseded
-configured/signup password, discard newer fields or bypass recovery requirements;
-compatible encryption alone does not make such a rollback safe.
+record `authStateSemantics: 8415wallet-auth-state/4` for durable bounded task
+grants, budgets, operation tombstones and account/chain nonce claims. Generation
+3 introduced authenticated initial password setup/replacement and encrypted
+password-hash overrides; generation 2 added registration, enabled login methods
+and reserved recovery factors. An absent marker denotes legacy semantics 1.
+The installer permits reviewed forward transitions among 1, 2, 3 and 4 and
+same-generation code rollback. It refuses backward transitions against the live
+newer state and fails closed on unknown generations. Old code could ignore a
+password override, bypass newer recovery requirements or fail to retain task
+replay and unknown-outcome state. Compatible encryption alone is insufficient.
+The additive /3 to /4 upgrade does not reinitialize users, keys or credentials.
 
 Before a forward upgrade, follow the user's approved offline backup and recovery
 process. A backup is for coordinated disaster recovery, never automatic reversal
@@ -225,6 +226,29 @@ credentials and counters. Never delete state, rekey, restore stale ciphertext,
 remove password overrides, bypass the managed runtime transition checks or
 remove retained locks merely to pass an installer check. This versioned installer
 guard does not claim to make a manually launched old runtime safe.
+
+### Recoverable prior-version backup
+
+Before an authorized forward upgrade, stop the affected service and capture a
+consistent private backup under
+`/var/lib/8415wallet-auth-TENANT/backups/pre-task-auth-TIMESTAMP/` (0700 directory,
+0600 files). Record the exact prior release directory and manifest hashes, the
+installation receipt, account/configuration files, current encrypted state and
+the separately protected store-key reference. Keep secret material only in the
+approved host/secret-manager backup location, never in a product archive or chat.
+
+If the candidate has never been started and no state change occurred, the
+operator can restore the exact original release, receipt and configuration from
+that coordinated backup under the approved recovery procedure. After a candidate
+start or an uncertain operation, retain the newer ciphertext and nonce/operation
+journal and use a compatible /4 repair or same-generation rollback first. A
+return to /3 is a separate coordinated migration: stop every writer, establish
+that unknown outcomes cannot replay, reconcile/revoke task grants, preserve all
+consumed factor counters and password overrides, and verify the resulting state
+with the original release before service starts. This migration is not automated
+by the installer. Do not restore an older ciphertext over live counters or
+remove its lock to force a downgrade. The original version remains backed up;
+its backup is not permission to discard newer authorization evidence.
 
 ## Existing PR58 TCP deployments: bounded import, never initialize again
 

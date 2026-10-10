@@ -1,3 +1,4 @@
+const change = require('./method-change-test-ui.cjs');
 // Real browser/service registration and migration. Synthetic wallets and fake mail only.
 const assert = require('node:assert/strict');
 const fs = require('node:fs'); const path = require('node:path'); const http = require('node:http'); const { once } = require('node:events');
@@ -67,17 +68,18 @@ async function run() {
       assert.equal(await page.isChecked('#auth-enable-password'), true); assert.equal(await page.isChecked('#auth-enable-wallet'), true);
       const directory = await store.read(`@registration:${config.tenant.id}`); assert.equal(directory.records.length, 1); assert.equal(directory.records[0].email, email);
       assert.deepEqual(directory.records[0].ordinaryAccount.caFingerprints, []); assert.equal(directory.records[0].ordinaryAccount.admin, undefined);
-      await page.fill('#auth-reserved-answer', 'synthetic private recovery phrase'); await post('#auth-recovery-enroll', 'recovery/enroll/start');
-      assert.equal(mail.at(-1).to, email); assert.equal(mail.at(-1).purpose, 'enroll');
-      await page.fill('#auth-email-code', mail.at(-1).code); await post('#auth-email-confirm', 'recovery/enroll/confirm'); await page.waitForFunction(() => document.getElementById('wallet-private').hidden);
+      await page.fill('#auth-reserved-answer', 'synthetic private recovery phrase');
+      const recovery = await change.commit(page, '#auth-recovery-enroll', { password }, () => mail.at(-1));
+      assert.equal(recovery.status, 200); assert.equal(mail.at(-1).to, email); assert.equal(mail.at(-1).purpose, 'method-change'); await page.waitForFunction(() => document.getElementById('wallet-private').hidden);
       await login('NEW-USER@EXAMPLE.INVALID'); assert.match(await page.textContent('#auth-registration-account-state'), /n\*\*\*@example.invalid/);
       await page.locator('#auth-management-title').scrollIntoViewIfNeeded(); assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       await page.screenshot({ path: path.join(out, `${profile}-${width}-verified-registration.png`), fullPage: false });
       await page.click('#wallet-logout'); await page.evaluate(actor => __registrationTest.changeAccount(actor), oldWallet.address); await login('legacy-user');
       assert.match(await page.textContent('#auth-registration-account-state'), /needs a verified/);
-      await page.fill('#auth-registration-account-email', 'legacy@example.invalid'); await post('#auth-registration-account-start', 'registration/email/start');
-      assert.equal(mail.at(-1).purpose, 'registration'); assert.equal(await page.locator('#wallet-private').isVisible(), true);
-      await page.fill('#auth-registration-account-code', mail.at(-1).code); await post('#auth-registration-account-confirm', 'registration/email/confirm'); await page.waitForFunction(() => document.getElementById('wallet-private').hidden);
+      await page.fill('#auth-registration-account-email', 'legacy@example.invalid'); await page.click('#auth-registration-account-start');
+      assert.equal((await change.identity(page, { password })).status, 200);
+      assert.equal(mail.at(-1).purpose, 'method-change'); assert.equal(await page.locator('#wallet-private').isVisible(), true);
+      const migration = change.changeResponse(page, 'commit'); await change.email(page, mail.at(-1).code); assert.equal((await migration).status(), 200); await page.waitForFunction(() => document.getElementById('wallet-private').hidden);
       await login('LEGACY@EXAMPLE.INVALID'); assert.match(await page.textContent('#auth-registration-account-state'), /l\*\*\*@example.invalid/);
       assert.equal((await store.read(`@registration:${config.tenant.id}`)).records.length, 2);
       await page.click('#wallet-logout'); await page.reload(); assert.equal(await page.locator('#auth-registration-account').isVisible(), false); assert.equal(await page.inputValue('#auth-registration-email'), '');
@@ -90,4 +92,4 @@ async function run() {
   } finally { await browser?.close(); await new Promise(resolve => server.close(resolve)); }
 }
 module.exports = { run };
-if (require.main === module) run().catch(error => { console.error(error); process.exitCode = 1; });
+if (require.main === module) run().catch(error => { change.failure(error); });

@@ -1,13 +1,10 @@
+import { fixture as changeFixture, commit as commitChange, EMAIL as changeEmail, profile as changeProfile, ANSWER as changeAnswer } from './helpers/method-change-fixture.ts';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { Duplex } from 'node:stream';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createServer } from 'node:http';
-import { once } from 'node:events';
-import { Wallet } from 'ethers';
-import { createAuthService } from '../server/auth-service.mjs';
 import { createRecoveryService } from '../server/recovery-service.mjs';
 import { createSmtpOtpSender, createOtpSenderFromEnvironment, normalizeEmail, OTP_FROM, OTP_HOST } from '../server/mail-otp.mjs';
 import { MemoryCredentialStore, openEncryptedStore } from '../server/store.mjs';
@@ -291,86 +288,39 @@ test('SMTP timeout after DATA is a single failed attempt, with no resend or plai
   assert.equal(smtp.connection.length, 1); assert.equal(smtp.wire.filter(line => line.startsWith('DATA')).length, 1);
 });
 
-async function httpFixture(options: any = {}) {
-  const signer = Wallet.createRandom(), state = { now: initialNow }, messages: any[] = [];
-  const initial = { revision: 1, ...(options.empty ? {} : { secret, lastStep: -1, recoveryHashes: [], recoveryProfile: profile() }) };
-  const store = new MemoryCredentialStore({ 'xiongan:tester': initial }); let handler: any;
-  const server = createServer((req, res) => handler(req, res)); server.listen(0, '127.0.0.1'); await once(server, 'listening');
-  const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-  handler = createAuthService({ origin, tenant: 'xiongan', store, now: () => state.now,
-    accounts: [{ username: 'tester', wallets: [{ account: signer.address, chainId: '1' }] }],
-    sendOtp: async (message: any) => { messages.push(message); } });
-  const client = () => {
-    const jar = new Map<string, string>(); let csrf = '';
-    const call = async (path: string, body?: any, headers: Record<string, string> = {}) => {
-      const response = await fetch(`${origin}/auth/${path}`, { method: body === undefined ? 'GET' : 'POST',
-        headers: { Origin: origin, 'X-Wallet-Tenant': 'xiongan', 'X-Wallet-CSRF': csrf,
-          Cookie: [...jar].map(([key, value]) => `${key}=${value}`).join('; '),
-          ...(body === undefined ? {} : { 'Content-Type': 'application/json' }), ...headers },
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-      for (const cookie of response.headers.getSetCookie()) { const [key, value] = cookie.split(';')[0]!.split('='); if (value) jar.set(key!, value); else jar.delete(key!); }
-      const data = await response.json() as any; if (response.ok && data.csrf) csrf = data.csrf;
-      return { status: response.status, data, headers: response.headers };
-    };
-    const login = async () => {
-      await call('bootstrap'); const selected = { account: signer.address, chainId: '1' };
-      const challenge = await call('challenge', { ...selected, method: 'wallet' });
-      const result = await call('proof', { ...selected, id: challenge.data.id, signature: await signer.signMessage(challenge.data.message) });
-      assert.equal(result.status, 200); return result;
-    };
-    return { call, login };
-  };
-  const prove = async (c: ReturnType<typeof client>) => {
-    const start = await c.call('recovery/reset/start', { answer }); assert.equal(start.status, 200);
-    const result = await c.call('recovery/reset/confirm', { challengeId: start.data.challengeId, code: messages.at(-1).code });
-    assert.equal(result.status, 200); return result.data;
-  };
-  return { store, state, messages, client, prove, close: () => new Promise<void>(resolve => server.close(() => resolve())) };
-}
-
-test('HTTP recovery requires authenticated CSRF/origin/tenant-bound fresh sessions and never exposes a login route', async t => {
-  const f = await httpFixture({ empty: true }); t.after(f.close); const c = f.client();
-  assert.equal((await c.call('recovery/reset/start', { answer })).status, 401);
-  await c.login();
-  for (const headers of [{ 'X-Wallet-CSRF': 'wrong' }, { Origin: 'https://evil.invalid' }, { 'X-Wallet-Tenant': 'other' }]) {
-    assert.notEqual((await c.call('recovery/enroll/start', { email: 'new@example.invalid', questionId: 'recovery-phrase', answer }, headers)).status, 200);
-  }
+test('HTTP recovery management is authenticated, CSRF/origin/tenant-bound and never provides an email login', async t => {
+  const f = await changeFixture(); t.after(f.close); const c = f.client();
+  assert.equal((await c.call('account/change/start', { action: 'recovery.initial' })).status, 401); await c.login();
+  for (const headers of [{ 'X-Wallet-CSRF': 'wrong' }, { Origin: 'https://evil.invalid' }, { 'X-Wallet-Tenant': 'other' }])
+    assert.notEqual((await c.call('account/change/start', { action: 'recovery.initial', email: changeEmail, questionId: 'recovery-phrase', answer }, headers)).status, 200);
   assert.equal(f.messages.length, 0);
-  const start = await c.call('recovery/enroll/start', { email: 'new@example.invalid', questionId: 'recovery-phrase', answer });
-  assert.equal(start.status, 200); assert.equal(start.headers.get('cache-control'), 'no-store');
-  const confirm = await c.call('recovery/enroll/confirm', { challengeId: start.data.challengeId, code: f.messages.at(-1).code });
-  assert.equal(confirm.status, 200); assert.equal(confirm.data.loggedOut, true); assert.equal((await c.call('session')).status, 401);
+  const proof = await f.authorize(c, { action: 'recovery.initial', email: changeEmail, questionId: 'recovery-phrase', answer });
+  assert.equal((await commitChange(c, proof)).status, 200); assert.equal((await c.call('session')).status, 401);
   await c.login(); const account = await c.call('account'); assert.equal(account.data.recovery.configured, true);
-  assert.doesNotMatch(JSON.stringify(account.data), /answerHash|new@example|synthetic reserved/);
-  const methods = await c.call('capabilities'); assert.equal(methods.data.methods.includes('email'), false);
+  assert.doesNotMatch(JSON.stringify(account.data), /answerHash|synthetic reserved/);
+  assert.equal((await c.call('capabilities')).data.methods.includes('email'), false);
   f.state.now += 300000; assert.equal((await c.call('recovery/reset/start', { answer })).status, 403);
 });
 
-test('HTTP TOTP replacement needs all configured reset factors and preserves recovery profile after confirmation', async t => {
-  const f = await httpFixture(); t.after(f.close); const c = f.client(), other = f.client(); await c.login(); await other.login();
-  const code = hotp(secret, Math.floor(f.state.now / 30000));
-  assert.equal((await c.call('totp/enroll/start', { purpose: 'replace', existingCode: code })).status, 401);
-  assert.equal((await f.store.read('xiongan:tester')).lastStep, -1);
-  const proof = await f.prove(c);
-  assert.equal((await c.call('totp/enroll/start', { purpose: 'replace', existingCode: 'bad', resetProof: proof.resetProof })).status, 401);
-  assert.equal((await other.call('totp/enroll/start', { purpose: 'replace', existingCode: code, resetProof: proof.resetProof })).status, 401);
-  assert.equal((await f.store.read('xiongan:tester')).lastStep, -1);
-  const setup = await c.call('totp/enroll/start', { purpose: 'replace', existingCode: code, resetProof: proof.resetProof }); assert.equal(setup.status, 200);
-  const confirmation = await c.call('totp/enroll/confirm', { enrollmentId: setup.data.enrollmentId, code: hotp(setup.data.secret, Math.floor(f.state.now / 30000)) });
-  assert.equal(confirmation.status, 200); assert.equal(confirmation.data.recoveryCodes.length, 8);
-  assert.deepEqual((await f.store.read('xiongan:tester')).recoveryProfile, profile());
-  assert.equal((await other.call('session')).status, 401); await c.login(); f.state.now += 30000;
-  assert.equal((await c.call('totp/enroll/start', { purpose: 'replace', existingCode: hotp(setup.data.secret, Math.floor(f.state.now / 30000)), resetProof: proof.resetProof })).status, 401);
+test('HTTP TOTP replacement needs combined old factors and preserves the reserved profile', async t => {
+  const f = await changeFixture({ totp: true, profile: true }); t.after(f.close); const c = f.client(), other = f.client(); await c.login(); await other.login();
+  const before = await f.store.read('xiongan:tester');
+  const start = (await c.call('account/change/start', { action: 'totp.replace' })).data;
+  assert.notEqual((await c.call('account/change/verify', { changeId: start.changeId, existingCode: hotp(secret, Math.floor(f.state.now / 30000)) })).status, 200);
+  assert.deepEqual(await f.store.read('xiongan:tester'), before);
+  const proof = await f.authorize(c, { action: 'totp.replace' });
+  assert.equal((await commitChange(other, proof, { code: hotp(proof.secret, Math.floor(f.state.now / 30000)) })).status, 403);
+  assert.equal((await commitChange(c, proof, { code: hotp(proof.secret, Math.floor(f.state.now / 30000)) })).status, 200);
+  assert.deepEqual((await f.store.read('xiongan:tester')).recoveryProfile, changeProfile()); assert.equal((await other.call('session')).status, 401);
 });
 
-test('HTTP method preference changes revoke pending reset proofs without discarding reserved recovery factors', async t => {
-  const f = await httpFixture(); t.after(f.close); const c = f.client(), other = f.client(); await c.login(); await other.login();
-  const proof = await f.prove(c);
-  const change = await other.call('account/methods', { enabledMethods: ['wallet'], existingCode: hotp(secret, Math.floor(f.state.now / 30000)) });
-  assert.equal(change.status, 200); assert.equal(change.data.loggedOut, true); assert.equal((await c.call('session')).status, 401);
-  await c.login(); const account = await c.call('account'); assert.equal(account.data.recovery.configured, true); assert.equal(account.data.methods.totp.enabled, false);
-  assert.deepEqual((await f.store.read('xiongan:tester')).recoveryProfile, profile());
-  f.state.now += 30000;
-  const reset = await c.call('totp/enroll/start', { purpose: 'replace', existingCode: hotp(secret, Math.floor(f.state.now / 30000)), resetProof: proof.resetProof });
-  assert.equal(reset.status, 401);
+test('HTTP method changes revoke pending generic reset proofs without discarding reserved recovery factors', async t => {
+  const f = await changeFixture({ totp: true, profile: true }); t.after(f.close); const c = f.client(), other = f.client(); await c.login(); await other.login();
+  const start = await c.call('recovery/reset/start', { answer: changeAnswer }); assert.equal(start.status, 200);
+  const reset = await c.call('recovery/reset/confirm', { challengeId: start.data.challengeId, code: f.messages.at(-1).code }); assert.equal(reset.status, 200);
+  const proof = await f.authorize(other, { action: 'methods', enabledMethods: ['wallet'] }); assert.equal((await commitChange(other, proof)).status, 200);
+  assert.equal((await c.call('session')).status, 401); await c.login();
+  assert.deepEqual((await f.store.read('xiongan:tester')).recoveryProfile, changeProfile());
+  assert.equal((await c.call('account')).data.methods.totp.enabled, false);
+  assert.equal((await c.call('account/change/commit', { changeProof: reset.data.resetProof })).status, 403);
 });
