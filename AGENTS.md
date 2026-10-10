@@ -596,3 +596,7 @@ use the separately approved current package for any new deployment.
 GitHub-safe mirrors differ from their private originals; do not interchange hashes.
 Archive publication does not establish deployment, current-head CI, genuine-device
 acceptance or a general release. Existing security and deployment rules remain in force.
+
+## Current public installation-asset policy
+
+Keep this repository public for investor review. Follow [the installation-asset publication policy](docs/INSTALLATION-ASSET-PUBLICATION.md): publish only verified product artifacts, retain all required notices, exclude private operations and tenant data, and verify uploaded checksums. The designated source/delivery owner maintains licensing documentation; deployment controllers must not create conflicting license terms or change visibility. Merge pull requests only after exact required CI is fully successful.
