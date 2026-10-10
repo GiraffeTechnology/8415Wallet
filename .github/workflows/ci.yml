@@ -19,6 +19,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -33,6 +35,8 @@ jobs:
         run: npm run typecheck
 
       - name: Test
+        env:
+          PRODUCT_STRICT_SMOKE_SOURCE: ${{ github.workspace }}
         run: npm test
 
       - name: Browser entry
@@ -218,14 +222,47 @@ jobs:
       - name: Reusable DApp delivery integrity
         run: npm run pack:delivery:verify
 
-      - name: Reusable DApp artifacts
-        if: always()
+      # Full-repository archives above remain runner-local. They can contain
+      # private operations/history and must never be uploaded as public products.
+      - name: Build and verify public product kit
+        id: public_product
+        shell: bash
+        env:
+          EXPECTED_UPSTREAM_COMMIT: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "$EXPECTED_UPSTREAM_COMMIT"
+          git diff --quiet
+          git diff --cached --quiet
+          upstream_tree="$(git rev-parse HEAD^{tree})"
+          policy_sha="$(sha256sum config/product-source-allowlist.json | cut -d ' ' -f 1)"
+          tooling_sha="$(node --input-type=module -e 'import { computeToolingPin } from "./scripts/package/verify-product-origin.mjs"; console.log(computeToolingPin());')"
+          common=(
+            --source "$GITHUB_WORKSPACE"
+            --allowlist config/product-source-allowlist.json
+            --allowlist-sha256 "$policy_sha"
+            --tooling-sha256 "$tooling_sha"
+            --upstream-commit "$EXPECTED_UPSTREAM_COMMIT"
+            --upstream-tree "$upstream_tree"
+            --require-clean true
+          )
+          plan="$RUNNER_TEMP/8415wallet-public-product-plan.json"
+          node scripts/package/build-public-product.mjs --mode plan "${common[@]}" > "$plan"
+          product_tree="$(node -e 'console.log(JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8")).predictedProductTree)' "$plan")"
+          node scripts/package/build-public-product.mjs --mode build "${common[@]}" \
+            --product-tree "$product_tree" \
+            --output "$RUNNER_TEMP/8415wallet-public-product-node-${{ matrix.node-version }}" \
+            --github-output "$GITHUB_OUTPUT"
+
+      - name: Verified public product artifacts
+        if: success()
         uses: actions/upload-artifact@v4
         with:
-          name: reusable-dapp-kit-node-${{ matrix.node-version }}
+          name: public-product-kit-node-${{ matrix.node-version }}
           path: |
-            dist/8415wallet-dapp-delivery-*.tar.gz
-            dist/delivery-package-manifest.json
-            dist/auth-package-manifest.json
-          if-no-files-found: ignore
+            ${{ steps.public_product.outputs.archive_path }}
+            ${{ steps.public_product.outputs.guide_path }}
+            ${{ steps.public_product.outputs.checksums_path }}
+            ${{ steps.public_product.outputs.report_path }}
+          if-no-files-found: error
           retention-days: 7

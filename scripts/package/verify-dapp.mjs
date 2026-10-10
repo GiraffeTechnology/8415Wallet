@@ -5,6 +5,7 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { resolveReleaseProfile } from '../../web/release-profile.mjs';
+import { LEGAL_FILES } from './verify-auth.mjs';
 import { sha256, validateStaticTree, walk } from './dapp-release.mjs';
 
 const args = process.argv.slice(2);
@@ -48,6 +49,12 @@ for (const id of profiles) {
     assert.equal(sha256(readFileSync(sourceArtifact)), release.sourceArchive.sha256, 'source archive digest');
     sourceDirectory = unpack(sourceArtifact, 'source');
     assert.deepEqual(Object.fromEntries(walk(sourceDirectory).map(file => [file, sha256(readFileSync(join(sourceDirectory, file)))])), release.source.files);
+    if (JSON.parse(readFileSync(join(sourceDirectory, 'package.json'), 'utf8')).license === 'SEE LICENSE IN LICENSE') {
+      for (const path of LEGAL_FILES) {
+        assert.deepEqual(readFileSync(join(directory, path)), readFileSync(join(sourceDirectory, path)), `DApp legal source: ${path}`);
+        assert.deepEqual(readFileSync(join(directory, 'web/legal', path)), readFileSync(join(directory, path)), `DApp runtime notice: ${path}`);
+      }
+    }
     execFileSync('git', ['init', '-q'], { cwd: sourceDirectory });
     execFileSync('git', ['add', '--all'], { cwd: sourceDirectory });
     const tree = execFileSync('git', ['write-tree'], { cwd: sourceDirectory, encoding: 'utf8' }).trim();

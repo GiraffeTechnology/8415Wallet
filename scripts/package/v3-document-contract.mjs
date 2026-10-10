@@ -1,6 +1,8 @@
+import { LEGAL_FILES } from './verify-auth.mjs';
+
 /** Consumer-facing documents; development instructions are not package input. */
 export const V3_DOCUMENTS = Object.freeze([
-  'LICENSE', 'docs/INTEGRATION.md', 'docs/INTEGRATION-BOUNDARIES.md',
+  ...LEGAL_FILES, 'docs/INTEGRATION.md', 'docs/INTEGRATION-BOUNDARIES.md',
   'docs/ERC-8415-Wallet-PRD.md', 'docs/RESPONSIBILITY-CONTROLS-SECURITY.md',
   'docs/V3-REVIEW-AND-VALIDATION.md', 'docs/stages/STAGE-5J-PUBLIC-PATH-AND-UI.md',
   'docs/V3-DEVELOPMENT-CLOSURE.md', 'docs/XIONGAN-WALLET.md',
@@ -20,7 +22,7 @@ export function verifyBoundaryDocument(text) {
 }
 /** Consumer-facing documents for the V2 product package. */
 export const V2_DOCUMENTS = Object.freeze([
-  'LICENSE', 'README.md', 'docs/INTEGRATION.md', 'docs/INTEGRATION-BOUNDARIES.md',
+  ...LEGAL_FILES, 'README.md', 'docs/INTEGRATION.md', 'docs/INTEGRATION-BOUNDARIES.md',
   'docs/ERC-8415-Wallet-PRD.md', 'docs/V2-CLOSEOUT.md',
   'docs/BETA-DAPP-DELIVERY.md', 'docs/BETA-PRD-COVERAGE.md', 'docs/STANDARDS-COMPATIBILITY.md', 'docs/stages/LEGACY-CLEARING-BETA-DAPP.md',
 ]);

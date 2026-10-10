@@ -79,6 +79,22 @@ Local validation passes, and the package is verified by installing it from
 outside its repository. It has **not** had an independent security review.
 `docs/V2-CLOSEOUT.md` states exactly what was and was not established.
 
-## Licence
+## License
 
-CC0-1.0.
+Licensing notice issued in 2026. Copyright remains with the respective
+copyright holders identified in source notices and project records.
+All rights reserved for the material covered by [LICENSE](LICENSE).
+
+This repository is public so investors and other readers can review the work.
+Public visibility does not grant an additional license to use its covered
+material. The original material covered by LICENSE is proprietary. Except for applicable
+GitHub platform rights, legal exceptions, valid prior grants, and independently
+applicable licenses, copying, modification, redistribution, commercial use, and
+deployment require separate written permission from the copyright owner.
+Authorized copies of covered material must preserve the required notices,
+identify this repository and the source version, and clearly identify
+modifications. Attribution alone does not grant permission.
+
+The ERC-8415 specification, erc8415-kit, and independently licensed components
+are excluded and retain their own applicable terms. See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).

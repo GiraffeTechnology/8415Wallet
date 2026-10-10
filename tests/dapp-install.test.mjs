@@ -6,9 +6,9 @@ import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { gunzipSync, gzipSync } from 'node:zlib';
 import { captureAuthSource, deterministicAuthArchive } from '../scripts/package/build-auth.mjs';
-import { AUTH_SCHEMA, AUTH_STATUS, jsonBytes, runtimePackage, sha256, sourcePathAllowed, walkAuth } from '../scripts/package/verify-auth.mjs';
+import { LEGAL_FILES, AUTH_SCHEMA, AUTH_STATUS, jsonBytes, runtimePackage, sha256, sourcePathAllowed, walkAuth } from '../scripts/package/verify-auth.mjs';
 import { captureSource, deterministicArchive, exportSource, walk } from '../scripts/package/dapp-release.mjs';
-import { DELIVERY_FILES, DELIVERY_SCHEMA, extractDelivery, readDeliveryArchive, verifyDeliveryArchive } from '../scripts/package/verify-delivery.mjs';
+import { DELIVERY_FILES, DELIVERY_SCHEMA, extractDelivery, readDeliveryArchive, verifyDappEntries, verifyDeliveryArchive } from '../scripts/package/verify-delivery.mjs';
 import { createDappConfig, installDapp, nginxStaticAllowlist, planDapp, rollbackDapp, verifyInstalledRelease } from '../deploy/dapp/install.mjs';
 import { resolveReleaseProfile } from '../web/release-profile.mjs';
 const put = (root, path, bytes) => { mkdirSync(dirname(join(root, path)), { recursive: true }); writeFileSync(join(root, path), bytes); chmodSync(join(root, path), 0o644); };
@@ -20,10 +20,10 @@ const passwordRoutingPaths = ['web/tenant-password-routing.mjs', 'web/tenant-pas
 function fixture(t, revision = 'first', routingMutation = {}) {
   const root = mkdtempSync(join(tmpdir(), 'wallet-kit-test-')); t.after(() => rmSync(root, { recursive: true, force: true }));
   const sourceRoot = join(root, 'source'), runtime = join(root, 'runtime'), kit = join(root, 'kit'); mkdirSync(sourceRoot); mkdirSync(runtime); mkdirSync(kit);
-  const authPaths = ['server/main.mjs', 'server/service-entry.mjs', 'server/runtime-entry.mjs', 'server/auth-service.mjs', 'server/crypto.mjs', 'server/config-validation.mjs', 'server/ca-verifier.mjs', 'server/store.mjs', 'server/operator-init.mjs', 'server/operator-activate.mjs', 'web/login-core.mjs', 'deploy/auth-xiongan/install.mjs', 'deploy/auth-xiongan/8415wallet-auth-xiongan.service', 'deploy/auth-xiongan/auth-location.nginx.conf', 'docs/AUTH-INSTALL.md', 'scripts/package/verify-auth.mjs', 'LICENSE'];
+  const authPaths = ['server/main.mjs', 'server/service-entry.mjs', 'server/runtime-entry.mjs', 'server/auth-service.mjs', 'server/crypto.mjs', 'server/config-validation.mjs', 'server/ca-verifier.mjs', 'server/store.mjs', 'server/operator-init.mjs', 'server/operator-activate.mjs', 'web/login-core.mjs', 'deploy/auth-xiongan/install.mjs', 'deploy/auth-xiongan/8415wallet-auth-xiongan.service', 'deploy/auth-xiongan/auth-location.nginx.conf', 'docs/AUTH-INSTALL.md', 'scripts/package/verify-auth.mjs', ...LEGAL_FILES];
   for (const path of new Set([...authPaths, ...DELIVERY_FILES, 'docs/ERC-8415-Wallet-PRD.md'])) put(sourceRoot, path, `Synthetic fixture ${revision}: ${path}\n`);
   for (const path of passwordRoutingPaths) put(sourceRoot, path, readFileSync(new URL(`../${path}`, import.meta.url)));
-  const pkg = { name: '8415wallet', version: '0.1.0', license: 'CC0-1.0', dependencies: { ethers: '^6.17.0' } };
+  const pkg = { name: '8415wallet', version: '0.1.0', license: 'SEE LICENSE IN LICENSE', dependencies: { ethers: '^6.17.0' } };
   const lock = { name: '8415wallet', lockfileVersion: 3, packages: { '': { dependencies: pkg.dependencies }, 'node_modules/ethers': { version: '6.17.0', resolved: 'https://registry.npmjs.org/ethers/-/ethers-6.17.0.tgz', integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==' } } };
   put(sourceRoot, 'package.json', jsonBytes(pkg)); put(sourceRoot, 'package-lock.json', jsonBytes(lock));
   for (const id of ['v2', 'v3']) put(sourceRoot, `config/releases/${id}.json`, jsonBytes(template(id)));
@@ -49,7 +49,9 @@ function fixture(t, revision = 'first', routingMutation = {}) {
       if (path !== routingMutation.omit) put(ui, path, readFileSync(join(sourceRoot, path)));
     }
     if (routingMutation.config) put(ui, 'web/tenant-password-routing.json', jsonBytes(routingMutation.config));
-    const runtimeFiles = hashFiles(ui); put(ui, 'docs/ERC-8415-Wallet-PRD.md', readFileSync(join(sourceRoot, 'docs/ERC-8415-Wallet-PRD.md')));
+    for (const path of LEGAL_FILES) put(ui, `web/legal/${path}`, readFileSync(join(sourceRoot, path)));
+    const runtimeFiles = hashFiles(ui);
+    for (const path of LEGAL_FILES) put(ui, path, readFileSync(join(sourceRoot, path))); put(ui, 'docs/ERC-8415-Wallet-PRD.md', readFileSync(join(sourceRoot, 'docs/ERC-8415-Wallet-PRD.md')));
     const { entries, ...identity } = source;
     const release = { schema: '8415wallet-dapp-release/2', profile: id, version: profile.version, status: profile.status, source: identity, sourceArchive: artifacts.source,
       tenant: profile.tenant, deployment: profile.deployment, features: profile.features, build: { configSha256: runtimeFiles['web/release-config.json'] }, prd: { file: 'docs/ERC-8415-Wallet-PRD.md', sha256: source.files['docs/ERC-8415-Wallet-PRD.md'] }, runtimeFiles };
@@ -214,3 +216,23 @@ test('self-consistent synthetic kit refuses malformed packaged password routing 
   const f = fixture(t, 'malformed-routing', { config: routes });
   assert.throws(() => verifyDeliveryArchive(f.archive, f.pins), /PASSWORD_ROUTING_SCHEMA_REFUSED/);
 });
+
+for (const path of LEGAL_FILES) for (const mode of ['omit-document', 'omit-runtime', 'replace-both']) {
+  test(`current DApp policy rejects ${mode} for ${path} even with a rewritten checksum inventory`, t => {
+    const f = fixture(t);
+    const manifest = JSON.parse(readFileSync(join(f.kit, 'artifacts/dapp-v2-package-manifest.json')));
+    const entries = readDeliveryArchive(readFileSync(join(f.kit, 'artifacts', manifest.artifact)));
+    if (mode === 'omit-document') entries.delete(path);
+    else if (mode === 'omit-runtime') entries.delete(`web/legal/${path}`);
+    else {
+      const altered = { bytes: Buffer.from('Synthetic replacement legal notice\n'), mode: 0o644 };
+      entries.set(path, altered); entries.set(`web/legal/${path}`, altered);
+    }
+    const inventory = [...entries].filter(([path]) => path !== 'SHA256SUMS').sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
+      .map(([path, entry]) => `${sha256(entry.bytes)}  ${path}`).join('\n') + '\n';
+    entries.set('SHA256SUMS', { bytes: Buffer.from(inventory), mode: 0o644 });
+    assert.throws(() => verifyDappEntries(entries, manifest, {
+      tree: manifest.source.tree, files: manifest.source.files, license: 'SEE LICENSE IN LICENSE',
+    }, 'v2'), /FILE_MISSING|UI_LEGAL_SOURCE_MISMATCH/);
+  });
+}

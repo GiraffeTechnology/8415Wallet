@@ -6,18 +6,18 @@ import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { captureAuthSource, deterministicAuthArchive } from '../scripts/package/build-auth.mjs';
-import { AUTH_SCHEMA, AUTH_STATUS, AUTH_STATE_SEMANTICS, REGISTRATION_AUTH_STATE_SEMANTICS, LEGACY_AUTH_STATE_SEMANTICS, authStateSemantics, validateAuthStateTransition, jsonBytes, packagePathAllowed, readAuthArchive, runtimePackage, sha256, sourcePathAllowed, sourceTree, unpackAuthArchive, verifyAuthArchive, verifyAuthDirectory, walkAuth } from '../scripts/package/verify-auth.mjs';
+import { LEGAL_FILES, AUTH_SCHEMA, AUTH_STATUS, AUTH_STATE_SEMANTICS, REGISTRATION_AUTH_STATE_SEMANTICS, LEGACY_AUTH_STATE_SEMANTICS, authStateSemantics, validateAuthStateTransition, jsonBytes, packagePathAllowed, readAuthArchive, runtimePackage, sha256, sourcePathAllowed, sourceTree, unpackAuthArchive, verifyAuthArchive, verifyAuthDirectory, walkAuth } from '../scripts/package/verify-auth.mjs';
 import { paths, nginxLocation, upgrade, rollbackCode } from '../deploy/auth-xiongan/install.mjs';
 
 function temporary(t) { const path = mkdtempSync(join(tmpdir(), 'wallet-auth-package-test-')); t.after(() => rmSync(path, { recursive: true, force: true })); return path; }
 function put(root, path, value) { mkdirSync(dirname(join(root, path)), { recursive: true }); writeFileSync(join(root, path), value); chmodSync(join(root, path), 0o644); }
-const sourcePackage = { name: '8415wallet', version: '0.1.0', license: 'CC0-1.0', dependencies: { ethers: '^6.17.0' }, devDependencies: { typescript: '^5.9.0' } };
+const sourcePackage = { name: '8415wallet', version: '0.1.0', license: 'SEE LICENSE IN LICENSE', dependencies: { ethers: '^6.17.0' }, devDependencies: { typescript: '^5.9.0' } };
 const sourceLock = { name: '8415wallet', lockfileVersion: 3, packages: {
   '': { dependencies: sourcePackage.dependencies },
   'node_modules/ethers': { version: '6.17.0', resolved: 'https://registry.npmjs.org/ethers/-/ethers-6.17.0.tgz', integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==' },
   'node_modules/typescript': { version: '5.9.3', dev: true },
 } };
-const sourcePaths = ['server/main.mjs', 'server/service-entry.mjs', 'server/runtime-entry.mjs', 'server/auth-service.mjs', 'server/crypto.mjs', 'server/config-validation.mjs', 'server/ca-verifier.mjs', 'server/store.mjs', 'server/operator-init.mjs', 'server/operator-activate.mjs', 'web/login-core.mjs', 'deploy/auth-xiongan/install.mjs', 'deploy/auth-xiongan/8415wallet-auth-xiongan.service', 'deploy/auth-xiongan/auth-location.nginx.conf', 'docs/AUTH-INSTALL.md', 'scripts/package/verify-auth.mjs', 'LICENSE'];
+const sourcePaths = ['server/main.mjs', 'server/service-entry.mjs', 'server/runtime-entry.mjs', 'server/auth-service.mjs', 'server/crypto.mjs', 'server/config-validation.mjs', 'server/ca-verifier.mjs', 'server/store.mjs', 'server/operator-init.mjs', 'server/operator-activate.mjs', 'web/login-core.mjs', 'deploy/auth-xiongan/install.mjs', 'deploy/auth-xiongan/8415wallet-auth-xiongan.service', 'deploy/auth-xiongan/auth-location.nginx.conf', 'docs/AUTH-INSTALL.md', 'scripts/package/verify-auth.mjs', ...LEGAL_FILES];
 function git(root, args) { return execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim(); }
 function fixture(t, { semantics, label = '' } = {}) {
   const root = temporary(t); const sourceRoot = join(root, 'source'); const runtimeRoot = join(root, 'runtime'); mkdirSync(sourceRoot); mkdirSync(runtimeRoot);
@@ -256,4 +256,23 @@ test('source Git tree reconstruction rejects links, collisions, duplicates and u
   assert.throws(() => sourceTree([{ ...entries[0], path: '../private' }]), /SOURCE_ENTRY_REFUSED/);
   assert.throws(() => sourceTree([{ ...entries[0], mode: '120000' }]), /SOURCE_ENTRY_REFUSED/);
   assert.throws(() => sourceTree([{ ...entries[0], path: 'a' }, { ...entries[1], path: 'a/b' }]), /SOURCE_COLLISION_REFUSED/);
+});
+
+for (const path of LEGAL_FILES) test(`current auth policy refuses an omitted legal file even with rewritten inventories: ${path}`, t => {
+  const f = fixture(t);
+  git(f.sourceRoot, ['rm', path]); rmSync(join(f.runtimeRoot, path));
+  f.release.source = captureAuthSource(f.sourceRoot); f.update();
+  assert.throws(() => verifyAuthDirectory(f.runtimeRoot), /REQUIRED_(?:LEGAL_)?FILE_MISSING/);
+});
+test('independently licensed existing auth packages remain verifiable with their original notice inventory', t => {
+  const f = fixture(t), legacyPackage = { ...sourcePackage, license: 'CC0-1.0' };
+  put(f.sourceRoot, 'package.json', jsonBytes(legacyPackage));
+  put(f.runtimeRoot, 'provenance/package.source.json', jsonBytes(legacyPackage));
+  const runtime = runtimePackage(legacyPackage, sourceLock);
+  put(f.runtimeRoot, 'package.json', jsonBytes(runtime.manifest)); put(f.runtimeRoot, 'package-lock.json', jsonBytes(runtime.lock));
+  for (const path of LEGAL_FILES.filter(path => path !== 'LICENSE')) {
+    git(f.sourceRoot, ['rm', path]); rmSync(join(f.runtimeRoot, path));
+  }
+  f.release.source = captureAuthSource(f.sourceRoot); f.update();
+  assert.doesNotThrow(() => verifyAuthDirectory(f.runtimeRoot));
 });

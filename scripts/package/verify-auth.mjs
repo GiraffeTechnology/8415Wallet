@@ -7,6 +7,9 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
 
+export const LEGAL_FILES = Object.freeze(['LICENSE', 'THIRD_PARTY_NOTICES.md', 'LICENSES/CC0-1.0.txt']);
+export const PUBLIC_LEGAL_FILES = Object.freeze(LEGAL_FILES.map(path => `web/legal/${path}`));
+
 export const AUTH_SCHEMA = '8415wallet-auth-runtime/1';
 export const AUTH_STATUS = 'NONPRODUCTION_PACKAGE_NOT_ACTIVATED';
 // State meaning is versioned independently of the unchanged AES envelope format.
@@ -36,7 +39,7 @@ export function validateAuthStateTransition(current, candidate, { rollback = fal
   // cannot silently perform a forward migration; unknown future versions fail.
   fail(!rollback, 'STATE_SEMANTICS_TRANSITION_REFUSED');
 }
-export const sourcePathAllowed = path => /^(?:server\/[a-z][a-z0-9-]*\.mjs|web\/login-core\.mjs|deploy\/auth-xiongan\/(?:(?:install|migrate-legacy)\.mjs|8415wallet-auth-xiongan\.service|auth-location\.nginx\.conf)|docs\/AUTH-INSTALL\.md|scripts\/package\/verify-auth\.mjs|LICENSE)$/.test(path);
+export const sourcePathAllowed = path => LEGAL_FILES.includes(path) || /^(?:server\/[a-z][a-z0-9-]*\.mjs|web\/login-core\.mjs|deploy\/auth-xiongan\/(?:(?:install|migrate-legacy)\.mjs|8415wallet-auth-xiongan\.service|auth-location\.nginx\.conf)|docs\/AUTH-INSTALL\.md|scripts\/package\/verify-auth\.mjs|LICENSE)$/.test(path);
 export function safePath(path) {
   return typeof path === 'string' && path.length > 0 && path.length <= 240 && /^[A-Za-z0-9_@.+/=-]+$/.test(path)
     && path.split('/').every(part => part && part !== '.' && part !== '..');
@@ -139,6 +142,8 @@ export function verifyAuthDirectory(directory, { expectedTree } = {}) {
   fail(required.every(file => expectedFiles.includes(file)), 'REQUIRED_FILE_MISSING');
   const sourcePackage = JSON.parse(readFileSync(join(directory, 'provenance/package.source.json'), 'utf8'));
   const sourceLock = JSON.parse(readFileSync(join(directory, 'provenance/package-lock.source.json'), 'utf8'));
+  if (sourcePackage.license === 'SEE LICENSE IN LICENSE')
+    fail(LEGAL_FILES.every(file => expectedFiles.includes(file)), 'REQUIRED_LEGAL_FILE_MISSING');
   const runtime = runtimePackage(sourcePackage, sourceLock);
   assert.deepEqual(JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8')), runtime.manifest, 'AUTH_PACKAGE_RUNTIME_PACKAGE_MISMATCH');
   assert.deepEqual(JSON.parse(readFileSync(join(directory, 'package-lock.json'), 'utf8')), runtime.lock, 'AUTH_PACKAGE_RUNTIME_LOCK_MISMATCH');
