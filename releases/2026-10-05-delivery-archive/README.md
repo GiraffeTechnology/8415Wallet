@@ -1,6 +1,6 @@
 # 8415Wallet delivery archive inventory
 
-This directory preserves the historical and candidate archives listed below. New GitHub-safe copies have explicit `-github-safe` filenames. Keep repository access private.
+This directory preserves the historical and candidate archives listed below. New GitHub-safe copies have explicit `-github-safe` filenames. Keep the repository public for investor review. Follow the [current installation-asset publication policy](../../docs/INSTALLATION-ASSET-PUBLICATION.md).
 
 ## Download and verify
 
