@@ -17,7 +17,37 @@ see `AUTH-RECOVERY.md` and `EMAIL-REGISTRATION.md`. These routes use real server
 fixed tenant/account/wallet bindings, HttpOnly sessions and live revocation
 checks. See [Account authentication](ACCOUNT-AUTHENTICATION.md) for implementation,
 enrollment/recovery, operational constraints and the hardware bridge boundary.
-No method imports a private key or replaces per-transaction approval.
+No login method imports a private key or grants transaction authority.
+
+## AI-native authorization boundary
+
+Login and task authorization have different purposes. The human may authorize a
+bounded parent task, then the agent must be able to complete its in-scope operations
+with the same permissions, review and enforcement required of a human operator.
+Each child still requires validation against the verified task scope and actual
+transaction. Login, an imported request or `approved=true` cannot authorize it.
+
+The required mobile DApp flow displays the task and all material limits on the
+8415wallet authorization page, collects human confirmation and standard Google
+Authenticator/FreeOTP TOTP when required, and automatically resumes that same task.
+Any necessary authentication occurs within this flow; the user need not separately
+log in and operate each business-action button. The TOTP app only generates a code;
+transaction display/push approval is not assumed, and the code is not a blockchain
+signature. Trusted grant verification, signing and receipt checks remain mandatory.
+No native-app requirement is added. Authenticator setup, replacement and unbinding
+belong in the 8415wallet.com management pages, with the same security flow in a
+future native mobile app's management page. Initial binding uses verified identity
+and existing independent methods, never its own not-yet-bound factor; task approval
+must not silently enroll or replace an authenticator.
+
+Status at main `da7e5478e1de1407e566149813108f8afa4c9342`: this task flow is
+**PLANNED / NOT_ACCEPTED**. Current TOTP serves login, the browser agent surface is
+JSON import/review, and the external-provider path still requests a second wallet
+confirmation. The existing login lifetime/reload rules below describe that path;
+they do not establish task grants, automatic resumption or a trusted signer.
+See [PRD §6](ERC-8415-Wallet-PRD.md#6-security-requirements) and
+[product security](RESPONSIBILITY-CONTROLS-SECURITY.md) for the intended lifecycle,
+method-change requirements and separate credential/task versions.
 
 ## Static-DApp trust boundary
 
@@ -65,7 +95,9 @@ performed by this change.
 - Login neither grants transaction authority nor changes the existing custody
   scope. External ETH/ERC-20/ERC-721/ERC-1155 transfers remain EOA-only as before.
   Native ERC-8415, clearing and linked controls retain their existing account
-  constraints. Every transaction keeps its separate review and wallet approval.
+  constraints. In the current external-provider implementation, every transaction
+  keeps its separate review and wallet approval. A future verified task grant must
+  satisfy the task and child-operation controls above before changing that flow.
 
 ## Clearing and recovery
 

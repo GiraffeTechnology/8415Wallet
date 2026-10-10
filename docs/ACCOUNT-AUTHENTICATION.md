@@ -10,6 +10,12 @@ replace fresh independent login or the old authenticator/recovery proof. There i
 
 ## Implemented boundaries
 
+This section describes main `da7e5478e1de1407e566149813108f8afa4c9342`.
+The existing login and credential-management endpoints do not implement parent-task
+authorization or the complete stronger method-change lifecycle specified below.
+Source references and acceptance status are in the
+[product-security matrix](RESPONSIBILITY-CONTROLS-SECURITY.md).
+
 The public entry remains open. Protected asset/history panels accept one of:
 
 1. **Local wallet / private-key signature.** The existing in-tab ERC-4361 /
@@ -41,9 +47,63 @@ The public entry remains open. Protected asset/history panels accept one of:
 A connected provider is still needed to select the registered wallet account
 and chain and to perform chain reads. Password, authenticator and CA login do
 not import or create a wallet, grant spending authority, enable automatic
-signing, or turn a certificate into an Ethereum key. Every transaction retains
-its existing review and explicit wallet confirmation. Existing recovery journals
-and raw ERC-8415 temporal-finality semantics remain unchanged.
+signing, or turn a certificate into an Ethereum key. In this implemented path,
+every transaction retains its existing review and explicit wallet confirmation.
+Existing recovery journals and raw ERC-8415 temporal-finality semantics remain
+unchanged. Hardware CA is login-challenge verification, not an integrated Ethereum
+transaction signer; the SDK `TransactionSigner` interface alone does not supply one.
+
+## Required task authorization and method management
+
+Status: **PLANNED / NOT_ACCEPTED** for the end-to-end requirements in PRD §6.2–§6.5.
+8415wallet is AI-native: the human authorizes the task and its boundaries, and an
+agent performs all in-scope operations at the existing permission/review threshold.
+The mobile DApp must show the exact task, asset/recipient, amount, price/fee limits,
+expiry and scope on the 8415wallet authorization page, obtain human confirmation
+and a standard Google Authenticator/FreeOTP TOTP code when required, then resume
+the agent's same authorized task automatically. Any required fresh authentication
+is part of that flow, not a demand to log in separately and operate business steps.
+The authenticator app is not assumed to display terms or offer push approval.
+
+The verifier must issue a purpose-bound task proof covering the displayed digest,
+identity, origin/tenant/account/chain, task policy version, nonce and deadline.
+Every child operation is checked against that grant and signed only through an
+authorized signer. A TOTP code is not a blockchain signature; a login session,
+reset proof or caller-supplied approval flag is not a task grant. Current TOTP
+endpoints issue login sessions only, and current imported agent requests retain
+external-provider confirmation. The new flow requires separate implementation.
+
+Authenticator initial binding, replacement and unbinding are performed in the
+8415wallet.com management pages. Any future native mobile app must provide the same
+management flow and security controls; the current delivery scope remains the
+mobile DApp. Initial enrollment uses verified registration identity plus fresh
+independent verification from established methods, such as registered wallet
+control and OTP to the previously verified email. Do not require the authenticator
+being enrolled, a never-set password or a newly added device as prior authority.
+The new method's confirmation establishes activation only.
+
+Authenticator bind, unbind and replacement, password changes, and changes to any
+authorization-capable method or trusted-device binding require combined independent
+verification. Examples are OTP to the previously verified reserved email plus
+another already-bound trusted device, or the original password plus that email
+OTP, together with any existing additional required factors. A single session or
+single OTP is insufficient. A newly enrolled device cannot prove its own prior
+trust; User-Agent/IP values do not establish a device binding.
+
+Bind each short-lived, single-use change proof to the exact action, old/new binding
+identifiers, identity, purpose, credential revision and nonce. Verify the new method
+before activation; atomically invalidate the replaced method and affected sessions,
+pending changes and proofs. An unbind must retain an eligible independent method.
+Keep credential revisions distinct from task policy versions, and revalidate or
+suspend affected tasks without expanding their scope. Lost factors use independently
+verified recovery rather than a direct reset or agent bypass. Passwords, keys,
+seeds, OTPs and proofs must never enter logs or agent context.
+
+The implemented management flows below remain accurate descriptions of their
+current endpoints. In particular, method enable/disable is not authenticator
+unbinding, conditional reserved-factor checks do not establish universal combined
+verification, and existing reset proofs are not evidence of exact new-change or
+task-payload binding. Acceptance requires PS-07–PS-17 in the product-security matrix.
 
 ## Server and sessions
 

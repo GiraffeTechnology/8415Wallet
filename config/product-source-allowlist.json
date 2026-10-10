@@ -478,8 +478,8 @@
     {
       "path": "docs/ACCOUNT-AUTHENTICATION.md",
       "mode": "100644",
-      "git_blob_sha1": "42abc1ebc7942a0a0c3da44a65c40866a5117416",
-      "sha256": "eeb57e70d3a83d1884353fac8814c58037fe807804b414b413e0053e6d397128"
+      "git_blob_sha1": "c015d4d8036ff4aa7e3b52665263c80a2e0049ce",
+      "sha256": "5ab1428d31389e5a31ffb5446dd2a874d5b63c53e1635ece9df159f7484bcd30"
     },
     {
       "path": "docs/APPROVED-UI-IMPLEMENTATION.md",
@@ -502,8 +502,8 @@
     {
       "path": "docs/BETA-PRD-COVERAGE.md",
       "mode": "100644",
-      "git_blob_sha1": "50ec0f2c2601153e72cbf053016b84373ac13177",
-      "sha256": "03d11d27167710cbd6b0b4bd7ddb0aecb1cb495207c4a95e2c2c4c61c7f7e4fa"
+      "git_blob_sha1": "7b166832f0d9229913ee7f6ea8a177887cc61d20",
+      "sha256": "39ae78052a8244b16f3d73ebdf543da7affeea47fc49fcec40626e04e52eb875"
     },
     {
       "path": "docs/DAPP-INSTALL.md",
@@ -514,8 +514,8 @@
     {
       "path": "docs/ERC-8415-Wallet-PRD.md",
       "mode": "100644",
-      "git_blob_sha1": "58ed3332ccb9333fb3bc25db86e7eda66eccf5b2",
-      "sha256": "38f434353a9020a1afeac2c336425e50f90362a04fb767661ddb0a3f5c67a534"
+      "git_blob_sha1": "3aa698e49238d3306a876588d04d60eaea55625e",
+      "sha256": "b3e57e5064cd3ce2db1bd187522f4e1bb2d4e96568b5fcd97f167c173eae6805"
     },
     {
       "path": "docs/INTEGRATION-BOUNDARIES.md",
@@ -532,8 +532,8 @@
     {
       "path": "docs/RESPONSIBILITY-CONTROLS-SECURITY.md",
       "mode": "100644",
-      "git_blob_sha1": "1af1d8cfa86b77be55d54fd17a0dbe8d39527cd0",
-      "sha256": "2f48ff1628df54edf0aa75a278ac5e773ad8ef3ec4138541849928886207b812"
+      "git_blob_sha1": "fb291aa1a2fbbcb8ccc3319fcad2512d85c220de",
+      "sha256": "4e508d0b715bafd186454c36bcc510f7dbb13501d26591fa6d3993b283794eeb"
     },
     {
       "path": "docs/STANDARDS-COMPATIBILITY.md",
@@ -562,14 +562,14 @@
     {
       "path": "docs/V3-REVIEW-AND-VALIDATION.md",
       "mode": "100644",
-      "git_blob_sha1": "a6b8fd65cb007b5e8938e830dcb2df41eebf0198",
-      "sha256": "b11fbbd165fb3fc4886a0203e3946a8a0248ade2b8a635724cf551f079be64a7"
+      "git_blob_sha1": "25a1e9fe314c2fa63ade0cddc17fd23177b22f03",
+      "sha256": "f1a198f41331f3e130582d2b4faf450db1b88d61ee9a61fce127c77e8945f757"
     },
     {
       "path": "docs/WALLET-LOGIN.md",
       "mode": "100644",
-      "git_blob_sha1": "75be8202aa782154b917d77386ff3beb51b204c1",
-      "sha256": "4a68d34fc4a855c6697f80870b257cfd43098ba19f5ff26c66f8591300f1a6eb"
+      "git_blob_sha1": "1fc40dd051e1d304472aef195dfcb614710f4ebb",
+      "sha256": "e281155df1f3c965ae5565c55aac765b61b5778fa0ab328b6742dd535318cf4b"
     },
     {
       "path": "docs/XIONGAN-WALLET.md",

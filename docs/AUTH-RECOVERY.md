@@ -7,7 +7,48 @@ not replace fresh independent identity authentication or an existing
 authenticator/recovery-code proof. There is no unauthenticated reset endpoint,
 email account lookup, operator-enrollment endpoint, or client-supplied identity.
 
-## User flow and authorization
+## Required recovery and authorization boundary
+
+The endpoint and user-flow descriptions below are the implemented baseline at
+main `da7e5478e1de1407e566149813108f8afa4c9342`. They do not establish the complete
+method-change requirement in [PRD §6.4](ERC-8415-Wallet-PRD.md#64-authorization-method-changes).
+Initial authenticator binding, replacement and unbinding belong in the
+8415wallet.com management pages; a future native mobile app must use the same
+management/security flow without changing current mobile-DApp scope. Initial
+binding starts from verified registration identity and fresh independent checks
+using established methods, such as registered wallet control plus OTP to the
+previously verified email. It cannot depend on the not-yet-bound authenticator,
+a never-set password or a device being newly enrolled. New-method confirmation
+is required for activation and is not itself authority to initiate enrollment.
+
+That stronger requirement is **PLANNED / NOT_ACCEPTED**: authenticator binding,
+unbinding/replacement, password changes and changes to other authorization-capable
+methods require combined independent verification for the exact requested change.
+Use, for example, the previously verified reserved-email OTP plus another
+already-bound trusted device, or the original password plus that email OTP, while
+retaining additional existing-factor requirements. Neither a single session/OTP
+nor a newly added device or User-Agent/IP match can independently authorize it.
+An account with no reserved factors has an implementation gap to resolve before
+claiming this acceptance; that absence cannot waive the required verification.
+
+Change proofs must bind purpose, action, old/new binding identifiers, identity,
+credential revision, nonce and expiry and be consumed once in the atomic change.
+A replacement becomes active only after new-method verification, then invalidates
+the old method and affected sessions/proofs. Unbinding preserves an eligible
+independent method or follows independently verified recovery. Missing factors
+never authorize a direct bypass. The existing reset proof binds a recovery flow;
+it is not proof of a fully implemented exact-change authorization service.
+
+Recovery `resetProof`, registration OTP and login session are never transaction or
+parent-task authorization. Mobile TOTP task approval must be separately bound to
+the displayed task and resume the authorized agent only through a trusted execution
+path. Credential revision and task policy version are separate; credential recovery
+cannot widen or silently renew an agent grant. Cancelled, expired, changed and
+replayed proofs fail closed, and secrets never enter logs or agent prompts.
+See [PS-07–PS-17](RESPONSIBILITY-CONTROLS-SECURITY.md#product-security-acceptance-matrix)
+for required evidence; the local recovery tests below cover their existing scope.
+
+## Implemented user flow and authorization
 
 1. Log in with an enabled, independently provisioned password, registered wallet,
    or hardware CA method. Management authorization expires five minutes after
@@ -29,8 +70,9 @@ email account lookup, operator-enrollment endpoint, or client-supplied identity.
    recovery code, when configured, before verifying the proposed new email.
    A new address is never accepted as the recipient of a reset challenge.
 
-An account without reserved factors retains the existing authenticated
-replacement process. The UI must show that it has **not** configured reserved
+In the implemented baseline, an account without reserved factors retains the
+existing authenticated replacement process; this is not acceptance of the stronger
+combined-verification requirement above. The UI must show that it has **not** configured reserved
 recovery and must not claim that email or question verification took place.
 Initial authenticator enrollment is not replacement. Once configured, factors
 cannot be silently removed or bypassed by disabling a login method.
