@@ -3,7 +3,9 @@
 The code under `src/kit`, together with `contracts/`, `conformance/`,
 `docker/` and `docs/kit/`, came from the ERC-8415 Native Infrastructure Kit
 (`GiraffeTechnology/ERC8415-Kit`) at commit `d3e9645`, which is dedicated to
-the public domain under CC0-1.0. This repository carries the same dedication.
+the public domain under CC0-1.0. The imported material retains that dedication. Its license text is preserved
+at `LICENSES/CC0-1.0.txt`. The root `LICENSE` states the current product terms
+and excludes the Kit and other independently licensed material.
 
 It was merged rather than depended on. The two codebases had converged on the
 same protocol model from opposite ends — the Kit's `tsconfig.json` was

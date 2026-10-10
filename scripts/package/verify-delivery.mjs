@@ -6,14 +6,14 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { gunzipSync } from 'node:zlib';
-import { safePath, sha256, sourceTree, unpackAuthArchive, verifyAuthDirectory, walkAuth } from './verify-auth.mjs';
+import { LEGAL_FILES, PUBLIC_LEGAL_FILES, safePath, sha256, sourceTree, unpackAuthArchive, verifyAuthDirectory, walkAuth } from './verify-auth.mjs';
 import { resolveReleaseProfile } from '../../web/release-profile.mjs';
 import { validatePasswordRoutes } from '../../web/tenant-password-routing.mjs';
 export { sha256 };
 export const DELIVERY_SCHEMA = '8415wallet-dapp-delivery/1';
 export const DELIVERY_FILES = ['deploy/dapp/install.mjs', 'scripts/package/verify-delivery.mjs', 'scripts/package/verify-auth.mjs',
   'web/release-profile.mjs', 'web/tenant-password-routing.mjs', 'config/releases/v2.json', 'config/releases/v3.json', 'config/releases/xiongan-v2.json',
-  'docs/DAPP-INSTALL.md', 'docs/AUTH-INSTALL.md', 'LICENSE'];
+  'docs/DAPP-INSTALL.md', 'docs/AUTH-INSTALL.md', ...LEGAL_FILES];
 const fail = (condition, code) => { if (!condition) throw Error(`DAPP_DELIVERY_${code}`); };
 const digestPattern = /^[0-9a-f]{64}$/;
 const treePattern = /^[0-9a-f]{40}$/;
@@ -71,7 +71,7 @@ const hashes = entries => Object.fromEntries([...entries].sort(([a], [b]) => a <
 const get = (entries, path) => { fail(entries.has(path), `FILE_MISSING: ${path}`); return entries.get(path).bytes; };
 const sums = entries => [...entries].filter(([path]) => path !== 'SHA256SUMS').sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([path, entry]) => `${sha256(entry.bytes)}  ${path}`).join('\n') + '\n';
 export function isPublicFile(path) {
-  return safePath(path) && /^(web\/|dist\/browser\/)/.test(path) && !path.split('/').some(part => part.startsWith('.'))
+  return PUBLIC_LEGAL_FILES.includes(path) || safePath(path) && /^(web\/|dist\/browser\/)/.test(path) && !path.split('/').some(part => part.startsWith('.'))
     && (/\.(?:html|mjs|js|css|json|svg|png|jpg|jpeg|webp|ico|woff|woff2|ttf)$/.test(path) || ['web/assets/license-dm-sans.txt', 'dist/browser/vendor/ETHERS-LICENSE.md'].includes(path));
 }
 export function verifyDappEntries(entries, manifest, source, profileId) {
@@ -85,6 +85,12 @@ export function verifyDappEntries(entries, manifest, source, profileId) {
   fail(release.build.configSha256 === sha256(get(entries, 'web/release-config.json')), 'UI_CONFIG_MISMATCH');
   fail(release.prd?.sha256 === sha256(get(entries, release.prd.file)), 'UI_PRD_MISMATCH');
   fail(get(entries, 'SHA256SUMS').toString() === sums(entries), 'UI_INVENTORY_MISMATCH');
+  if (source.license === 'SEE LICENSE IN LICENSE') {
+    for (const path of LEGAL_FILES) {
+      fail(sha256(get(entries, path)) === source.files[path], 'UI_LEGAL_SOURCE_MISMATCH');
+      fail(get(entries, `web/legal/${path}`).equals(get(entries, path)), 'UI_LEGAL_RUNTIME_MISMATCH');
+    }
+  }
   const runtime = new Map([...entries].filter(([path]) => /^(web\/|dist\/browser\/)/.test(path)));
   fail(runtime.size > 0 && [...runtime.keys()].every(isPublicFile) && runtime.has('web/index.html'), 'UI_PUBLIC_FILES_REFUSED');
   assert.deepEqual(hashes(runtime), release.runtimeFiles, 'DAPP_DELIVERY_UI_RUNTIME_MISMATCH');
@@ -128,7 +134,7 @@ export function verifyDeliveryArchive(archive, { expectedSha256, expectedTree } 
       fail(blobHash(file.bytes) === entry.object && file.mode === (entry.mode === '100755' ? 0o755 : 0o644), 'SOURCE_BLOB_MISMATCH');
     }
     for (const path of DELIVERY_FILES) fail(get(entries, path).equals(get(sourceEntries, path)), 'TOOL_SOURCE_MISMATCH');
-    const source = { tree: expectedTree, files: hashes(sourceEntries) }, dapps = {};
+    const source = { tree: expectedTree, files: hashes(sourceEntries), license: parsed(get(sourceEntries, 'package.json')).license }, dapps = {};
     for (const id of ['v2', 'v3']) {
       const manifest = parsed(get(entries, `artifacts/dapp-${id}-package-manifest.json`));
       for (const key of ['commit', 'commitTree', 'indexTree', 'tree', 'dirty']) assert.deepEqual(manifest.source?.[key], auth.source[key], 'DAPP_DELIVERY_UI_SOURCE_IDENTITY_MISMATCH');

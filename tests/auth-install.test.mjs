@@ -13,21 +13,21 @@ import { validateAuthConfig } from '../server/config-validation.mjs';
 import { createAuthService } from '../server/auth-service.mjs';
 import { MemoryCredentialStore } from '../server/store.mjs';
 import { captureAuthSource } from '../scripts/package/build-auth.mjs';
-import { AUTH_SCHEMA, AUTH_STATUS, runtimePackage, sha256, walkAuth } from '../scripts/package/verify-auth.mjs';
+import { LEGAL_FILES, AUTH_SCHEMA, AUTH_STATUS, runtimePackage, sha256, walkAuth } from '../scripts/package/verify-auth.mjs';
 import { independentNode } from './helpers/independent-node.mjs';
 const fixtureNode = await independentNode();
 after(() => fixtureNode.cleanup());
 const uid = process.getuid(), nodeUid = fixtureNode.uid;
 const tenant = 'fixture-tenant', origin = 'https://wallet.example.invalid:9447';
 const accounts = [{ username: 'fixture-user', wallets: [{ account: `0x${'1'.repeat(40)}`, chainId: '8453' }] }];
-const sourceFiles = ['server/main.mjs', 'server/service-entry.mjs', 'server/runtime-entry.mjs', 'server/socket-path.mjs', 'server/mail-config.mjs', 'server/mail-otp.mjs', 'server/account-directory.mjs', 'server/recovery-service.mjs', 'server/registration-service.mjs', 'server/auth-service.mjs', 'server/crypto.mjs', 'server/config-validation.mjs', 'server/ca-verifier.mjs', 'server/store.mjs', 'server/operator-init.mjs', 'server/operator-activate.mjs', 'web/login-core.mjs', 'deploy/auth-xiongan/install.mjs', 'deploy/auth-xiongan/8415wallet-auth-xiongan.service', 'deploy/auth-xiongan/auth-location.nginx.conf', 'docs/AUTH-INSTALL.md', 'scripts/package/verify-auth.mjs', 'LICENSE'];
+const sourceFiles = ['server/main.mjs', 'server/service-entry.mjs', 'server/runtime-entry.mjs', 'server/socket-path.mjs', 'server/mail-config.mjs', 'server/mail-otp.mjs', 'server/account-directory.mjs', 'server/recovery-service.mjs', 'server/registration-service.mjs', 'server/auth-service.mjs', 'server/crypto.mjs', 'server/config-validation.mjs', 'server/ca-verifier.mjs', 'server/store.mjs', 'server/operator-init.mjs', 'server/operator-activate.mjs', 'web/login-core.mjs', 'deploy/auth-xiongan/install.mjs', 'deploy/auth-xiongan/8415wallet-auth-xiongan.service', 'deploy/auth-xiongan/auth-location.nginx.conf', 'docs/AUTH-INSTALL.md', 'scripts/package/verify-auth.mjs', ...LEGAL_FILES];
 function put(root, path, data) { mkdirSync(dirname(join(root, path)), { recursive: true }); writeFileSync(join(root, path), data, { mode: 0o644 }); }
 function syntheticPackage(root, label = '', { mailSupported = true } = {}) {
   const source = join(root, 'source'), runtime = join(root, 'runtime'); mkdirSync(source); mkdirSync(runtime);
   const files = sourceFiles.filter(path => mailSupported || path !== 'server/mail-config.mjs');
   for (const path of files) put(source, path, readFileSync(new URL(`../${path}`, import.meta.url)));
   if (label) put(source, 'docs/AUTH-INSTALL.md', readFileSync(join(source, 'docs/AUTH-INSTALL.md'), 'utf8') + `\nSynthetic upgrade marker: ${label}\n`);
-  const pkg = { name: '8415wallet', version: '0.1.0', license: 'CC0-1.0', dependencies: { ethers: '^6.17.0' } };
+  const pkg = { name: '8415wallet', version: '0.1.0', license: 'SEE LICENSE IN LICENSE', dependencies: { ethers: '^6.17.0' } };
   const lock = { name: pkg.name, lockfileVersion: 3, packages: { '': { dependencies: pkg.dependencies }, 'node_modules/ethers': { version: '6.17.0', resolved: 'https://registry.npmjs.org/ethers/-/ethers-6.17.0.tgz', integrity: 'sha512-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA==' } } };
   put(source, 'package.json', JSON.stringify(pkg)); put(source, 'package-lock.json', JSON.stringify(lock));
   const git = args => execFileSync('git', args, { cwd: source, stdio: 'pipe' });

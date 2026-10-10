@@ -1,121 +1,125 @@
-Creative Commons Legal Code
+PROPRIETARY SOFTWARE NOTICE AND LICENSE TERMS
 
-CC0 1.0 Universal
+Project: 8415wallet
+Repository: https://github.com/GiraffeTechnology/8415Wallet
+Licensing notice issued in 2026. Copyright remains with the respective
+copyright holders identified in source notices and project records.
+All rights reserved, subject to the exceptions stated below.
+Covered original material: Eligible new copyrightable original additions first published under these
+terms in this notice, the current license sections and notices, and the
+associated legal-file packaging and verification implementation; eligible
+subsequent original material expressly designated in a file-level notice.
+Only new original additions are covered in a mixed file, to the extent the
+Rights Holder may lawfully place them under these terms. Previously validly
+licensed or dedicated portions, third-party material and uncopyrightable
+material are excluded.
 
-    CREATIVE COMMONS CORPORATION IS NOT A LAW FIRM AND DOES NOT PROVIDE
-    LEGAL SERVICES. DISTRIBUTION OF THIS DOCUMENT DOES NOT CREATE AN
-    ATTORNEY-CLIENT RELATIONSHIP. CREATIVE COMMONS PROVIDES THIS
-    INFORMATION ON AN "AS-IS" BASIS. CREATIVE COMMONS MAKES NO WARRANTIES
-    REGARDING THE USE OF THIS DOCUMENT OR THE INFORMATION OR WORKS
-    PROVIDED HEREUNDER, AND DISCLAIMS LIABILITY FOR DAMAGES RESULTING FROM
-    THE USE OF THIS DOCUMENT OR THE INFORMATION OR WORKS PROVIDED
-    HEREUNDER.
+1. Scope and ownership
 
-Statement of Purpose
+This notice applies only to copyrightable original material in this project
+owned by the respective copyright holders identified in source notices and project records
+(each, for rights that holder owns or is authorized to license, the "Rights Holder") and expressly
+identified above or in a corresponding file-level notice as covered by this
+notice (the "Covered Material"), and only to the extent the Rights Holder may
+lawfully place that material under these terms. This notice does not claim
+ownership of third-party material.
 
-The laws of most jurisdictions throughout the world automatically confer
-exclusive Copyright and Related Rights (defined below) upon the creator
-and subsequent owner(s) (each and all, an "owner") of an original work of
-authorship and/or a database (each, a "Work").
+In a mixed or modified file containing independently licensed, public-domain,
+or third-party material, these terms apply only to the Rights Holder's
+expressly identified copyrightable original contributions that may lawfully
+carry these terms. They do not change the status of the underlying material.
 
-Certain owners wish to permanently relinquish those rights to a Work for
-the purpose of contributing to a commons of creative, cultural and
-scientific works ("Commons") that the public can reliably and without fear
-of later claims of infringement build upon, modify, incorporate in other
-works, reuse and redistribute as freely as possible in any form whatsoever
-and for any purposes, including without limitation commercial purposes.
-These owners may contribute to the Commons to promote the ideal of a free
-culture and the further production of creative, cultural and scientific
-works, or to gain reputation or greater distribution for their Work in
-part through the use and efforts of others.
+Covered Material may include source code, object code, documentation, and other
+project assets, but only to the extent the Rights Holder owns the relevant
+rights. Third-party material, separately licensed material, and the exclusions
+in Section 5 are not subject to the restrictions in this notice.
 
-For these and/or other purposes and motivations, and without any
-expectation of additional consideration or compensation, the person
-associating CC0 with a Work (the "Affirmer"), to the extent that he or she
-is an owner of Copyright and Related Rights in the Work, voluntarily
-elects to apply CC0 to the Work and publicly distribute the Work under its
-terms, with knowledge of his or her Copyright and Related Rights in the
-Work and the meaning and intended legal effect of CC0 on those rights.
+2. Reservation of rights; permission required
 
-1. Copyright and Related Rights. A Work made available under CC0 may be
-protected by copyright and related or neighboring rights ("Copyright and
-Related Rights"). Copyright and Related Rights include, but are not
-limited to, the following:
+This notice does not grant a public license to use the Covered Material.
+Making the project publicly accessible does not grant additional permission.
+Except to the extent permitted by Section 4, a valid prior license, or a
+separate written permission from the Rights Holder, you may not copy, modify,
+adapt, create derivative works from, distribute, publish, sublicense, sell,
+rent, commercially exploit, execute, host, or deploy the Covered Material,
+including as part of a product, service, or blockchain application.
 
-  i. the right to reproduce, adapt, distribute, perform, display,
-     communicate, and translate a Work;
- ii. moral rights retained by the original author(s) and/or performer(s);
-iii. publicity and privacy rights pertaining to a person's image or
-     likeness depicted in a Work;
- iv. rights protecting against unfair competition in regards to a Work,
-     subject to the limitations in paragraph 4(a), below;
-  v. rights protecting the extraction, dissemination, use and reuse of data
-     in a Work;
- vi. database rights (such as those arising under Directive 96/9/EC of the
-     European Parliament and of the Council of 11 March 1996 on the legal
-     protection of databases, and under any national implementation
-     thereof, including any amended or successor version of such
-     directive); and
-vii. other similar, equivalent or corresponding rights throughout the
-     world based on applicable law or treaty, and any national
-     implementations thereof.
+Permission must be obtained before carrying out the restricted activity and
+must expressly cover that activity. Attribution alone is not permission.
+No patent, trademark, or other intellectual property license is granted by
+this notice. All rights not otherwise validly granted or permitted by law are reserved.
 
-2. Waiver. To the greatest extent permitted by, but not in contravention
-of, applicable law, Affirmer hereby overtly, fully, permanently,
-irrevocably and unconditionally waives, abandons, and surrenders all of
-Affirmer's Copyright and Related Rights and associated claims and causes
-of action, whether now known or unknown (including existing as well as
-future claims and causes of action), in the Work (i) in all territories
-worldwide, (ii) for the maximum duration provided by applicable law or
-treaty (including future time extensions), (iii) in any current or future
-medium and for any number of copies, and (iv) for any purpose whatsoever,
-including without limitation commercial, advertising or promotional
-purposes (the "Waiver"). Affirmer makes the Waiver for the benefit of each
-member of the public at large and to the detriment of Affirmer's heirs and
-successors, fully intending that such Waiver shall not be subject to
-revocation, rescission, cancellation, termination, or any other legal or
-equitable action to disrupt the quiet enjoyment of the Work by the public
-as contemplated by Affirmer's express Statement of Purpose.
+3. Attribution for separately authorized copies
 
-3. Public License Fallback. Should any part of the Waiver for any reason
-be judged legally invalid or ineffective under applicable law, then the
-Waiver shall be preserved to the maximum extent permitted taking into
-account Affirmer's express Statement of Purpose. In addition, to the
-extent the Waiver is so judged Affirmer hereby grants to each affected
-person a royalty-free, non transferable, non sublicensable, non exclusive,
-irrevocable and unconditional license to exercise Affirmer's Copyright and
-Related Rights in the Work (i) in all territories worldwide, (ii) for the
-maximum duration provided by applicable law or treaty (including future
-time extensions), (iii) in any current or future medium and for any number
-of copies, and (iv) for any purpose whatsoever, including without
-limitation commercial, advertising or promotional purposes (the
-"License"). The License shall be deemed effective as of the date CC0 was
-applied by Affirmer to the Work. Should any part of the License for any
-reason be judged legally invalid or ineffective under applicable law, such
-partial invalidity or ineffectiveness shall not invalidate the remainder
-of the License, and in such case Affirmer hereby affirms that he or she
-will not (i) exercise any of his or her remaining Copyright and Related
-Rights in the Work or (ii) assert any associated claims and causes of
-action with respect to the Work, in either case contrary to Affirmer's
-express Statement of Purpose.
+Unless a separate written permission from the Rights Holder expressly states
+otherwise, any copying, modification, or distribution authorized by the
+Rights Holder subject to this notice must meet all of the following conditions:
 
-4. Limitations and Disclaimers.
+(a) Preserve the applicable copyright notices and a complete copy of this
+    notice with every copy or substantial portion of the Covered Material.
+(b) Identify the original project name, the canonical repository URL above,
+    and the source release, tag, or full commit identifier from which the
+    Covered Material was obtained.
+(c) Clearly identify modified files and state that modifications were made,
+    by whom, and when. Do not misrepresent modified material as the original.
+(d) Include the attribution and notices in a readily accessible notices file
+    accompanying source distributions. For authorized binary distributions
+    or hosted deployments, include them in accompanying documentation or a
+    readily accessible legal-notices page.
+(e) Retain every third-party notice required by its applicable license.
 
- a. No trademark or patent rights held by Affirmer are waived, abandoned,
-    surrendered, licensed or otherwise affected by this document.
- b. Affirmer offers the Work as-is and makes no representations or
-    warranties of any kind concerning the Work, express, implied,
-    statutory or otherwise, including without limitation warranties of
-    title, merchantability, fitness for a particular purpose, non
-    infringement, or the absence of latent or other defects, accuracy, or
-    the present or absence of errors, whether or not discoverable, all to
-    the greatest extent permissible under applicable law.
- c. Affirmer disclaims responsibility for clearing rights of other persons
-    that may apply to the Work or any use thereof, including without
-    limitation any person's Copyright and Related Rights in the Work.
-    Further, Affirmer disclaims responsibility for obtaining any necessary
-    consents, permissions or other rights required for any use of the
-    Work.
- d. Affirmer understands and acknowledges that Creative Commons is not a
-    party to this document and has no duty or obligation with respect to
-    this CC0 or use of the Work.
+Failure to provide the required source attribution for a copy authorized
+subject to this notice violates these terms. Attribution alone does not
+authorize a copy that otherwise requires permission.
+
+These conditions do not enlarge the scope of any permission. They do not
+impose new conditions on activities independently permitted under Section 4,
+a valid prior license, or a third-party license.
+
+4. Platform rights and legal exceptions
+
+Nothing in this notice limits rights validly granted to GitHub or its users
+under the applicable GitHub terms, including permitted viewing and forking
+through GitHub's functionality. This notice grants no additional rights beyond
+those platform rights.
+
+Nothing in this notice restricts any activity that applicable law permits
+without permission, including applicable copyright limitations and exceptions,
+or excludes any right or remedy that cannot lawfully be excluded.
+
+5. Independently licensed material and exclusions
+
+Third-party components and separately licensed files or portions remain
+governed by their applicable terms. Their copyright, license, patent,
+attribution, and NOTICE statements must be retained as those terms require.
+Specific independently applicable license or dedication notices take precedence
+over a general proprietary designation for the material they identify.
+Omitting an item from a notices inventory does not transfer ownership or
+extinguish independently valid rights. The restrictions and attribution
+requirements in this notice do not apply to independently licensed or
+public-domain material.
+
+The ERC-8415 specification and the erc8415-kit project are excluded from this
+notice. Their own applicable terms continue to govern them. References to,
+implementation of, or inclusion of material from those projects do not
+relicense their specification or separately licensed material under this notice.
+This notice does not restrict an independently created implementation of a
+standard merely because it implements that standard.
+
+This notice does not revoke, narrow, or add conditions to valid prior grants
+of rights. Independently applicable terms control to the extent applicable.
+
+6. Disclaimer and limitation of liability
+
+To the maximum extent permitted by applicable law, the Covered Material is
+provided as available, with all faults, and without any express or implied
+warranty, including warranties of satisfactory quality, merchantability,
+fitness for a particular purpose, title, or non-infringement. The Rights
+Holder makes no assurance that it is secure, accurate, complete, or suitable
+for a particular use.
+
+To the maximum extent permitted by applicable law, the Rights Holder will
+not be liable for any loss, damage, cost, or claim arising from the Covered
+Material or its use or inability to be used, whether in contract, tort, or
+otherwise. This limitation does not exclude or limit liability that cannot
+lawfully be excluded or limited.

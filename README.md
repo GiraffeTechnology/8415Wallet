@@ -113,3 +113,23 @@ credential store or encryption key. Email OTP is limited to registration and
 security-reset verification, never email-only login. See
 [Email registration](docs/EMAIL-REGISTRATION.md) and
 [Account authentication](docs/ACCOUNT-AUTHENTICATION.md).
+
+## License
+
+Licensing notice issued in 2026. Copyright remains with the respective
+copyright holders identified in source notices and project records.
+All rights reserved for the material covered by [LICENSE](LICENSE).
+
+This repository is public so investors and other readers can review the work.
+Public visibility does not grant an additional license to use its covered
+material. The original material covered by LICENSE is proprietary. Except for applicable
+GitHub platform rights, legal exceptions, valid prior grants, and independently
+applicable licenses, copying, modification, redistribution, commercial use, and
+deployment require separate written permission from the copyright owner.
+Authorized copies of covered material must preserve the required notices,
+identify this repository and the source version, and clearly identify
+modifications. Attribution alone does not grant permission.
+
+The ERC-8415 specification, erc8415-kit, and independently licensed components
+are excluded and retain their own applicable terms. See
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
