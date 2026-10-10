@@ -26,6 +26,15 @@ not the Kit — is the product.
 
 ## Product Definition
 
+8415wallet is AI-native: an agent can act as the user's operator for an explicitly
+authorized task and complete its in-scope steps. The human authorizes the task,
+its conditions and limits; the agent performs the work and requests a new decision
+only when authority is absent, changed or exceeded. This operating model preserves
+all existing permissions, review requirements and enforcement. It does not require
+the human to operate each business-action button after a separate login. Product
+requirements and current implementation coverage are distinct; see §6 and the
+[product-security matrix](RESPONSIBILITY-CONTROLS-SECURITY.md).
+
 Assets, balances, holdings and history require verified wallet login before
 display; the public DApp entry remains open. Connection alone is insufficient.
 Login supports password, authenticator-generated TOTP (Google Authenticator /
@@ -84,10 +93,13 @@ Positioning:
 
 Its native ERC-8415 surface reads a projection and builds the three protocol
 transactions: `beginSettlement`, `finalizeSettlement` and `cancelSettlement`.
-Each is sent only through the user's own wallet after explicit review. The
-legacy **8415 Clearing** path clears a single trade while the register catches
-up. It does not advise, and it has no write path into a
-projection beyond transactions the user signs.
+Each requires explicit user authorization, an authorized signing path and current
+on-chain checks. A verified parent-task grant may cover in-scope child operations
+under §6; login alone never does. The current external-provider DApp still uses
+separate transaction review and provider confirmation, and is not evidence that
+task-authorized automatic execution exists. The legacy **8415 Clearing** path
+clears a single trade while the register catches up. It does not advise, and it
+has no write path into a projection beyond authorized signed transactions.
 
 The native ERC-8415 surface goes beyond an ownership view. ERC-8415 tracks two
 sequences that describe the same asset — the ERC-721 ownership sequence and the
@@ -563,10 +575,18 @@ undoing an earlier act.
 
 # 6. Security Requirements
 
+These requirements apply to human-operated and agent-operated flows in both DApp
+profiles. [Product security](RESPONSIBILITY-CONTROLS-SECURITY.md) defines the threat
+and acceptance matrix; its implementation ledger distinguishes existing controls
+from required work. A requirement is not a claim that its execution path exists.
+
+## 6.1 Asset and protocol boundaries
+
 The wallet MUST:
 
-- protect user keys; no key material leaves the device, and the wallet holds
-  no write path into the projection beyond transactions the user signs;
+- protect user keys; no key material leaves the device or is exposed to an agent,
+  and the wallet holds no write path into the projection beyond authorized
+  signed transactions;
 - verify ERC-165 support before reading a projection, and refuse to present
   projection data for a contract that does not advertise `0x6309e170`.
   Settlement data requires `0xf4a7d71b`, discovered separately;
@@ -583,6 +603,123 @@ The wallet MUST:
   A `FRESH_FINAL` / `REORG_SAFE` classification is not a finality statement;
 - treat a `registryReference` as an opaque locator and never render it as
   resolved content.
+
+## 6.2 Task authority and agent execution
+
+A parent-task authorization MUST bind the verified principal and agent, origin,
+tenant, account, chain, task identifier/version, intent, permitted operations,
+assets/quantities, destinations and counterparties or their constraints, price
+conditions, total amount and fee limits, expiry and revocation state. Explicitly
+distinguish a one-use action from a bounded task with multiple permitted steps or
+an aggregate allowance. Neither a broad intent nor a login session, imported JSON,
+a claimed agent identity, `approved=true` or an authorization reference is proof.
+Do not default to unlimited token/operator approval or expand scope through an
+approval, delegation, upgrade or alternate transfer path.
+
+Every child operation MUST be checked against the active grant and current state,
+including its actual transaction payload, nonce, value, asset, recipient, fees,
+remaining budget, price evidence and accepted inherited conditions. Preserve the
+same review and permission threshold as the corresponding human-operated action.
+Where those checks and the trusted signer are implemented, the agent completes
+all authorized preparation, execution and receipt verification without requiring
+another human business action for every button. Missing enforcement blocks the
+operation; it is not permission to bypass an external wallet confirmation.
+
+Illustrative task: sell one specified NFT only at a sale price strictly greater
+than USD 500. The approved terms must define the exact token/chain, settlement
+route, proceeds recipient, price denomination and gross/net interpretation,
+permitted fees, expiry and any currency-conversion source/freshness. The agent
+finds a conforming offer, verifies the bound quote, executes through an authorized
+settlement path and verifies the actual asset transfer and consideration. USD 500
+exactly is refused. An arbitrary transfer or an agent's self-reported valuation
+is not a sale; payment and asset exchange must meet the accepted atomic settlement
+conditions. This example grants no authority to perform a real transaction.
+
+## 6.3 Mobile DApp task authorization
+
+Support standard RFC 6238 TOTP applications, including Google Authenticator and
+FreeOTP, in the mobile DApp task-authorization flow; no native 8415wallet app is
+required by this scope. The 8415wallet page displays the exact task, material
+terms, limits and expiry, and obtains human confirmation and any required code.
+The verifier binds that confirmation to the displayed task digest/version and
+issues a short-lived, purpose-bound, replay-resistant authorization proof. After
+successful verification, the agent automatically resumes the same task within its
+authorized limits. Any necessary step-up authentication belongs in this flow; a
+separate login followed by manual business operation is not task completion.
+
+A standard TOTP app generates a code: it is not assumed to show transaction terms
+or provide push approval. The wallet's authorization page and verifier supply
+context binding. TOTP is neither a blockchain signature nor a substitute for an
+authorized transaction signer. Login, recovery and task-authorization proofs have
+distinct purposes and cannot be substituted for one another.
+
+## 6.4 Authorization-method changes
+
+Users must be able to bind, unbind and replace authenticators in the management
+pages of 8415wallet.com. A future native mobile app must expose the same management
+flow and security controls; this does not add a native app to the current DApp
+scope. Initial enrollment starts from verified registration identity and fresh
+independent verification using already-established methods, for example registered
+wallet-control proof plus OTP to the previously verified email. It must not require
+a code from the authenticator being enrolled, an original password that was never
+set, or a trusted device that has not yet been bound. The new authenticator's code
+confirms only its activation, not authority to start enrollment.
+
+Changing a password,
+a trusted-device binding, or any method able to authorize tasks is high-sensitivity
+account management, including enabling/disabling such a method. Require combined
+independent verification bound to the exact requested change: for example, OTP to
+the previously verified reserved email plus proof from another already-bound
+trusted device, or the original password plus that email OTP. Existing additional
+required authenticator/recovery checks are retained. A single session or single
+OTP is insufficient; a newly added device cannot attest to its own trust, and a
+User-Agent string or IP address is not a trusted-device proof.
+
+Change proofs MUST bind the action, old/new binding identifiers, identity, purpose,
+credential revision, nonce and expiry; consume them once at the atomic change.
+Activate a replacement only after verifying the new method, then invalidate the
+replaced method and affected sessions/proofs. Unbinding must retain an eligible
+independent method or use the separate recovery process. Loss of required factors
+uses independently verified recovery, never a direct reset or agent bypass.
+
+## 6.5 State, budgets, recovery and audit
+
+Cancellation, expiry, revocation, material task changes or stale authorization
+versions MUST block further execution and discard late approval responses. Keep
+credential revisions and task-authorization policy versions separate. A method
+change invalidates affected authentication/change proofs and rechecks or suspends
+affected task execution according to its policy; it never expands an agent's
+scope, silently renews a grant or converts a one-use approval into an allowance.
+
+Serialize budget reservations and one-use consumption across concurrent workers,
+tabs and retries at the authoritative execution boundary. Reserve principal and
+fees before dispatch, persist intent and execution state, and reconcile canonical
+receipts. An unknown outcome keeps its claim and reserved budget; never blindly
+resend, release its allowance or report failure/success without evidence. Revoking
+future authority cannot unsend a transaction already submitted. Record the task
+and child identifiers, policy/credential versions, reviewed digest, decision,
+transaction identity and reconciled outcome in an audit trail.
+Passwords, keys, seeds, OTPs, recovery codes and bearer proofs must not enter logs,
+agent prompts, public artifacts or persisted business-operation records.
+
+## 6.6 Implementation and acceptance evidence
+
+At main `da7e5478e1de1407e566149813108f8afa4c9342`, TOTP authenticates login;
+credential-recovery proofs authorize their existing reset flow, not transactions.
+The browser agent surface imports bounded JSON for human review and retains the
+external provider's second confirmation. `BudgetSigner` is test-runner process
+budgeting, not a persistent product allowance. `TransactionSigner` is an SDK
+interface; hardware CA verifies login challenges, with no established Ethereum
+transaction-signing integration. Parent-task authorization, mobile task approval,
+automatic resumption, product budget enforcement and trusted signer integration
+remain planned and require source-bound acceptance. The stronger combined-factor
+method-change lifecycle in §6.4 also remains to be completed and accepted.
+
+Track each requirement as planned, implemented with exact source evidence, or
+accepted with a specific result. Pure proposal/contract tests, package checks,
+previous CI success and source availability do not establish the missing end-to-end
+paths. Run the security acceptance matrix against the eventual exact candidate,
+including negative cases and genuine mobile DApp evidence, before claiming them.
 
 ---
 

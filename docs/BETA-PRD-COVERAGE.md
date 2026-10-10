@@ -15,6 +15,34 @@ actual results. Local EVM execution is real contract execution on a local chain;
 deterministic provider/DOM tests are synthetic. Neither is a genuine deployed
 wallet, physical-device or W-20 result.
 
+## AI-native task and authentication coverage
+
+Requirements in PRD §6 apply to both V2 and V3 without changing their asset,
+protocol or tenant scopes. The AI-native model lets the human authorize a task
+and its limits while the agent completes all in-scope work. It retains the same
+permission/review threshold and validates every child transaction; it does not
+require the human to operate each business-action button after a separate login.
+
+The following is the main-source baseline at
+`da7e5478e1de1407e566149813108f8afa4c9342`. All future acceptance must identify its
+own exact candidate and observed results. Previously passing CI or package checks
+are not evidence of these missing product paths.
+
+| Requirement | Existing implementation evidence | Remaining acceptance |
+| --- | --- | --- |
+| Bound parent-task intent, one-use/allowance distinction and child constraints | Browser `xiongan/agentRequest.ts` imports JSON for owner review only | PLANNED: verified grant, durable budget, revocation and per-child enforcement; PS-01–PS-06 and PS-13–PS-16 |
+| Mobile TOTP task confirmation followed by automatic agent resumption | `auth-service.mjs` implements TOTP login; no task proof | PLANNED: exact-task authorization page/verifier and genuine mobile app-switch/resume journey; PS-07–PS-08 |
+| Trusted transaction signing | SDK `TransactionSigner` interface and external-provider confirmation; CA handles login challenges | PLANNED: accepted signer integration bound to the verified grant and actual transaction; PS-04/PS-08 |
+| Management-page initial authenticator bind/unbind/replace and password changes with independent combined verification | Existing account management and conditional reserved-factor recovery | PLANNED: 8415wallet.com management flow, non-circular initial enrollment from verified identity/existing methods, full exact-change proof/trusted-device lifecycle, old-method invalidation and loss recovery; future native mobile management uses the same controls; PS-09–PS-12/PS-16 |
+| Persistent budgets and unknown-result recovery | Existing operation journals; `BudgetSigner` is test-process budgeting | PLANNED: task-scoped concurrent reservations and grant-aware reconciliation; PS-14–PS-15 |
+| Secret-free, source-bound audit and acceptance | Existing credential and operation protections cover their documented routes | PLANNED: full task-to-child-to-receipt audit and negative evidence; PS-17 |
+
+The detailed positive/negative scenarios and status vocabulary are in
+[product security](RESPONSIBILITY-CONTROLS-SECURITY.md#product-security-acceptance-matrix).
+A pure schema/proposal test does not accept a verifier, signer or automated sale.
+The example of selling one specified NFT strictly above USD 500 is a conditional
+parent task, not a general transfer permission or actual transaction authorization.
+
 ## V2 standalone foundation
 
 | Requirement | DApp route | Implementation and regression reference |
@@ -90,8 +118,12 @@ For each executed row record profile, source commit/tree, archive/runtime
 hashes, full origin, chain ID, exact deployment pins, wallet/browser/device
 versions, accounts, displayed terms, transaction hashes and canonical receipts.
 Record actual elapsed registrar time; local time jumps are not real testnet
-waiting. No signing, transaction, deployment or real-device result is implied
-by this package or matrix.
+waiting. For PS-01–PS-17 also record task/child identifiers, displayed scope digest,
+credential revision, task policy version, budget/nonce transitions, signer path,
+exact change/approval purpose and canonical outcome. Redact secrets and private
+account/recovery details from public evidence. Mark unexecuted rows NOT_RUN and
+missing capabilities BLOCKED; no signing, transaction, deployment or real-device
+result is implied by this package or matrix.
 
 Independent security review is uncompleted. That limits assurance and general
 release claims; it does not prevent this functional-testing Beta from being

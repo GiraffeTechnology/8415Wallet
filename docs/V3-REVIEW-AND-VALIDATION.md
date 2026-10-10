@@ -1,12 +1,29 @@
 # V3 review and unified validation handoff
 
-Current source handoff: [V3 development closure](V3-DEVELOPMENT-CLOSURE.md),
-2026-10-01. Its integrated source is NOT_TESTED. The dated batches below are
-not cumulative acceptance of that tree. Source implementation and independent
-security/testnet/UI approval remain distinct. All new deployment and test
-execution must use managed CTYun/SIN Linux; Windows is development only.
+## Current evidence interpretation
 
-Source closure is not release acceptance. Source was UNTESTED at initial freeze;
+The main-source baseline for the product-security requirements is
+`da7e5478e1de1407e566149813108f8afa4c9342`. Read
+[BETA-PRD-COVERAGE.md](BETA-PRD-COVERAGE.md) and the
+[product-security matrix](RESPONSIBILITY-CONTROLS-SECURITY.md) for the exact split
+between implemented login/request-review capabilities and planned task grants,
+mobile TOTP task authorization, automatic resumption, trusted signing and stronger
+combined-factor method management. Package publication and previous passing CI
+cannot establish these missing end-to-end paths. The PS-01–PS-17 scenarios remain
+PLANNED / NOT_ACCEPTED at this baseline.
+
+The dated source closures and test batches below remain historical evidence,
+not a cumulative current-head pass or a claim that the current source was never
+tested. Source implementation and independent security/testnet/UI approval remain
+distinct. Preserve source-specific results instead of reusing an earlier label.
+All new deployment and test execution must use managed CTYun/SIN Linux; Windows
+is development only.
+
+## Historical source handoff and control evidence
+
+The [V3 development closure](V3-DEVELOPMENT-CLOSURE.md) dated 2026-10-01 was recorded
+as NOT_TESTED at its freeze. Source closure is not release acceptance.
+Source was UNTESTED at initial freeze;
 pre-repair Stage 5F local validation passed 651 Node and 49 EVM cases after earlier review repairs
 and read-only detached/reserved payment observation. No new authority is added.
 Fresh independent review, genuine UI and public-testnet gates remain open.
@@ -59,6 +76,44 @@ payer isolation, failed/reentrant payout, hostile/malformed RPC, journal crash a
 CAS behavior, UI terms/signature scope, and proxy/registrar trust assumptions.
 The accepted registrar's association of an entry with a chain occurrence is an
 explicit trust boundary, not cryptographic proof of off-chain legal identity.
+
+## Task-authority and authentication acceptance
+
+In addition to W-01–W-24, execute PS-01–PS-17 against the candidate that actually
+implements those capabilities. The human-authorized parent task must let an agent
+complete every in-scope step while each child retains the required checks. Demonstrate
+the strict-above-USD-500 single-NFT example with bound price, fee and settlement
+evidence; a transfer or agent-provided price alone must fail. No real transaction
+is authorized by this example or by the acceptance matrix.
+
+Use a genuine mobile DApp journey for the displayed task, human confirmation,
+standard TOTP entry and automatic agent resumption, including app switch, cancel,
+expiry, task change and replay. Do not assume Google Authenticator/FreeOTP displays
+transaction details or supplies push approval. Login/recovery proof is not task
+authority, and TOTP/CA login is not a blockchain signer.
+
+Verify initial authenticator binding, replacement and unbinding in the
+8415wallet.com management pages. Initial enrollment must use verified registration
+identity and existing independent verification without requiring its own unbound
+factor or a password/device never established. A future native mobile management
+page must use the same controls; no native-app implementation is accepted or
+required by current mobile-DApp testing.
+
+Verify independent combined factors for each authorization-method change, including
+password and authenticator bind/unbind/replace; exact change/purpose binding; new
+method verification before activation; old-method invalidation; loss recovery;
+and distinct credential/task policy versions. Test new-device self-attestation,
+User-Agent/IP-only trust, single-session/OTP bypass, stale proof and change-target
+substitution as failures. Exercise concurrent durable budgets and unknown-result
+reconciliation without resending. Keep secrets and private recovery details out
+of public evidence.
+
+For each scenario record exact source/build, test and environment, displayed
+terms/digest, identities by synthetic or privacy-safe references, policy/credential
+versions, signer integration and canonical outcomes. Distinguish local/synthetic,
+physical-device, deployed-chain and independent-review evidence. Record PASS,
+FAIL, NOT_RUN or BLOCKED separately; a pure task-contract test is not acceptance
+of an authorization service, provider integration or complete automated sale.
 
 ## Unified sequence
 
