@@ -1,0 +1,44 @@
+[
+  {
+    "source_path": "src/wallet/assetView.ts",
+    "source_commit": "de79227f0b886d86d674a70d67d5608576c8156c",
+    "start_line": 201,
+    "end_line": 212,
+    "excerpt_sha256": "d0b81c2aaa4d983c2af176f86f31378a535a9d2a40bb91a9feb2169e44e50acc"
+  },
+  {
+    "source_path": "src/wallet/assetView.ts",
+    "source_commit": "de79227f0b886d86d674a70d67d5608576c8156c",
+    "start_line": 219,
+    "end_line": 240,
+    "excerpt_sha256": "b47a5063665b298179e1f3d20df66907e19d3d97070c4630d12a04c2e731ea38"
+  },
+  {
+    "source_path": "src/wallet/freshness.ts",
+    "source_commit": "de79227f0b886d86d674a70d67d5608576c8156c",
+    "start_line": 66,
+    "end_line": 71,
+    "excerpt_sha256": "9ed2285d37ce508b9835e3d1112ca5ba9244363f5b1d16aa344ac1c04625338b"
+  },
+  {
+    "source_path": "src/wallet/collisions.ts",
+    "source_commit": "de79227f0b886d86d674a70d67d5608576c8156c",
+    "start_line": 54,
+    "end_line": 56,
+    "excerpt_sha256": "3a942f26578b7074a49ee718a3a8b2338a0c39fee526f3abff98de1bacff226f"
+  },
+  {
+    "source_path": "src/wallet/collisions.ts",
+    "source_commit": "de79227f0b886d86d674a70d67d5608576c8156c",
+    "start_line": 112,
+    "end_line": 127,
+    "excerpt_sha256": "6c19fa9b6ab26d4369a021ce56fca37967d6a21ce0673eae0d6cd3e07809a37a"
+  },
+  {
+    "source_path": "src/wallet/collisions.ts",
+    "source_commit": "de79227f0b886d86d674a70d67d5608576c8156c",
+    "start_line": 142,
+    "end_line": 150,
+    "excerpt_sha256": "5ed809141207a46faeabae67a88c67da4c9cd237f4cde95897c17d01f3244312"
+  }
+]

@@ -1,0 +1,125 @@
+PROPRIETARY SOFTWARE NOTICE AND LICENSE TERMS
+
+Project: 8415wallet
+Repository: https://github.com/GiraffeTechnology/8415Wallet
+Licensing notice issued in 2026. Copyright remains with the respective
+copyright holders identified in source notices and project records.
+All rights reserved, subject to the exceptions stated below.
+Covered original material: Eligible new copyrightable original additions first published under these
+terms in this notice, the current license sections and notices, and the
+associated legal-file packaging and verification implementation; eligible
+subsequent original material expressly designated in a file-level notice.
+Only new original additions are covered in a mixed file, to the extent the
+Rights Holder may lawfully place them under these terms. Previously validly
+licensed or dedicated portions, third-party material and uncopyrightable
+material are excluded.
+
+1. Scope and ownership
+
+This notice applies only to copyrightable original material in this project
+owned by the respective copyright holders identified in source notices and project records
+(each, for rights that holder owns or is authorized to license, the "Rights Holder") and expressly
+identified above or in a corresponding file-level notice as covered by this
+notice (the "Covered Material"), and only to the extent the Rights Holder may
+lawfully place that material under these terms. This notice does not claim
+ownership of third-party material.
+
+In a mixed or modified file containing independently licensed, public-domain,
+or third-party material, these terms apply only to the Rights Holder's
+expressly identified copyrightable original contributions that may lawfully
+carry these terms. They do not change the status of the underlying material.
+
+Covered Material may include source code, object code, documentation, and other
+project assets, but only to the extent the Rights Holder owns the relevant
+rights. Third-party material, separately licensed material, and the exclusions
+in Section 5 are not subject to the restrictions in this notice.
+
+2. Reservation of rights; permission required
+
+This notice does not grant a public license to use the Covered Material.
+Making the project publicly accessible does not grant additional permission.
+Except to the extent permitted by Section 4, a valid prior license, or a
+separate written permission from the Rights Holder, you may not copy, modify,
+adapt, create derivative works from, distribute, publish, sublicense, sell,
+rent, commercially exploit, execute, host, or deploy the Covered Material,
+including as part of a product, service, or blockchain application.
+
+Permission must be obtained before carrying out the restricted activity and
+must expressly cover that activity. Attribution alone is not permission.
+No patent, trademark, or other intellectual property license is granted by
+this notice. All rights not otherwise validly granted or permitted by law are reserved.
+
+3. Attribution for separately authorized copies
+
+Unless a separate written permission from the Rights Holder expressly states
+otherwise, any copying, modification, or distribution authorized by the
+Rights Holder subject to this notice must meet all of the following conditions:
+
+(a) Preserve the applicable copyright notices and a complete copy of this
+    notice with every copy or substantial portion of the Covered Material.
+(b) Identify the original project name, the canonical repository URL above,
+    and the source release, tag, or full commit identifier from which the
+    Covered Material was obtained.
+(c) Clearly identify modified files and state that modifications were made,
+    by whom, and when. Do not misrepresent modified material as the original.
+(d) Include the attribution and notices in a readily accessible notices file
+    accompanying source distributions. For authorized binary distributions
+    or hosted deployments, include them in accompanying documentation or a
+    readily accessible legal-notices page.
+(e) Retain every third-party notice required by its applicable license.
+
+Failure to provide the required source attribution for a copy authorized
+subject to this notice violates these terms. Attribution alone does not
+authorize a copy that otherwise requires permission.
+
+These conditions do not enlarge the scope of any permission. They do not
+impose new conditions on activities independently permitted under Section 4,
+a valid prior license, or a third-party license.
+
+4. Platform rights and legal exceptions
+
+Nothing in this notice limits rights validly granted to GitHub or its users
+under the applicable GitHub terms, including permitted viewing and forking
+through GitHub's functionality. This notice grants no additional rights beyond
+those platform rights.
+
+Nothing in this notice restricts any activity that applicable law permits
+without permission, including applicable copyright limitations and exceptions,
+or excludes any right or remedy that cannot lawfully be excluded.
+
+5. Independently licensed material and exclusions
+
+Third-party components and separately licensed files or portions remain
+governed by their applicable terms. Their copyright, license, patent,
+attribution, and NOTICE statements must be retained as those terms require.
+Specific independently applicable license or dedication notices take precedence
+over a general proprietary designation for the material they identify.
+Omitting an item from a notices inventory does not transfer ownership or
+extinguish independently valid rights. The restrictions and attribution
+requirements in this notice do not apply to independently licensed or
+public-domain material.
+
+The ERC-8415 specification and the erc8415-kit project are excluded from this
+notice. Their own applicable terms continue to govern them. References to,
+implementation of, or inclusion of material from those projects do not
+relicense their specification or separately licensed material under this notice.
+This notice does not restrict an independently created implementation of a
+standard merely because it implements that standard.
+
+This notice does not revoke, narrow, or add conditions to valid prior grants
+of rights. Independently applicable terms control to the extent applicable.
+
+6. Disclaimer and limitation of liability
+
+To the maximum extent permitted by applicable law, the Covered Material is
+provided as available, with all faults, and without any express or implied
+warranty, including warranties of satisfactory quality, merchantability,
+fitness for a particular purpose, title, or non-infringement. The Rights
+Holder makes no assurance that it is secure, accurate, complete, or suitable
+for a particular use.
+
+To the maximum extent permitted by applicable law, the Rights Holder will
+not be liable for any loss, damage, cost, or claim arising from the Covered
+Material or its use or inability to be used, whether in contract, tort, or
+otherwise. This limitation does not exclude or limit liability that cannot
+lawfully be excluded or limited.

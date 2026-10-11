@@ -23,7 +23,28 @@ No permission is granted to sell, sublicense, or redistribute the product.
 Public availability does not grant an open-source license. All rights not
 expressly granted or otherwise applicable are reserved.
 
-4. Independent rights
+4. Non-commercial use of public example code
+
+For the public example code in examples/ only, the following permission is
+an exception to Section 3. Individuals and research or educational
+institutions may download and use that code for non-commercial purposes,
+including personal study, research, and teaching. This permission includes
+the copies needed for those authorized uses. Retain applicable copyright,
+license, attribution, and third-party notices.
+
+This permission applies only to example material that its respective rights
+holder owns or is authorized to license under these terms. Commercial use
+and redistribution of Covered Material require prior written permission;
+no open-source license is granted by this section. Existing independently
+applicable rights and valid prior permissions remain governed by their own
+terms.
+
+This exception applies only to the public examples. It does not extend to
+the rest of the wallet or modify the existing trial permission for product
+installation packages, their accompanying licenses, or their internal
+notices.
+
+5. Independent rights
 
 Third-party components and independently licensed material remain governed
 by their own licenses and notices. These terms do not revoke or narrow valid
@@ -31,7 +52,7 @@ prior grants, including any applicable Apache License 2.0 grant. They do not
 restrict rights provided by applicable law or the applicable platform terms.
 The terms accompanying a component control for that component.
 
-5. Warranty
+6. Warranty
 
 To the extent permitted by applicable law, Covered Material is provided
 "AS IS", without warranties of any kind. No assurance of production

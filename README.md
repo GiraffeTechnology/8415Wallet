@@ -21,3 +21,9 @@ Product packages may be downloaded, installed, and run for trial and evaluation 
 Copying, extracting, modifying, or redistributing covered product code requires prior written permission from its rights holder. Copies strictly necessary to install and run an authorized trial are permitted. Public download availability does not grant an open-source license.
 
 Third-party components, independently licensed material, valid prior permissions, and rights provided by applicable law remain governed by their respective terms. Preserve the notices included with each package.
+
+## Implementation examples
+
+[Selected ERC-8415 discussion examples](examples/README.md).
+
+Individuals and research or educational institutions may download and use the public example code for non-commercial purposes under [LICENSE, Section 4](LICENSE). This scoped exception does not change the installation-package trial terms above.
