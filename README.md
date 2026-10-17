@@ -14,7 +14,7 @@ Supported operations and networks depend on the product version. Record agreemen
 
 ## Download and trial
 
-Product packages are provided through [Releases](https://github.com/GiraffeTechnology/8415Wallet/releases) when available. Follow the requirements, installation guide, and checksum instructions supplied with the selected release. Packages marked Beta are intended for functional testing.
+Public installation downloads are temporarily suspended pending a security review. Previously published installation packages must not be redistributed. No replacement package is approved by this notice. A replacement will be listed only after source and nested-package inspection, required verification, and independent download checks.
 
 Product packages may be downloaded, installed, and run for trial and evaluation under [LICENSE](LICENSE).
 
